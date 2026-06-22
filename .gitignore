@@ -1,0 +1,25 @@
+# Rust
+Server/target/
+Server/**/*.o
+Server/**/*.bin
+Server/**/*.exe
+
+# Cocos Creator
+Web/temp/
+Web/library/
+Web/build/
+Web/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+moefarm.db
