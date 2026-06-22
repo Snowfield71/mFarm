@@ -131,7 +131,7 @@ export class MainUI extends Component {
         bgG.fill();
         // 底部圆角过渡
         bgG.fillColor = new Color(75, 175, 75, 235);
-        bgG.roundRect(-Design.WIDTH / 2, -barH / 2, Design.WIDTH, barH, 14, 14, 0, 0);
+        bgG.roundRect(-Design.WIDTH / 2, -barH / 2, Design.WIDTH, barH, 14);
         bgG.fill();
         this.topBar.addChild(bg);
 
@@ -423,7 +423,7 @@ export class MainUI extends Component {
         bgG.fill();
         // 下半截（带圆角顶部）
         bgG.fillColor = new Color(65, 155, 65, 240);
-        bgG.roundRect(-Design.WIDTH / 2, -navH / 2, Design.WIDTH, navH, 14, 14, 0, 0);
+        bgG.roundRect(-Design.WIDTH / 2, -navH / 2, Design.WIDTH, navH, 14);
         bgG.fill();
         this.bottomNav.addChild(bg);
 
@@ -644,7 +644,7 @@ export class MainUI extends Component {
             bl.string = '合成';
             bl.fontSize = 14;
             bl.color = new Color(255, 255, 255);
-            bl.bold = true;
+            bl.isBold = true;
             bl.horizontalAlign = Label.HorizontalAlign.CENTER;
             bl.verticalAlign = Label.VerticalAlign.CENTER;
             const bb = btn.addComponent(Button);
@@ -800,7 +800,6 @@ export class MainUI extends Component {
             bl.string = btn.text;
             bl.fontSize = 14;
             bl.color = new Color(255, 255, 255);
-            bl.bold = true;
             bl.horizontalAlign = Label.HorizontalAlign.CENTER;
             bl.verticalAlign = Label.VerticalAlign.CENTER;
             const bb = b.addComponent(Button);
@@ -823,7 +822,7 @@ export class MainUI extends Component {
         label.string = text;
         label.fontSize = fontSize;
         label.color = color;
-        label.bold = bold;
+        label.isBold = bold;
         label.horizontalAlign = Label.HorizontalAlign.LEFT;
         label.verticalAlign = Label.VerticalAlign.CENTER;
         return node;

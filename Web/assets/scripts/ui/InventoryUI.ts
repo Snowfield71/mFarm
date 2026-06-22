@@ -32,7 +32,7 @@ export class InventoryUI extends Component {
         const titleLabel = title.addComponent(Label);
         titleLabel.string = '🎒 物品栏';
         titleLabel.fontSize = 18;
-        titleLabel.bold = true;
+        titleLabel.isBold = true;
         titleLabel.color = new Color(51, 51, 51);
         titleLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
         this.node.addChild(title);

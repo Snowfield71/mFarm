@@ -57,7 +57,7 @@ export class PopupDialog extends Component {
         const titleLabel = titleNode.addComponent(Label);
         titleLabel.string = title;
         titleLabel.fontSize = 17;
-        titleLabel.bold = true;
+        titleLabel.isBold = true;
         titleLabel.color = new Color(51, 51, 51);
         titleLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
         this.dialogNode!.addChild(titleNode);
