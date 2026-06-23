@@ -6,7 +6,7 @@ import { InventorySystem } from '../systems/InventorySystem';
 import { LandSystem, LandBlock } from '../systems/LandSystem';
 import { CraftSystem } from '../systems/CraftSystem';
 import { getItem, getPlantableCrops, ItemDef } from '../config/ItemConfig';
-import { getRecipesByLevel, RecipeDef } from '../config/RecipeConfig';
+import { getRecipesByLevel } from '../config/RecipeConfig';
 import { ImageCache } from '../utils/ImageCache';
 
 const { ccclass } = _decorator;
@@ -48,6 +48,7 @@ export class MainUI extends Component {
         this.createSkyBackground();
         this.createTopBar();
         this.createLandGrid();
+        this.createGrassDecoration();
         this.createBottomNav();
         this.createPanels();
         this.createPopupDialog();
@@ -56,12 +57,15 @@ export class MainUI extends Component {
     }
 
     // ============================
-    //  1. 天空背景（大范围覆盖避免留黑边）
+    //  1. 天空背景（自适应屏幕比例）
     // ============================
     private createSkyBackground() {
         const sky = new Node('Sky');
-        const bigW = Design.WIDTH * 2;
-        const bigH = Design.HEIGHT * 2;
+        const vs = view.getVisibleSize();
+        const vw = vs.width;
+        const vh = vs.height;
+        const bigW = vw * 2;
+        const bigH = vh * 2;
         const g = sky.addComponent(Graphics);
         const steps = 20;
         for (let i = 0; i < steps; i++) {
@@ -76,11 +80,69 @@ export class MainUI extends Component {
             g.fill();
         }
 
-        // 云朵（范围扩大）
-        const cloudPositions = [[-130, 260, 55], [20, 290, 42], [140, 220, 48], [-50, 150, 38], [180, 140, 35]];
-        for (const [cx, cy, size] of cloudPositions) {
+        // 太阳（位置按可见区域比例）
+        const sun = new Node('Sun');
+        sun.setPosition(vw * 0.3, vh * 0.38);
+
+        // 最外层光晕（大）
+        const sunGlow = new Node('Glow');
+        const sgg = sunGlow.addComponent(Graphics);
+        sgg.fillColor = new Color(255, 240, 150, 40);
+        sgg.circle(0, 0, 55);
+        sgg.fill();
+        sgg.fillColor = new Color(255, 230, 120, 60);
+        sgg.circle(0, 0, 45);
+        sgg.fill();
+        sun.addChild(sunGlow);
+
+        // 中层主体（橙色）
+        const sunBody = new Node('Body');
+        const sb = sunBody.addComponent(Graphics);
+        sb.fillColor = new Color(255, 200, 50, 220);
+        sb.circle(0, 0, 38);
+        sb.fill();
+        // 高光1
+        sb.fillColor = new Color(255, 220, 80, 180);
+        sb.circle(-8, 8, 25);
+        sb.fill();
+        // 高光2（亮白）
+        sb.fillColor = new Color(255, 255, 200, 120);
+        sb.circle(-12, 12, 15);
+        sb.fill();
+        sun.addChild(sunBody);
+
+        // 柔和光芒（圆角射线）
+        const sunRays = new Node('Rays');
+        const sr = sunRays.addComponent(Graphics);
+        sr.fillColor = new Color(255, 220, 100, 100);
+        for (let a = 0; a < 8; a++) {
+            const angle = (a * Math.PI * 2) / 8;
+            const rx = 48 * Math.cos(angle);
+            const ry = 48 * Math.sin(angle);
+            sr.circle(rx, ry, 6);
+        }
+        sr.fill();
+        // 小光芒点
+        sr.fillColor = new Color(255, 240, 150, 80);
+        for (let a = 0; a < 8; a++) {
+            const angle = (a * Math.PI * 2) / 8 + Math.PI / 8;
+            const rx = 58 * Math.cos(angle);
+            const ry = 58 * Math.sin(angle);
+            sr.circle(rx, ry, 3);
+        }
+        sr.fill();
+        sun.addChild(sunRays);
+
+        sky.addChild(sun);
+
+        // 云朵（按可见区域比例分布，覆盖天空上半部分）
+        const cloudTemplates: [number, number, number][] = [
+            [-0.30, 0.42, 48], [-0.42, 0.32, 52], [-0.24, 0.22, 40],
+            [0.06, 0.26, 45],  [0.18, 0.18, 35],
+        ];
+        for (const [cxRatio, cyRatio, size] of cloudTemplates) {
             const cloud = new Node('Cloud');
-            cloud.setPosition(cx, cy);
+            cloud.setPosition(cxRatio * vw, cyRatio * vh);
             const cg = cloud.addComponent(Graphics);
             cg.fillColor = new Color(255, 255, 255, 100);
             const s = size;
@@ -96,9 +158,9 @@ export class MainUI extends Component {
         sky.setPosition(0, 0);
         this.node.addChild(sky);
 
-        // 下方草地（从 Y=60 向下覆盖到底）
+        // 下方草地（自适应：顶部在天空与地面分界处，向下覆盖）
         const grass = new Node('Grass');
-        const grassTop = 80;
+        const grassTop = vh * 0.12;
         const grassH = bigH;
         const gg = grass.addComponent(Graphics);
         gg.fillColor = new Color(144, 238, 144, 180);
@@ -110,6 +172,189 @@ export class MainUI extends Component {
 
     // ============================
     //  3. 顶部栏（固定在顶部）
+    // ============================
+    // ============================
+    //  装饰小星星
+    // ============================
+    private drawStar(parent: Node, cx: number, cy: number, size: number, color: Color) {
+        const star = new Node('Star');
+        star.setPosition(cx, cy);
+        const g = star.addComponent(Graphics);
+        g.fillColor = color;
+        const s = size;
+        const points = 5;
+        for (let i = 0; i < points * 2; i++) {
+            const r = i % 2 === 0 ? s : s * 0.4;
+            const angle = (i * Math.PI) / points - Math.PI / 2;
+            if (i === 0) g.moveTo(r * Math.cos(angle), r * Math.sin(angle));
+            else g.lineTo(r * Math.cos(angle), r * Math.sin(angle));
+        }
+        g.close();
+        g.fill();
+        parent.addChild(star);
+    }
+
+    // ============================
+    //  装饰小叶子
+    // ============================
+    private drawLeafDeco(parent: Node, cx: number, cy: number, size: number, color: Color, flip: boolean = false) {
+        const leaf = new Node('Leaf');
+        leaf.setPosition(cx, cy);
+        if (flip) leaf.setScale(-1, 1);
+        const g = leaf.addComponent(Graphics);
+        g.fillColor = color;
+        // 绘制简单的叶子形状
+        g.moveTo(0, 0);
+        g.bezierCurveTo(size * 0.3, size * 0.5, size * 0.7, size * 0.4, size, 0);
+        g.bezierCurveTo(size * 0.7, -size * 0.4, size * 0.3, -size * 0.5, 0, 0);
+        g.fill();
+        parent.addChild(leaf);
+    }
+
+    // ============================
+    //  简约卡通草（单个叶片）
+    // ============================
+    private drawGrassBlade(parent: Node, cx: number, cy: number, height: number, color: Color, bendX: number = 0) {
+        const blade = new Node('GrassBlade');
+        blade.setPosition(cx, cy);
+        const g = blade.addComponent(Graphics);
+        g.fillColor = color;
+        g.moveTo(0, 0);
+        g.quadraticCurveTo(bendX - 2.5, height * 0.5, bendX + 1, height);
+        g.quadraticCurveTo(bendX + 2.5, height * 0.5, 0, 0);
+        g.fill();
+        // 叶片中间细线装饰（增强立体感）
+        g.strokeColor = new Color(color.r - 30, color.g - 30, color.b - 20, 60);
+        g.lineWidth = 0.8;
+        g.moveTo(0, 2);
+        g.quadraticCurveTo(bendX, height * 0.4, bendX + 0.5, height - 2);
+        g.stroke();
+        parent.addChild(blade);
+    }
+
+    // ============================
+    //  一簇草（多个叶片组合）
+    // ============================
+    private drawGrassCluster(parent: Node, cx: number, cy: number, size: number, color: Color) {
+        const cluster = new Node('GrassCluster');
+        cluster.setPosition(cx, cy);
+        const count = 4;
+        for (let i = 0; i < count; i++) {
+            const t = i / (count - 1);
+            const offsetX = (t - 0.5) * 8;
+            const h = size * (0.7 + 0.3 * (1 - Math.abs(t - 0.5) * 0.6));
+            const bend = (t - 0.5) * 6;
+            this.drawGrassBlade(cluster, offsetX, 0, h, color, bend);
+        }
+        parent.addChild(cluster);
+    }
+
+    // ============================
+    //  在田地两侧绘制草装饰
+    // ============================
+    private createGrassDecoration() {
+        const grassColors = [
+            new Color(120, 200, 100, 200),
+            new Color(100, 185, 80, 200),
+            new Color(140, 215, 110, 180),
+            new Color(80, 170, 70, 190),
+        ];
+
+        // 计算田地区域
+        const tileSize = 68;
+        const gap = 8;
+        const cols = 3;
+        const totalW = cols * tileSize + (cols - 1) * gap;
+        const rows = Math.ceil(9 / cols);
+        const totalH = rows * tileSize + (rows - 1) * gap;
+        const leftEdge = -totalW / 2;
+        const rightEdge = totalW / 2;
+
+        const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+        // 底部空白填充范围（landContainer 坐标系）
+        const fillTop = -totalH / 2;  // 田地底部边缘
+        const fillBottom = -220;      // 底部导航栏上方约30px
+
+        // === 1. 底部大量留白填充草（最多、分布最广，填补留白）===
+        const fillContainer = new Node('BottomFillLayer');
+        fillContainer.setPosition(0, 0);
+        this.landContainer.addChild(fillContainer);
+
+        // 基础填充 22 簇（覆盖整个底部，增加数量）
+        for (let i = 0; i < 22; i++) {
+            this.drawGrassCluster(
+                fillContainer,
+                rand(-150, 150),
+                rand(fillTop + 5, fillBottom),
+                rand(10, 17),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+        // 左下额外 5 簇（集中在左侧偏下区域加深填充）
+        for (let i = 0; i < 5; i++) {
+            this.drawGrassCluster(
+                fillContainer,
+                rand(-150, -40),
+                rand(fillTop - 20, fillBottom + 20),
+                rand(11, 16),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+
+        // === 2. 左右侧草（中等层级）===
+        const sideContainer = new Node('SideGrassLayer');
+        sideContainer.setPosition(0, 0);
+        this.landContainer.addChild(sideContainer);
+
+        // 左侧 5 簇（整体往左5px）
+        for (let i = 0; i < 5; i++) {
+            this.drawGrassCluster(
+                sideContainer,
+                rand(leftEdge - 31, leftEdge - 13),
+                rand(-totalH / 2 + 10, totalH / 2 - 10),
+                rand(11, 18),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+        // 右侧 3 簇
+        for (let i = 0; i < 3; i++) {
+            this.drawGrassCluster(
+                sideContainer,
+                rand(rightEdge + 8, rightEdge + 26),
+                rand(-totalH / 2 + 10, totalH / 2 - 10),
+                rand(12, 17),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+        // 右上额外 3 簇（集中在右侧上方）
+        for (let i = 0; i < 3; i++) {
+            this.drawGrassCluster(
+                sideContainer,
+                rand(rightEdge + 8, rightEdge + 28),
+                rand(0, totalH / 2 - 10),
+                rand(12, 17),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+
+        // === 3. 预留扩展背景草（最底层，远离tile避免重叠）===
+        const extendContainer = new Node('ExtendGrassLayer');
+        extendContainer.setPosition(0, 0);
+        this.landContainer.insertChild(extendContainer, 0);
+
+        const extendCount = Math.floor(rand(3, 5));
+        for (let i = 0; i < extendCount; i++) {
+            this.drawGrassCluster(
+                extendContainer,
+                rand(-totalW / 2 + 15, totalW / 2 - 15),
+                rand(-totalH / 2 - 35, -totalH / 2 - 20),
+                rand(9, 13),
+                grassColors[Math.floor(rand(0, 4))],
+            );
+        }
+    }
+
     // ============================
     private createTopBar() {
         const visibleH = view.getVisibleSize().height;
@@ -183,6 +428,13 @@ export class MainUI extends Component {
         lvNode.name = 'LevelText';
         this.topBar.addChild(lvNode);
 
+        // 等级两侧艺术星星
+        const starColor = new Color(255, 255, 200, 150);
+        this.drawStar(this.topBar, lvX - 42, lvY + 2, 6, starColor);
+        this.drawStar(this.topBar, lvX + 42, lvY + 2, 6, starColor);
+        this.drawStar(this.topBar, lvX + 50, lvY - 4, 4, starColor);
+        this.drawStar(this.topBar, lvX - 50, lvY - 4, 4, starColor);
+
         // 经验条（堆叠3层效果）
         const expBarW = 140, expBarH = 14;
         const expX = -25, expY = -8;
@@ -227,6 +479,11 @@ export class MainUI extends Component {
         expText.name = 'ExpText';
         expText.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
         expBg.addChild(expText);
+
+        // 经验条旁边的装饰叶子
+        const leafColor = new Color(180, 230, 150, 150);
+        this.drawLeafDeco(this.topBar, expX + expBarW / 2 + 18, expY, 10, leafColor);
+        this.drawLeafDeco(this.topBar, expX - expBarW / 2 - 18, expY, 10, leafColor, true);
 
         // 右侧货币区（堆叠卡片效果）
         const cy = 6;
@@ -328,6 +585,8 @@ export class MainUI extends Component {
         });
     }
 
+    // ============================
+
     private createLandTile(block: LandBlock, size: number): Node {
         const tile = new Node(`Tile_${block.id}`);
         tile.addComponent(UITransform).setContentSize(size, size);
@@ -358,6 +617,43 @@ export class MainUI extends Component {
         bg.setPosition(0, 2);
         fillRoundRect(bg, size - 6, size - 6, 6, new Color(c[0], c[1], c[2], c[3]));
         tile.addChild(bg);
+
+        // ---- 土壤质感效果（仅泥土态地块） ----
+        if (block.state === 'empty' || block.state === 'occupied') {
+            const soilNode = new Node('SoilDetail');
+            const soilG = soilNode.addComponent(Graphics);
+            soilNode.setPosition(0, 2);
+
+            // 深浅颗粒点（模拟土壤颗粒）
+            const darkBrown = new Color(c[0] - 40, c[1] - 35, c[2] - 25, 120);
+            const midBrown = new Color(c[0] - 20, c[1] - 15, c[2] - 10, 90);
+            for (let i = 0; i < 18; i++) {
+                const px = (Math.random() - 0.5) * (size - 18);
+                const py = (Math.random() - 0.5) * (size - 18);
+                const pr = 1.8 + Math.random() * 2.5;
+                soilG.fillColor = i % 2 === 0 ? darkBrown : midBrown;
+                soilG.circle(px, py, pr);
+                soilG.fill();
+            }
+
+            // 细腻泥土纹路（短弧线）
+            soilG.strokeColor = new Color(c[0] - 30, c[1] - 25, c[2] - 20, 80);
+            soilG.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                const sx = (Math.random() - 0.5) * (size - 18);
+                const sy = (Math.random() - 0.5) * (size - 18);
+                soilG.moveTo(sx, sy);
+                soilG.quadraticCurveTo(
+                    sx + (Math.random() - 0.5) * 10,
+                    sy + (Math.random() - 0.5) * 10,
+                    sx + (Math.random() - 0.5) * 12,
+                    sy + (Math.random() - 0.5) * 12,
+                );
+                soilG.stroke();
+            }
+
+            tile.addChild(soilNode);
+        }
 
         // 田埂外框（凸起效果）
         const borderOut = new Node('BorderOut');
@@ -436,6 +732,23 @@ export class MainUI extends Component {
         gg.fill();
         this.bottomNav.addChild(glow);
 
+        // 散落五角星装饰（底部一排，增强效果）
+        const starPositions2: [number, number, number, [number, number, number, number]][] = [
+            [-Design.WIDTH / 2 + 26, -navH / 2 + 12, 7, [255, 255, 200, 200]],
+            [-Design.WIDTH / 2 + 80, -navH / 2 + 6, 4, [255, 220, 120, 160]],
+            [-Design.WIDTH / 2 + 130, -navH / 2 + 14, 6, [255, 255, 220, 180]],
+            [-70, -navH / 2 + 7, 5, [255, 220, 150, 170]],
+            [-10, -navH / 2 + 13, 7, [200, 255, 200, 190]],
+            [50, -navH / 2 + 6, 4, [255, 255, 200, 160]],
+            [110, -navH / 2 + 12, 6, [255, 230, 130, 180]],
+            [Design.WIDTH / 2 - 110, -navH / 2 + 7, 5, [255, 255, 220, 170]],
+            [Design.WIDTH / 2 - 60, -navH / 2 + 14, 7, [200, 255, 200, 200]],
+            [Design.WIDTH / 2 - 20, -navH / 2 + 7, 4, [255, 220, 120, 160]],
+        ];
+        for (const [sx, sy, ssize, scol] of starPositions2) {
+            this.drawStar(this.bottomNav, sx, sy, ssize, new Color(scol[0], scol[1], scol[2], scol[3]));
+        }
+
         // 按钮分割竖线
         const spacing = Design.WIDTH / 4;
         for (let i = 1; i < 4; i++) {
@@ -484,6 +797,18 @@ export class MainUI extends Component {
             iconNode.setPosition(0, 5);
             this.createUiIcon(item.icon, iconNode, 34);
             btn.addChild(iconNode);
+
+            // 按钮内散落星星
+            const btnW2 = (Design.WIDTH / 4 - 10) / 2;
+            const btnH2 = (navH - 10) / 2;
+            const btnStars = [
+                [-btnW2 + 8, btnH2 - 8, 4, [255, 255, 200, 150]],
+                [btnW2 - 8, -btnH2 + 8, 3, [255, 220, 120, 130]],
+                [i === 1 || i === 3 ? -btnW2 + 8 : btnW2 - 8, -btnH2 + 8, 3, [200, 255, 200, 120]],
+            ] as [number, number, number, [number, number, number, number]][];
+            for (const [sx, sy, ssize, scol] of btnStars) {
+                this.drawStar(btn, sx, sy, ssize, new Color(scol[0], scol[1], scol[2], scol[3]));
+            }
 
             // 文字（单独节点避免被遮挡）
             const labelNode = this.makeLabel(item.name, 13, new Color(255, 255, 255, 230), false, 0, -18, 60, 20);
@@ -823,7 +1148,7 @@ export class MainUI extends Component {
         label.fontSize = fontSize;
         label.color = color;
         label.isBold = bold;
-        label.horizontalAlign = Label.HorizontalAlign.LEFT;
+        label.horizontalAlign = Label.HorizontalAlign.CENTER;
         label.verticalAlign = Label.VerticalAlign.CENTER;
         return node;
     }

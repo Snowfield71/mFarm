@@ -73,7 +73,6 @@ export class GameManager extends Component {
         const itemIds = Object.keys(ITEM_DB);
         Logger.info(TAG, `🖼️ 开始预加载 ${itemIds.length} 张物品图片...`);
         const loaded = await ImageCache.getInstance().preload(itemIds);
-        Logger.info(TAG, `🖼️ 图片预加载完成 ${loaded}/${itemIds.length}`);
     }
 
     /** 创建所有子系统节点 */
@@ -153,10 +152,10 @@ export class GameManager extends Component {
         this.experience -= this.nextLevelExp;
         this.nextLevelExp = Math.floor(this.nextLevelExp * GameValues.EXP_GROWTH_RATE);
         const newRecipes = getAllRecipes().filter(
-            r => r.requiredLevel <= this.playerLevel && !this.unlockedRecipes.includes(r.id)
+            r => r.requiredLevel <= this.playerLevel && this.unlockedRecipes.indexOf(r.id) === -1
         );
         for (const r of newRecipes) {
-            if (!this.unlockedRecipes.includes(r.id)) this.unlockedRecipes.push(r.id);
+            if (this.unlockedRecipes.indexOf(r.id) === -1) this.unlockedRecipes.push(r.id);
         }
         this.eventManager.emit('levelUp', { newLevel: this.playerLevel });
         Logger.info(TAG, `🎉 升级! Lv.${this.playerLevel}`);
