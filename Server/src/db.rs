@@ -24,7 +24,5 @@ pub async fn run_migrations(pool: &MySqlPool) -> anyhow::Result<()> {
         }
         sqlx::query(trimmed).execute(pool).await?;
     }
-
-    tracing::info!("✅ 数据库迁移完成");
     Ok(())
 }

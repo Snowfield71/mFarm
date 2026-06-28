@@ -7,8 +7,13 @@ export interface SaveData {
     diamond: number;
     experience: number;
     landBlocks: any[];
+    plantCounts?: Record<string, number>;
     inventory: Array<{ itemId: string; count: number }>;
+    inventoryMaxSlots?: number;
+    activeCrafts?: any[];
+    nextCraftId?: number;
     unlockedRecipes: string[];
+    discoveredItems?: string[];
     totalPlayTime: number;
     lastLoginDate: string;
     completedQuests: string[];

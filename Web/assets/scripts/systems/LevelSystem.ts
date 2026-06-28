@@ -29,10 +29,9 @@ export class LevelSystem extends Component {
     /** 获取总地块数 */
     getMaxLandBlocks(level: number): number {
         let max = GameValues.INITIAL_LAND;
-        const unlocks = Object.entries(GameValues.LAND_UNLOCK)
-            .sort(([a], [b]) => Number(a) - Number(b));
-        for (const [lv, count] of unlocks) {
-            if (level >= Number(lv)) max += count;
+        const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
+        for (const lv of levels) {
+            if (level >= lv) max += GameValues.LAND_UNLOCK[lv];
         }
         return Math.min(max, GameValues.MAX_LAND);
     }

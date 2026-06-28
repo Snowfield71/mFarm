@@ -48,7 +48,6 @@ async fn main() -> anyhow::Result<()> {
             .map(|p| p.join(&assets_path))
             .unwrap_or(assets_path)
     };
-    tracing::info!("📁 静态资源目录: {}", abs_assets.display());
 
     let state = Arc::new(AppState { db, config });
 
@@ -82,8 +81,6 @@ async fn main() -> anyhow::Result<()> {
         .with_state(state);
 
     let addr = format!("{}:{}", server_host, server_port);
-    tracing::info!("🚀 萌田农场后端服务启动: http://{}", addr);
-    tracing::info!("💡 图片访问示例: http://{}/assets/textures/items/Vegetables/item_wheat.png", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;

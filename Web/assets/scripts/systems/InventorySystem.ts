@@ -39,6 +39,27 @@ export class InventorySystem extends Component {
             });
     }
 
+    loadFromSave(slots: InventorySlot[] = [], maxSlots: number = GameValues.INVENTORY_SLOTS) {
+        this.maxSlots = Math.max(GameValues.INVENTORY_SLOTS, maxSlots || GameValues.INVENTORY_SLOTS);
+        this.slots = [];
+        for (let i = 0; i < this.maxSlots; i++) {
+            const source = slots[i];
+            this.slots.push(source?.itemId && source.count > 0
+                ? { itemId: source.itemId, count: Math.min(source.count, GameValues.MAX_STACK) }
+                : { itemId: '', count: 0 });
+        }
+        this.compactSlots();
+        EventManager.getInstance().emit('inventoryChanged');
+    }
+
+    exportSave(): { slots: InventorySlot[]; maxSlots: number } {
+        this.compactSlots();
+        return {
+            maxSlots: this.maxSlots,
+            slots: this.slots.slice(0, this.maxSlots).map(slot => ({ itemId: slot.itemId, count: slot.count })),
+        };
+    }
+
     /** 添加物品 */
     addItem(itemId: string, count: number = 1): boolean {
         let remaining = count;

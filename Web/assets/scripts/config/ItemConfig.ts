@@ -40,7 +40,7 @@ export const ITEM_DB: Record<string, ItemDef> = {
     cherry: { id: 'cherry', name: '樱桃', category: ItemCategory.CROP, description: '珍贵果实，特殊配方用', sellPrice: 35, unlockLevel: 5, rarity: 3, iconColor: '#DC143C', isCrop: true, growthTime: 150, harvestCount: 3 },
     banana: { id: 'banana', name: '香蕉', category: ItemCategory.CROP, description: '黄色水果，营养丰富', sellPrice: 22, unlockLevel: 4, rarity: 2, iconColor: '#FFD700', isCrop: true, growthTime: 100, harvestCount: 1 },
     apple: { id: 'apple', name: '苹果', category: ItemCategory.CROP, description: '红色水果，多用途', sellPrice: 28, unlockLevel: 5, rarity: 3, iconColor: '#FF4500', isCrop: true, growthTime: 140, harvestCount: 1 },
-    lettuce: { id: 'lettuce', name: '生菜', category: ItemCategory.CROP, description: '绿色蔬菜，新鲜脆爽', sellPrice: 18, unlockLevel: 2, rarity: 1, iconColor: '#90EE90', isCrop: true, growthTime: 75, harvestCount: 2 },
+    lettuce: { id: 'lettuce', name: '生菜', category: ItemCategory.CROP, description: '绿色蔬菜，新鲜脆爽', sellPrice: 18, unlockLevel: 2, rarity: 2, iconColor: '#90EE90', isCrop: true, growthTime: 75, harvestCount: 2 },
     egg: { id: 'egg', name: '鸡蛋', category: ItemCategory.CROP, description: '养鸡场产出，烘焙必需', sellPrice: 25, unlockLevel: 3, rarity: 2, iconColor: '#FFD700', isCrop: true, growthTime: 110, harvestCount: 1 },
     milk: { id: 'milk', name: '牛奶', category: ItemCategory.CROP, description: '牧场产出，烹饪常用', sellPrice: 24, unlockLevel: 3, rarity: 2, iconColor: '#FFFFFF', isCrop: true, growthTime: 100, harvestCount: 1 },
 

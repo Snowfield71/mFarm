@@ -3,7 +3,8 @@
  * 提供 Label、图标等 UI 组件的创建工具方法
  */
 import { Color, Graphics, Label, Node, Sprite, UITransform } from 'cc';
-import { getItem, RecipeDef } from '../../config/ItemConfig';
+import { getItem } from '../../config/ItemConfig';
+import { RecipeDef } from '../../config/RecipeConfig';
 import { ImageCache } from '../../utils/ImageCache';
 import { fillRoundRect } from './UIDraw';
 

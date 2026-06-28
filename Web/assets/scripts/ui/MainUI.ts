@@ -5,8 +5,8 @@ import { EventManager } from '../core/EventManager';
 import { InventorySystem } from '../systems/InventorySystem';
 import { LandBlock, LandSystem } from '../systems/LandSystem';
 import { CraftSystem } from '../systems/CraftSystem';
-import { getItem, getPlantableCrops, ItemDef } from '../config/ItemConfig';
-import { getRecipesByLevel, RecipeDef } from '../config/RecipeConfig';
+import { getItem, getPlantableCrops, ITEM_DB, ItemCategory, ItemDef } from '../config/ItemConfig';
+import { getRecipe, getRecipesByLevel, RecipeDef } from '../config/RecipeConfig';
 import { fillRect, fillRoundRect, strokeRoundRect } from './utils/UIDraw';
 import {
     createLabel, createItemIcon, applyUiIcon,
@@ -59,6 +59,10 @@ export class MainUI extends Component {
             .getAllBlocks()
             .filter(block => block.state === 'growing')
             .forEach(block => this.updateGrowingProgress(block.id, block.progress));
+
+        if (this.panels.craft?.active && CraftSystem.getInstance().getActiveCraftCount() > 0) {
+            this.updateCraftProgressViews();
+        }
     }
 
     // Scene
@@ -317,7 +321,7 @@ export class MainUI extends Component {
             { name: '背包', icon: 'bag', panel: 'inventory' },
             { name: '合成', icon: 'gear', panel: 'craft' },
             { name: '商店', icon: 'shop', panel: 'shop' },
-            { name: '任务', icon: 'leaf', panel: 'quest' },
+            { name: '图鉴', icon: 'catalog', panel: 'quest' },
         ];
 
         const slotW = Design.WIDTH / buttons.length;
@@ -357,10 +361,11 @@ export class MainUI extends Component {
 
     private createPanel(title: string, w: number, h: number): Node {
         const panel = new Node(`Panel_${title}`);
-        panel.setPosition(0, 5);
+        panel.setPosition(0, -55);
         panel.addComponent(UITransform).setContentSize(w, h);
         fillRoundRect(panel, w, h, 14, new Color(255, 250, 230, 252));
         strokeRoundRect(panel, w, h, 14, new Color(124, 184, 105, 160), 2);
+        panel.addComponent(Button);
 
         const close = new Node('Close');
         close.addComponent(UITransform).setContentSize(32, 32);
@@ -692,15 +697,17 @@ export class MainUI extends Component {
         let count = GameValues.INITIAL_LAND;
         const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
         for (const lv of levels) {
-            if (gm.playerLevel >= lv) count = GameValues.INITIAL_LAND + GameValues.LAND_UNLOCK[lv];
+            if (gm.playerLevel >= lv) count += GameValues.LAND_UNLOCK[lv];
         }
         return Math.min(count, GameValues.MAX_LAND);
     }
 
     private getNextLandUnlockLevel(index: number): number {
         const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
+        let count = GameValues.INITIAL_LAND;
         for (const lv of levels) {
-            if (index < GameValues.INITIAL_LAND + GameValues.LAND_UNLOCK[lv]) return lv;
+            count += GameValues.LAND_UNLOCK[lv];
+            if (index < count) return lv;
         }
         return 99;
     }
@@ -1000,7 +1007,9 @@ export class MainUI extends Component {
         const panel = this.panels.shop!;
         const body = this.clearPanelBody(panel);
         const gm = GameManager.getInstance();
-        const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel + 5);
+        const crops = getPlantableCrops()
+            .filter(c => c.unlockLevel <= gm.playerLevel + 5)
+            .sort((a, b) => a.unlockLevel === b.unlockLevel ? a.sellPrice - b.sellPrice : a.unlockLevel - b.unlockLevel);
 
         const viewportH = 336;
         const viewport = new Node('ShopViewport');
@@ -1040,7 +1049,7 @@ export class MainUI extends Component {
             name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
             row.addChild(name);
 
-            const price = Math.max(5, Math.floor(crop.sellPrice * 0.8));
+            const price = this.getSeedBuyPrice(crop);
             const priceLabel = this.makeLabel(`${price} 金`, 10, new Color(194, 132, 20), false, -52, -9, 90, 14);
             priceLabel.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
             row.addChild(priceLabel);
@@ -1088,20 +1097,84 @@ export class MainUI extends Component {
         const gm = GameManager.getInstance();
         const craft = CraftSystem.getInstance();
         const inv = InventorySystem.getInstance();
-        const recipes = getRecipesByLevel(gm.playerLevel).slice(0, 6);
+        const recipes = getRecipesByLevel(gm.playerLevel);
         const active = craft.getAllActiveCrafts();
 
         const status = this.makeLabel(`进行中 ${active.length}/${GameValues.MAX_CRAFT_TABLES}`, 12, new Color(92, 104, 82), false, -8, 152, 260, 20);
         status.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
         body.addChild(status);
 
-        recipes.forEach((recipe, index) => {
-            const y = 112 - index * 54;
-            const row = new Node(`Recipe_${recipe.id}`);
-            row.addComponent(UITransform).setContentSize(276, 48);
+        const visibleActiveRows = Math.min(active.length, 1);
+        active.slice(0, visibleActiveRows).forEach((process, index) => {
+            const recipe = getRecipe(process.recipeId);
+            if (!recipe) return;
+            const y = 124 - index * 34;
+            const row = new Node(`Crafting_${process.craftId}`);
+            row.addComponent(UITransform).setContentSize(276, 30);
             row.setPosition(0, y);
-            fillRoundRect(row, 276, 48, 8, new Color(248, 252, 238, 245));
-            strokeRoundRect(row, 276, 48, 8, new Color(154, 196, 138, 120), 1);
+            fillRoundRect(row, 276, 30, 8, new Color(238, 248, 232, 245));
+            strokeRoundRect(row, 276, 30, 8, new Color(134, 190, 122, 125), 1);
+
+            const icon = this.createItemIcon(recipe.product.itemId, 22);
+            icon.setPosition(-118, 0);
+            row.addChild(icon);
+
+            const title = this.makeLabel(this.recipeName(recipe), 10, new Color(54, 72, 46), true, -48, 5, 120, 14);
+            title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(title);
+
+            const progress = Math.max(0, Math.min(100, process.progress));
+            const barBg = new Node('CraftProgressBg');
+            barBg.setPosition(-8, -8);
+            fillRoundRect(barBg, 124, 7, 4, new Color(184, 210, 172, 180));
+            row.addChild(barBg);
+            const barFill = new Node('CraftProgressFill');
+            const fillW = Math.max(4, 124 * progress / 100);
+            barFill.setPosition(-62 + fillW / 2, 0);
+            fillRoundRect(barFill, fillW, 7, 4, new Color(78, 188, 214, 235));
+            barBg.addChild(barFill);
+
+            const percent = this.makeLabel(`${Math.floor(progress)}%`, 10, new Color(76, 166, 78), true, 106, 0, 46, 16);
+            percent.name = 'CraftProgressText';
+            row.addChild(percent);
+            body.addChild(row);
+        });
+
+        if (active.length > visibleActiveRows) {
+            const more = this.makeLabel(`还有 ${active.length - visibleActiveRows} 个合成中`, 10, new Color(92, 104, 82), false, -8, 102, 180, 16);
+            more.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            body.addChild(more);
+        }
+
+        const recipeTop = active.length > 0 ? 88 : 112;
+        const recipeBottom = -154;
+        const recipeViewportH = Math.max(90, recipeTop - recipeBottom);
+        const recipeViewport = new Node('CraftRecipeViewport');
+        recipeViewport.addComponent(UITransform).setContentSize(284, recipeViewportH);
+        recipeViewport.setPosition(0, recipeBottom + recipeViewportH / 2);
+        recipeViewport.addComponent(Mask);
+        body.addChild(recipeViewport);
+
+        const rowH = 48;
+        const gap = 6;
+        const contentH = Math.max(recipeViewportH, recipes.length * (rowH + gap) - gap + 8);
+        const content = new Node('CraftRecipeContent');
+        content.addComponent(UITransform).setContentSize(274, contentH);
+        recipeViewport.addChild(content);
+
+        const scrollView = recipeViewport.addComponent(ScrollView);
+        scrollView.horizontal = false;
+        scrollView.vertical = true;
+        scrollView.inertia = true;
+        scrollView.content = content;
+
+        recipes.forEach((recipe, index) => {
+            const y = contentH / 2 - 4 - rowH / 2 - index * (rowH + gap);
+            const row = new Node(`Recipe_${recipe.id}`);
+            row.addComponent(UITransform).setContentSize(276, rowH);
+            row.setPosition(0, y);
+            fillRoundRect(row, 276, rowH, 8, new Color(248, 252, 238, 245));
+            strokeRoundRect(row, 276, rowH, 8, new Color(154, 196, 138, 120), 1);
 
             const productIcon = this.createItemIcon(recipe.product.itemId, 28);
             productIcon.setPosition(-114, 0);
@@ -1121,8 +1194,13 @@ export class MainUI extends Component {
             start.addChild(this.makeLabel('合成', 12, new Color(255, 255, 255), true, 0, 0, 54, 22));
             start.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.startCraft(recipe.id));
             row.addChild(start);
-            body.addChild(row);
+            content.addChild(row);
         });
+
+        this.scheduleOnce(() => {
+            if (!recipeViewport.isValid || !content.isValid) return;
+            scrollView.scrollToTop(0);
+        }, 0);
     }
 
     private renderQuestPanel() {
@@ -1131,32 +1209,98 @@ export class MainUI extends Component {
         const gm = GameManager.getInstance();
         const inv = InventorySystem.getInstance();
         const land = LandSystem.getInstance();
-        const crops = getPlantableCrops().filter(crop => crop.unlockLevel <= gm.playerLevel + 5);
+        const items: ItemDef[] = [];
+        for (const id in ITEM_DB) {
+            if (Object.prototype.hasOwnProperty.call(ITEM_DB, id)) items.push(ITEM_DB[id]);
+        }
+        items.sort((a, b) => {
+            const levelA = this.catalogLevel(a);
+            const levelB = this.catalogLevel(b);
+            if (levelA !== levelB) return levelA - levelB;
+            if (a.rarity !== b.rarity) return a.rarity - b.rarity;
+            return a.category - b.category;
+        });
 
-        crops.slice(0, 6).forEach((crop, index) => {
-            const unlocked = crop.unlockLevel <= gm.playerLevel;
-            const row = new Node(`Catalog_${crop.id}`);
-            row.addComponent(UITransform).setContentSize(276, 46);
-            row.setPosition(0, 140 - index * 52);
-            fillRoundRect(row, 276, 46, 8, unlocked ? new Color(248, 252, 238, 245) : new Color(224, 228, 216, 232));
-            strokeRoundRect(row, 276, 46, 8, new Color(154, 196, 138, 120), 1);
+        const progress = gm.getCatalogProgress();
+        const summary = this.makeLabel(`收集 ${progress.unlocked}/${progress.total}  成就 ${gm.achievements.length}`, 12, new Color(92, 104, 82), false, -94, 152, 190, 20);
+        summary.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+        body.addChild(summary);
 
-            const icon = this.createItemIcon(crop.id, 30);
-            icon.setPosition(-118, 0);
+        const viewportH = 316;
+        const viewport = new Node('CatalogViewport');
+        viewport.addComponent(UITransform).setContentSize(284, viewportH);
+        viewport.setPosition(0, -12);
+        viewport.addComponent(Mask);
+        body.addChild(viewport);
+
+        const rowH = 52;
+        const gap = 6;
+        const contentH = Math.max(viewportH, items.length * (rowH + gap) - gap + 8);
+        const content = new Node('CatalogContent');
+        content.addComponent(UITransform).setContentSize(274, contentH);
+        viewport.addChild(content);
+
+        const scrollView = viewport.addComponent(ScrollView);
+        scrollView.horizontal = false;
+        scrollView.vertical = true;
+        scrollView.inertia = true;
+        scrollView.content = content;
+
+        items.forEach((item, index) => {
+            const y = contentH / 2 - 4 - rowH / 2 - index * (rowH + gap);
+            const discovered = gm.hasDiscoveredItem(item.id);
+            const levelUnlocked = item.unlockLevel <= gm.playerLevel;
+            const row = new Node(`Catalog_${item.id}`);
+            row.addComponent(UITransform).setContentSize(266, rowH);
+            row.setPosition(-4, y);
+            fillRoundRect(row, 266, rowH, 8, discovered ? new Color(248, 252, 238, 245) : new Color(224, 228, 216, 232));
+            strokeRoundRect(row, 266, rowH, 8, new Color(154, 196, 138, 120), 1);
+
+            const icon = this.createItemIcon(item.id, 32);
+            icon.setPosition(-112, 0);
             row.addChild(icon);
+            if (!discovered) icon.setScale(0.75, 0.75, 1);
 
-            const name = this.makeLabel(`${this.itemName(crop.id)} Lv.${crop.unlockLevel}`, 12, new Color(54, 72, 46), true, -48, 8, 132, 16);
+            const name = this.makeLabel(`${discovered ? this.itemName(item.id) : '未发现'} Lv.${this.catalogLevel(item)}`, 12, new Color(54, 72, 46), true, -52, 11, 140, 16);
             name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
             row.addChild(name);
 
-            const stats = this.makeLabel(`拥有 ${inv.getItemCount(crop.id)}  种植 ${land.getPlantCount(crop.id)} 次`, 10, new Color(108, 112, 96), false, -48, -9, 166, 14);
-            stats.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-            row.addChild(stats);
+            const own = inv.getItemCount(item.id);
+            const plantText = item.isCrop ? ` 种植 ${land.getPlantCount(item.id)} 次` : '';
+            const info = this.makeLabel(`拥有 ${own}${plantText}`, 10, new Color(108, 112, 96), false, -52, -6, 160, 14);
+            info.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(info);
 
-            const state = this.makeLabel(unlocked ? '已解锁' : '未解锁', 10, unlocked ? new Color(76, 166, 78) : new Color(150, 156, 140), true, 104, 0, 56, 18);
-            row.addChild(state);
-            body.addChild(row);
+            const rarity = this.makeLabel(discovered ? `${item.rarity}星` : (levelUnlocked ? '待获得' : '未解锁'), 10, discovered ? new Color(194, 132, 20) : new Color(150, 156, 140), true, 104, 0, 56, 18);
+            row.addChild(rarity);
+            content.addChild(row);
         });
+
+        const track = new Node('CatalogScrollTrack');
+        track.setPosition(140, -12);
+        fillRoundRect(track, 4, viewportH, 2, new Color(167, 192, 145, 100));
+        body.addChild(track);
+
+        const thumbH = Math.max(34, viewportH * viewportH / contentH);
+        const thumb = new Node('CatalogScrollThumb');
+        thumb.setPosition(0, (viewportH - thumbH) / 2);
+        fillRoundRect(thumb, 4, thumbH, 2, new Color(105, 174, 86, 210));
+        track.addChild(thumb);
+
+        const syncThumb = () => {
+            if (!thumb.isValid) return;
+            const maxOffset = scrollView.getMaxScrollOffset().y;
+            if (maxOffset <= 0) return;
+            const ratio = Math.max(0, Math.min(1, scrollView.getScrollOffset().y / maxOffset));
+            thumb.setPosition(0, (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH));
+        };
+        scrollView.node.on(ScrollView.EventType.SCROLLING, syncThumb);
+        scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, syncThumb);
+        this.scheduleOnce(() => {
+            if (!viewport.isValid || !content.isValid) return;
+            scrollView.scrollToTop(0);
+            syncThumb();
+        }, 0);
     }
 
     private buySeed(crop: ItemDef) {
@@ -1165,13 +1309,17 @@ export class MainUI extends Component {
             this.toast(`Lv.${crop.unlockLevel} 解锁`);
             return;
         }
-        const price = Math.max(5, Math.floor(crop.sellPrice * 0.8));
+        const price = this.getSeedBuyPrice(crop);
         if (!gm.spendGold(price)) {
             this.toast('金币不足');
             return;
         }
         InventorySystem.getInstance().addItem(crop.id, 1);
         this.toast(`购买 ${this.itemName(crop.id)} x1`);
+    }
+
+    private getSeedBuyPrice(crop: ItemDef): number {
+        return Math.max(crop.sellPrice, Math.ceil(crop.sellPrice * 1.2));
     }
 
     private startCraft(recipeId: string) {
@@ -1398,16 +1546,24 @@ export class MainUI extends Component {
     }
 
     private toast(text: string) {
+        const vs = view.getVisibleSize();
+        const targetY = vs.height * 0.39 - 30;
         const node = new Node('Toast');
-        node.addComponent(UITransform).setContentSize(230, 36);
-        node.setPosition(0, 55);
-        fillRoundRect(node, 230, 36, 10, new Color(40, 50, 40, 215));
-        node.addChild(this.makeLabel(text, 13, new Color(255, 255, 255), true, 0, 0, 220, 30));
+        node.addComponent(UITransform).setContentSize(214, 34);
+        node.setPosition(0, targetY - 14);
+        fillRoundRect(node, 214, 34, 12, new Color(248, 252, 238, 246));
+        strokeRoundRect(node, 214, 34, 12, new Color(124, 184, 105, 165), 1.5);
+        const dot = new Node('ToastDot');
+        dot.setPosition(-84, 0);
+        fillRoundRect(dot, 12, 12, 6, new Color(86, 190, 92, 245));
+        node.addChild(dot);
+        node.addChild(this.makeLabel(text, 13, new Color(54, 86, 46), true, 8, 0, 166, 28));
         this.node.addChild(node);
+        node.setScale(0.92, 0.92, 1);
         tween(node)
-            .to(0.16, { position: new Vec3(0, 72, 0) })
-            .delay(1.25)
-            .to(0.18, { position: new Vec3(0, 102, 0), scale: new Vec3(0.86, 0.86, 1) })
+            .to(0.16, { position: new Vec3(0, targetY, 0), scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+            .delay(0.9)
+            .to(0.18, { position: new Vec3(0, targetY + 20, 0), scale: new Vec3(0.94, 0.94, 1) })
             .call(() => node.destroy())
             .start();
     }
@@ -1430,6 +1586,10 @@ export class MainUI extends Component {
             this.toast(`${this.recipeName(data.recipe)} 完成`);
             if (this.panels.craft?.active) this.renderCraftPanel();
             if (this.panels.inventory?.active) this.renderInventoryPanel();
+            if (this.panels.quest?.active) this.renderQuestPanel();
+        });
+        evt.on('achievementUnlocked', () => {
+            if (this.panels.quest?.active) this.renderQuestPanel();
         });
         evt.on('cropMatured', (data: any) => this.refreshLandBlock(data.blockId));
         evt.on('landExpanded', () => {
@@ -1468,6 +1628,26 @@ export class MainUI extends Component {
         }
     }
 
+    private updateCraftProgressViews() {
+        const body = this.panels.craft?.getChildByName('Body');
+        if (!body) return;
+
+        for (const process of CraftSystem.getInstance().getAllActiveCrafts()) {
+            const row = body.getChildByName(`Crafting_${process.craftId}`);
+            if (!row) continue;
+            const progress = Math.max(0, Math.min(100, process.progress));
+            const barBg = row.getChildByName('CraftProgressBg');
+            const barFill = barBg?.getChildByName('CraftProgressFill');
+            if (barFill) {
+                const fillW = Math.max(4, 124 * progress / 100);
+                barFill.setPosition(-62 + fillW / 2, 0);
+                fillRoundRect(barFill, fillW, 7, 4, new Color(78, 188, 214, 235));
+            }
+            const text = row.getChildByName('CraftProgressText');
+            if (text) text.getComponent(Label)!.string = `${Math.floor(progress)}%`;
+        }
+    }
+
     private makeLabel(text: string, fontSize: number, color: Color, bold: boolean, x: number, y: number, w: number, h: number): Node {
         return createLabel(text, fontSize, color, bold, x, y, w, h);
     }
@@ -1486,6 +1666,41 @@ export class MainUI extends Component {
 
     private recipeName(recipe: RecipeDef | undefined): string {
         return getRecipeDisplayName(recipe);
+    }
+
+    private catalogLevel(item: ItemDef): number {
+        switch (item.category) {
+            case ItemCategory.CROP:
+            case ItemCategory.PROCESSED:
+            case ItemCategory.FOOD:
+                return item.unlockLevel;
+            case ItemCategory.BUILDING:
+                return item.unlockLevel + 3;
+            case ItemCategory.DECORATION:
+                return item.unlockLevel + 4;
+            case ItemCategory.TOOL:
+                return item.unlockLevel + 5;
+            case ItemCategory.SPECIAL:
+                return item.unlockLevel + 6;
+            case ItemCategory.AD_REWARD:
+                return item.unlockLevel + 7;
+            default:
+                return item.unlockLevel;
+        }
+    }
+
+    private categoryName(category: ItemCategory): string {
+        switch (category) {
+            case ItemCategory.CROP: return '农产品';
+            case ItemCategory.PROCESSED: return '加工品';
+            case ItemCategory.FOOD: return '料理';
+            case ItemCategory.BUILDING: return '建筑';
+            case ItemCategory.DECORATION: return '装饰';
+            case ItemCategory.SPECIAL: return '特殊';
+            case ItemCategory.TOOL: return '道具';
+            case ItemCategory.AD_REWARD: return '广告';
+            default: return '物品';
+        }
     }
 
     private rng(seed: number, offset: number): number {

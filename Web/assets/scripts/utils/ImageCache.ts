@@ -1,10 +1,10 @@
 /**
- * 鍥剧墖鍔犺浇缂撳瓨绯荤粺
+ * 图片加载缓存系统
  *
- * 浠庡悗绔?(Rust/Axum) 涓嬭浇鐗╁搧 PNG 鍥剧墖骞剁紦瀛樹负 SpriteFrame
- * 鍓嶇鍙洿鎺ラ€氳繃 itemId 鑾峰彇鍥剧墖锛屾棤闇€鍏冲績 URL 鍜屽姞杞借繃绋?
+ * 从后端静态资源服务下载物品 PNG，并缓存为 SpriteFrame。
+ * 前端通过 itemId 获取图片，不需要关心具体 URL。
  *
- * 鍚庣鍥剧墖璺緞: /assets/textures/items/{Category}/item_{itemId}.png
+ * 后端图片路径：/assets/textures/items/{Category}/item_{itemId}.png
  */
 
 import { SpriteFrame, Texture2D, ImageAsset, assetManager, Color } from 'cc';
@@ -12,22 +12,39 @@ import { ServerConfig } from './ServerConfig';
 
 const TAG = '[ImageCache]';
 
-/** 鐗╁搧ID 鈫?鍒嗙被鐩綍 鏄犲皠锛堝彧鍖呭惈鍚庣瀹為檯瀛樺湪鐨勫浘鐗囷級 */
+/** 物品 ID -> 静态资源分类目录 */
 const CATEGORY_MAP: Record<string, string> = {
     // Vegetables
     wheat: 'Vegetables', corn: 'Vegetables', tomato: 'Vegetables',
     carrot: 'Vegetables', pumpkin: 'Vegetables', lettuce: 'Vegetables',
-    // mushroom: 'Vegetables', (鍚庣鏆傛棤鍥剧墖)
     // Fruits
     strawberry: 'Fruits', cherry: 'Fruits', banana: 'Fruits', apple: 'Fruits',
-    // Flowers (鍚庣鏆傛棤鍥剧墖锛屼娇鐢?emoji 鍥為€€)
     // Processed
     flour: 'Processed', butter: 'Processed', honey: 'Processed', milk: 'Processed',
+    sugar: 'Processed', oatmeal: 'Processed', bananaSauce: 'Processed',
+    jam: 'Processed', carrotPuree: 'Processed', cheese: 'Processed', ketchup: 'Processed',
     // Foods
-    bread: 'Foods', cake: 'Foods', egg: 'Foods',
+    bread: 'Foods', cake: 'Foods', egg: 'Foods', croissant: 'Foods',
+    cupcake: 'Foods', cookie: 'Foods', pie: 'Foods', strawberryCake: 'Foods',
+    baguette: 'Foods', donut: 'Foods', chocolateCake: 'Foods', cereal: 'Foods',
+    pasta: 'Foods', butterToast: 'Foods', honeyToast: 'Foods', jamToast: 'Foods',
+    // Buildings
+    craftTable: 'Buildings', chickenCoop: 'Buildings', barn: 'Buildings',
+    warehouse: 'Buildings', house: 'Buildings', well: 'Buildings',
+    garden: 'Buildings', beehive: 'Buildings',
+    // Decorations
+    sunflower: 'Decorations', tulip: 'Decorations', rose: 'Decorations',
+    tree: 'Decorations', palmTree: 'Decorations', stone: 'Decorations',
+    log: 'Decorations', fence: 'Decorations', tent: 'Decorations',
+    pumpkinLantern: 'Decorations',
+    // Special
+    mysteryBox: 'Special', luckyStar: 'Special', jade: 'Special',
+    // Tools
+    speedTicket: 'Tools', doubleHarvestCard: 'Tools',
+    goldBoostCard: 'Tools', universalSeed: 'Tools',
 };
 
-/** UI 鍥炬爣 鈫?鏂囦欢鍚?鏄犲皠 */
+/** UI 图标 -> 文件名映射 */
 const UI_ICON_MAP: Record<string, string> = {
     gold: 'icon_gold',
     diamond: 'icon_diamond',
@@ -35,11 +52,12 @@ const UI_ICON_MAP: Record<string, string> = {
     gear: 'icon_gear',
     shop: 'icon_shop',
     leaf: 'icon_leaf',
+    catalog: 'icon_catalog',
     billboard: 'icon_billboard',
 };
 
-/** 鍚庣瀹為檯鏈夌殑鍥剧墖鏁伴噺 */
-const TOTAL_REAL_IMAGES = 17;
+/** 后端当前应存在的物品图片数量 */
+const TOTAL_REAL_IMAGES = 62;
 
 export class ImageCache {
     private static instance: ImageCache;
@@ -52,19 +70,19 @@ export class ImageCache {
         return ImageCache.instance;
     }
 
-    /** 鑾峰彇鐗╁搧鍥剧墖URL */
+    /** 获取物品图片 URL */
     getItemUrl(itemId: string): string {
         const cat = CATEGORY_MAP[itemId] || 'Vegetables';
         return ServerConfig.getItemImageUrl(cat, itemId);
     }
 
-    /** 鑾峰彇 UI 鍥炬爣 URL */
+    /** 获取 UI 图标 URL */
     getUiIconUrl(iconName: string): string {
         const filename = UI_ICON_MAP[iconName] || iconName;
-        return `${ServerConfig.imageBaseUrl}/../ui/${filename}.png`;
+        return ServerConfig.getUiImageUrl(filename);
     }
 
-    /** 鍔犺浇 UI 鍥炬爣锛堝甫缂撳瓨锛?*/
+    /** 加载 UI 图标，带缓存和并发去重 */
     async loadUiIcon(iconName: string, timeout = 8000): Promise<SpriteFrame | null> {
         const cacheKey = `_ui_${iconName}`;
         const cached = this.cache.get(cacheKey);
@@ -91,13 +109,13 @@ export class ImageCache {
         return promise;
     }
 
-    /** 寮傛鍔犺浇鐗╁搧鍥剧墖锛堝甫缂撳瓨锛?*/
+    /** 异步加载物品图片，带缓存和并发去重 */
     async load(itemId: string, timeout = 8000): Promise<SpriteFrame | null> {
-        // 鍐呭瓨缂撳瓨
+        // 内存缓存
         const cached = this.cache.get(itemId);
         if (cached) return cached;
 
-        // 闃叉骞跺彂閲嶅璇锋眰
+        // 防止并发重复请求
         const pending = this.pending.get(itemId);
         if (pending) return pending;
 
@@ -109,7 +127,7 @@ export class ImageCache {
                 return sf;
             })
             .catch(err => {
-                console.warn(`${TAG} ${itemId} 鍔犺浇澶辫触:`, err);
+                console.warn(`${TAG} ${itemId} 加载失败:`, err);
                 this.pending.delete(itemId);
                 return null;
             });
@@ -118,17 +136,16 @@ export class ImageCache {
         return promise;
     }
 
-    /** 鎵归噺棰勫姞杞斤紙鍙姞杞藉悗绔疄闄呮湁鐨勫浘鐗囷級 */
+    /** 批量预加载，只加载已映射到静态资源目录的物品 */
     async preload(itemIds: string[]): Promise<number> {
-        // 鍙鍔犺浇 CATEGORY_MAP 涓瓨鍦ㄧ殑锛堝嵆鍚庣鏈夊浘鐗囩殑锛?
+        // 只预加载 CATEGORY_MAP 中存在的物品。
         const realIds = itemIds.filter(id => CATEGORY_MAP[id]);
         const results = await Promise.all(realIds.map(id => this.load(id)));
         const loaded = results.filter(Boolean).length;
-        console.log(`${TAG} 棰勫姞杞?${loaded}/${realIds.length} (璺宠繃 ${itemIds.length - realIds.length} 涓棤鍥剧墖鐗╁搧)`);
         return loaded;
     }
 
-    /** 灏?SpriteFrame 搴旂敤鍒?Sprite 缁勪欢锛堝紓姝ワ紝鑷姩 fallback锛?*/
+    /** 将 SpriteFrame 应用到 Sprite 组件，加载失败时允许外层自行 fallback */
     static async applyToSprite(
         spriteComp: import('cc').Sprite,
         itemId: string,
@@ -144,29 +161,28 @@ export class ImageCache {
     }
 
     /**
-     * 涓嬭浇 PNG 鈫?鍒涘缓 SpriteFrame
+     * 下载 PNG 并创建 SpriteFrame
      *
-     * 娴佺▼: XHR 鈫?blob 鈫?createImageBitmap 鈫?ImageAsset 鈫?Texture2D 鈫?SpriteFrame
+     * 流程：优先 assetManager.loadRemote；失败后用 XHR -> Blob -> ImageBitmap -> Texture2D。
      */
     private async downloadSpriteFrame(url: string, timeout: number): Promise<SpriteFrame | null> {
         const remote = await this.loadRemoteSpriteFrame(url, timeout);
         if (remote) return remote;
 
-        // 1. XHR 涓嬭浇 ArrayBuffer
+        // 1. XHR 下载 ArrayBuffer
         const buffer = await this.download(url, timeout);
         if (!buffer) return null;
 
-        // 2. 鍒涘缓 ImageBitmap (娴忚鍣?WeChat 鍧囨敮鎸?
+        // 2. 创建 ImageBitmap，部分小游戏环境可能不支持。
         const blob = new Blob([buffer], { type: 'image/png' });
         let bitmap: ImageBitmap;
         try {
             bitmap = await createImageBitmap(blob);
         } catch {
-            // WeChat 灏忔父鎴忓彲鑳戒笉鏀寔 createImageBitmap
             return null;
         }
 
-        // 3. 鍒涘缓 Cocos 绾圭悊閾?
+        // 3. 创建 Cocos 纹理链路
         const imageAsset = new ImageAsset(bitmap as any);
         const texture = new Texture2D();
         texture.image = imageAsset;
@@ -204,7 +220,7 @@ export class ImageCache {
         });
     }
 
-    /** XHR 涓嬭浇浜岃繘鍒舵暟鎹?*/
+    /** XHR 下载二进制数据 */
     private download(url: string, timeout: number): Promise<ArrayBuffer | null> {
         return new Promise(resolve => {
             const xhr = new XMLHttpRequest();
@@ -221,12 +237,12 @@ export class ImageCache {
         });
     }
 
-    /** 娓呯┖缂撳瓨 */
+    /** 清空缓存 */
     clear() { this.cache.clear(); this.pending.clear(); this.failed.clear(); }
 
-    /** 宸茬紦瀛樻暟閲?*/
+    /** 已缓存数量 */
     get size(): number { return this.cache.size; }
 
-    /** 妫€鏌ユ槸鍚﹀凡缂撳瓨 */
+    /** 检查是否已缓存 */
     has(itemId: string): boolean { return this.cache.has(itemId); }
 }

@@ -26,6 +26,7 @@ export const RECIPE_DB: Record<string, RecipeDef> = {
     R001: { id: 'R001', name: '面粉制作', materials: [{ itemId: 'wheat', count: 3 }], product: { itemId: 'flour', count: 1 }, craftTime: 10, cost: 20, exp: 10, requiredLevel: 1, tier: 1 },
     R002: { id: 'R002', name: '黄油制作', materials: [{ itemId: 'milk', count: 2 }], product: { itemId: 'butter', count: 1 }, craftTime: 15, cost: 25, exp: 12, requiredLevel: 1, tier: 1 },
     R003: { id: 'R003', name: '番茄酱制作', materials: [{ itemId: 'tomato', count: 3 }], product: { itemId: 'ketchup', count: 1 }, craftTime: 12, cost: 22, exp: 11, requiredLevel: 1, tier: 1 },
+    R006: { id: 'R006', name: '玉米片制作', materials: [{ itemId: 'corn', count: 3 }], product: { itemId: 'cereal', count: 1 }, craftTime: 12, cost: 0, exp: 11, requiredLevel: 1, tier: 1 },
     R004: { id: 'R004', name: '胡萝卜泥制作', materials: [{ itemId: 'carrot', count: 2 }], product: { itemId: 'carrotPuree', count: 1 }, craftTime: 8, cost: 18, exp: 9, requiredLevel: 2, tier: 1 },
     R005: { id: 'R005', name: '蜂蜜采集', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'honey', count: 1 }, craftTime: 20, cost: 30, exp: 15, requiredLevel: 2, tier: 1 },
 
@@ -35,7 +36,6 @@ export const RECIPE_DB: Record<string, RecipeDef> = {
     R012: { id: 'R012', name: '饼干制作', materials: [{ itemId: 'flour', count: 2 }, { itemId: 'butter', count: 1 }, { itemId: 'sugar', count: 1 }], product: { itemId: 'cookie', count: 2 }, craftTime: 25, cost: 55, exp: 27, requiredLevel: 3, tier: 2 },
     R013: { id: 'R013', name: '黄油吐司', materials: [{ itemId: 'bread', count: 1 }, { itemId: 'butter', count: 1 }], product: { itemId: 'butterToast', count: 1 }, craftTime: 20, cost: 45, exp: 22, requiredLevel: 3, tier: 2 },
     R014: { id: 'R014', name: '蜂蜜吐司', materials: [{ itemId: 'bread', count: 1 }, { itemId: 'honey', count: 1 }], product: { itemId: 'honeyToast', count: 1 }, craftTime: 22, cost: 48, exp: 24, requiredLevel: 3, tier: 2 },
-    R015: { id: 'R015', name: '番茄吐司', materials: [{ itemId: 'bread', count: 1 }, { itemId: 'ketchup', count: 1 }], product: { itemId: 'food', count: 1 }, craftTime: 20, cost: 45, exp: 22, requiredLevel: 3, tier: 2 },
     R016: { id: 'R016', name: '麦片早餐', materials: [{ itemId: 'oatmeal', count: 2 }, { itemId: 'milk', count: 1 }], product: { itemId: 'cereal', count: 1 }, craftTime: 15, cost: 40, exp: 20, requiredLevel: 3, tier: 2 },
     R017: { id: 'R017', name: '意面烹饪', materials: [{ itemId: 'flour', count: 3 }, { itemId: 'ketchup', count: 1 }], product: { itemId: 'pasta', count: 1 }, craftTime: 30, cost: 55, exp: 28, requiredLevel: 4, tier: 2 },
 
@@ -54,14 +54,22 @@ export const RECIPE_DB: Record<string, RecipeDef> = {
     R033: { id: 'R033', name: '法棍面包', materials: [{ itemId: 'flour', count: 4 }, { itemId: 'butter', count: 1 }], product: { itemId: 'baguette', count: 1 }, craftTime: 50, cost: 95, exp: 48, requiredLevel: 5, tier: 4 },
 };
 
+function recipeValues(): RecipeDef[] {
+    const result: RecipeDef[] = [];
+    for (const id in RECIPE_DB) {
+        if (Object.prototype.hasOwnProperty.call(RECIPE_DB, id)) result.push(RECIPE_DB[id]);
+    }
+    return result;
+}
+
 /** 获取所有配方（按等级排序） */
 export function getAllRecipes(): RecipeDef[] {
-    return Object.values(RECIPE_DB).sort((a, b) => a.requiredLevel - b.requiredLevel);
+    return recipeValues().sort((a, b) => a.requiredLevel - b.requiredLevel);
 }
 
 /** 按等级获取可用配方 */
 export function getRecipesByLevel(level: number): RecipeDef[] {
-    return Object.values(RECIPE_DB).filter(r => r.requiredLevel <= level);
+    return recipeValues().filter(r => r.requiredLevel <= level);
 }
 
 /** 获取配方 */

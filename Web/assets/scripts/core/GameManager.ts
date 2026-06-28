@@ -33,9 +33,11 @@ export class GameManager extends Component {
     nextLevelExp: number = GameValues.EXP_PER_LEVEL;
     totalPlayTime: number = 0;
     unlockedRecipes: string[] = ['R001', 'R002', 'R003'];
+    discoveredItems: string[] = [];
     completedQuests: string[] = [];
     achievements: string[] = [];
     hasLoaded: boolean = false;
+    private saveQueued = false;
 
     static getInstance(): GameManager {
         return GameManager.instance;
@@ -60,6 +62,7 @@ export class GameManager extends Component {
         // 延迟一帧初始化，确保所有子管理器 start 已调用
         this.scheduleOnce(() => {
             this.loadGameData();
+            this.bindProgressEvents();
             this.createMainUI();
             this.hasLoaded = true;
             Logger.info(TAG, '✅ 萌田农场启动完成');
@@ -112,25 +115,42 @@ export class GameManager extends Component {
             this.diamond = saveData.diamond ?? GameValues.INITIAL_DIAMOND;
             this.experience = saveData.experience || 0;
             this.unlockedRecipes = saveData.unlockedRecipes || ['R001', 'R002', 'R003'];
+            this.discoveredItems = saveData.discoveredItems || [];
             this.completedQuests = saveData.completedQuests || [];
             this.achievements = saveData.achievements || [];
             this.totalPlayTime = saveData.totalPlayTime || 0;
             this.nextLevelExp = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, this.playerLevel - 1));
+
+            InventorySystem.getInstance().loadFromSave(saveData.inventory || [], saveData.inventoryMaxSlots);
+            LandSystem.getInstance().loadFromSave(saveData.landBlocks || [], saveData.plantCounts || {});
+            CraftSystem.getInstance().loadFromSave(saveData.activeCrafts || [], saveData.nextCraftId || 0);
             Logger.info(TAG, '📂 存档加载完成', `等级:${this.playerLevel}`);
         }
+        this.syncDiscoveredItems();
+        this.evaluateAchievements();
         this.eventManager.emit('gameDataLoaded');
     }
 
     /** 保存游戏 */
     saveGame() {
+        this.syncDiscoveredItems();
+        this.evaluateAchievements();
+        const inventorySave = InventorySystem.getInstance().exportSave();
+        const landSave = LandSystem.getInstance().exportSave();
+        const craftSave = CraftSystem.getInstance().exportSave();
         const data: SaveData = {
             playerLevel: this.playerLevel,
             gold: this.gold,
             diamond: this.diamond,
             experience: this.experience,
-            landBlocks: [],
-            inventory: [],
+            landBlocks: landSave.blocks,
+            plantCounts: landSave.plantCounts,
+            inventory: inventorySave.slots,
+            inventoryMaxSlots: inventorySave.maxSlots,
+            activeCrafts: craftSave.activeCrafts,
+            nextCraftId: craftSave.nextCraftId,
             unlockedRecipes: this.unlockedRecipes,
+            discoveredItems: this.discoveredItems,
             totalPlayTime: Math.floor(this.totalPlayTime),
             lastLoginDate: new Date().toISOString().split('T')[0],
             completedQuests: this.completedQuests,
@@ -171,5 +191,75 @@ export class GameManager extends Component {
     spendDiamond(amount: number): boolean {
         if (this.diamond >= amount) { this.diamond -= amount; this.eventManager.emit('diamondChanged', this.diamond); return true; }
         return false;
+    }
+
+    private bindProgressEvents() {
+        const evt = this.eventManager;
+        evt.on('inventoryChanged', () => {
+            this.syncDiscoveredItems();
+            this.evaluateAchievements();
+            this.requestSave();
+        });
+        evt.on('cropPlanted', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('cropHarvested', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('craftStarted', () => this.requestSave());
+        evt.on('craftCompleted', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('landExpanded', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('goldChanged', () => this.requestSave());
+        evt.on('diamondChanged', () => this.requestSave());
+        evt.on('experienceChanged', () => this.requestSave());
+        evt.on('levelUp', () => this.requestSave());
+    }
+
+    private requestSave() {
+        if (!this.hasLoaded || this.saveQueued) return;
+        this.saveQueued = true;
+        this.scheduleOnce(() => {
+            this.saveQueued = false;
+            this.saveGame();
+        }, 0.5);
+    }
+
+    private syncDiscoveredItems() {
+        const seen = new Set(this.discoveredItems);
+        for (const slot of InventorySystem.getInstance().getNonEmptySlots()) {
+            if (slot.itemId) seen.add(slot.itemId);
+        }
+        for (const block of LandSystem.getInstance().getAllBlocks()) {
+            if (block.cropType) seen.add(block.cropType);
+            if (block.buildingId) seen.add(block.buildingId);
+        }
+        this.discoveredItems = Array.from(seen);
+    }
+
+    hasDiscoveredItem(itemId: string): boolean {
+        return this.discoveredItems.indexOf(itemId) >= 0;
+    }
+
+    getCatalogProgress(): { unlocked: number; total: number } {
+        let total = 0;
+        for (const id in ITEM_DB) {
+            if (Object.prototype.hasOwnProperty.call(ITEM_DB, id)) total++;
+        }
+        return { unlocked: this.discoveredItems.length, total };
+    }
+
+    private addAchievement(id: string) {
+        if (this.achievements.indexOf(id) >= 0) return;
+        this.achievements.push(id);
+        this.eventManager.emit('achievementUnlocked', id);
+    }
+
+    private evaluateAchievements() {
+        const land = LandSystem.getInstance();
+        const inv = InventorySystem.getInstance();
+        if (land.getTotalPlantCount() >= 1) this.addAchievement('first_plant');
+        if (land.getTotalPlantCount() >= 50) this.addAchievement('plant_50');
+        if (this.gold >= 100) this.addAchievement('gold_100');
+        if (this.playerLevel >= 10) this.addAchievement('level_10');
+        if (CraftSystem.getInstance().getAllActiveCrafts().length > 0 || inv.getItemCount('flour') > 0) {
+            this.addAchievement('first_craft');
+        }
+        if (this.discoveredItems.length >= this.getCatalogProgress().total) this.addAchievement('catalog_all');
     }
 }

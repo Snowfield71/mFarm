@@ -54,6 +54,42 @@ export class LandSystem extends Component {
         EventManager.getInstance()?.emit('landChanged');
     }
 
+    loadFromSave(blocks: LandBlock[] = [], plantCounts: Record<string, number> = {}) {
+        const count = Math.min(
+            Math.max(blocks.length || GameValues.INITIAL_LAND, GameValues.INITIAL_LAND),
+            GameValues.MAX_LAND,
+        );
+        this.landBlocks.clear();
+        this.maxBlocks = count;
+        this.plantCounts = { ...plantCounts };
+
+        for (let i = 0; i < count; i++) {
+            const source = blocks[i];
+            if (!source) {
+                this.landBlocks.set(i, this.createEmptyBlock(i));
+                continue;
+            }
+            this.landBlocks.set(i, {
+                id: i,
+                state: source.state || 'empty',
+                cropType: source.cropType,
+                progress: source.progress || 0,
+                plantTime: source.plantTime,
+                growthDuration: source.growthDuration,
+                buildingId: source.buildingId,
+            });
+        }
+        this.updateGrowth();
+        EventManager.getInstance().emit('landChanged');
+    }
+
+    exportSave(): { blocks: LandBlock[]; plantCounts: Record<string, number> } {
+        return {
+            blocks: this.getAllBlocks().map(block => ({ ...block })),
+            plantCounts: { ...this.plantCounts },
+        };
+    }
+
     getAllBlocks(): LandBlock[] {
         return Array.from(this.landBlocks.values()).sort((a, b) => a.id - b.id);
     }

@@ -9,7 +9,7 @@ import { Logger } from '../utils/Logger';
 const { ccclass } = _decorator;
 const TAG = 'CraftSystem';
 
-interface CraftProcess {
+export interface CraftProcess {
     craftId: number;
     recipeId: string;
     startTime: number;
@@ -30,6 +30,36 @@ export class CraftSystem extends Component {
 
     onLoad() {
         CraftSystem.instance = this;
+    }
+
+    loadFromSave(processes: CraftProcess[] = [], nextCraftId: number = 0) {
+        this.activeCrafts.clear();
+        let maxId = -1;
+        for (const process of processes) {
+            if (!getRecipe(process.recipeId)) continue;
+            const craftId = Number(process.craftId);
+            maxId = Math.max(maxId, craftId);
+            this.activeCrafts.set(craftId, {
+                craftId,
+                recipeId: process.recipeId,
+                startTime: process.startTime || Date.now(),
+                craftDuration: process.craftDuration || 1,
+                progress: process.progress || 0,
+                isComplete: !!process.isComplete,
+            });
+        }
+        this.nextId = Math.max(nextCraftId || 0, maxId + 1);
+        this.updateCrafts();
+        EventManager.getInstance().emit('craftRestored');
+    }
+
+    exportSave(): { activeCrafts: CraftProcess[]; nextCraftId: number } {
+        return {
+            nextCraftId: this.nextId,
+            activeCrafts: Array.from(this.activeCrafts.values())
+                .filter(process => !process.isComplete)
+                .map(process => ({ ...process })),
+        };
     }
 
     update(dt: number) {
