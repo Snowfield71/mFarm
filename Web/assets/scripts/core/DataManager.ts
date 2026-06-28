@@ -17,6 +17,10 @@ export interface SaveData {
     totalPlayTime: number;
     lastLoginDate: string;
     completedQuests: string[];
+    dailyQuestProgress?: Record<string, number>;
+    claimedDailyQuests?: string[];
+    lastQuestDate?: string;
+    totalCraftCount?: number;
     achievements: string[];
     adState?: any;
     timestamp: number;

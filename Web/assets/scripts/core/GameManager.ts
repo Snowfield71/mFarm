@@ -14,6 +14,22 @@ import { MainUI } from '../ui/MainUI';
 const { ccclass } = _decorator;
 const TAG = 'GameManager';
 
+export interface DailyQuestDef {
+    id: string;
+    title: string;
+    target: number;
+    rewardGold?: number;
+    rewardDiamond?: number;
+}
+
+export const DAILY_QUESTS: DailyQuestDef[] = [
+    { id: 'plant_5', title: '种植 5 次', target: 5, rewardGold: 50 },
+    { id: 'harvest_3', title: '收获 3 次', target: 3, rewardGold: 100 },
+    { id: 'craft_2', title: '合成 2 次', target: 2, rewardGold: 30 },
+    { id: 'sell_10', title: '出售 10 个物品', target: 10, rewardDiamond: 1 },
+    { id: 'level_1', title: '升级 1 次', target: 1, rewardGold: 100 },
+];
+
 /**
  * 🎮 游戏主管理器
  * 
@@ -35,6 +51,10 @@ export class GameManager extends Component {
     unlockedRecipes: string[] = ['R001', 'R002', 'R003'];
     discoveredItems: string[] = [];
     completedQuests: string[] = [];
+    dailyQuestProgress: Record<string, number> = {};
+    claimedDailyQuests: string[] = [];
+    lastQuestDate: string = '';
+    totalCraftCount: number = 0;
     achievements: string[] = [];
     hasLoaded: boolean = false;
     private saveQueued = false;
@@ -117,6 +137,10 @@ export class GameManager extends Component {
             this.unlockedRecipes = saveData.unlockedRecipes || ['R001', 'R002', 'R003'];
             this.discoveredItems = saveData.discoveredItems || [];
             this.completedQuests = saveData.completedQuests || [];
+            this.dailyQuestProgress = saveData.dailyQuestProgress || {};
+            this.claimedDailyQuests = saveData.claimedDailyQuests || [];
+            this.lastQuestDate = saveData.lastQuestDate || '';
+            this.totalCraftCount = saveData.totalCraftCount || 0;
             this.achievements = saveData.achievements || [];
             this.totalPlayTime = saveData.totalPlayTime || 0;
             this.nextLevelExp = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, this.playerLevel - 1));
@@ -126,6 +150,7 @@ export class GameManager extends Component {
             CraftSystem.getInstance().loadFromSave(saveData.activeCrafts || [], saveData.nextCraftId || 0);
             Logger.info(TAG, '📂 存档加载完成', `等级:${this.playerLevel}`);
         }
+        this.ensureDailyQuests();
         this.syncDiscoveredItems();
         this.evaluateAchievements();
         this.eventManager.emit('gameDataLoaded');
@@ -154,6 +179,10 @@ export class GameManager extends Component {
             totalPlayTime: Math.floor(this.totalPlayTime),
             lastLoginDate: new Date().toISOString().split('T')[0],
             completedQuests: this.completedQuests,
+            dailyQuestProgress: this.dailyQuestProgress,
+            claimedDailyQuests: this.claimedDailyQuests,
+            lastQuestDate: this.lastQuestDate,
+            totalCraftCount: this.totalCraftCount,
             achievements: this.achievements,
             timestamp: Date.now(),
         };
@@ -200,15 +229,21 @@ export class GameManager extends Component {
             this.evaluateAchievements();
             this.requestSave();
         });
-        evt.on('cropPlanted', () => { this.evaluateAchievements(); this.requestSave(); });
-        evt.on('cropHarvested', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('cropPlanted', () => { this.addDailyQuestProgress('plant_5', 1); this.evaluateAchievements(); this.requestSave(); });
+        evt.on('cropHarvested', () => { this.addDailyQuestProgress('harvest_3', 1); this.evaluateAchievements(); this.requestSave(); });
         evt.on('craftStarted', () => this.requestSave());
-        evt.on('craftCompleted', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('craftCompleted', () => {
+            this.totalCraftCount++;
+            this.addDailyQuestProgress('craft_2', 1);
+            this.evaluateAchievements();
+            this.requestSave();
+        });
+        evt.on('itemSold', (data: any) => { this.addDailyQuestProgress('sell_10', data?.count || 1); this.requestSave(); });
         evt.on('landExpanded', () => { this.evaluateAchievements(); this.requestSave(); });
         evt.on('goldChanged', () => this.requestSave());
         evt.on('diamondChanged', () => this.requestSave());
         evt.on('experienceChanged', () => this.requestSave());
-        evt.on('levelUp', () => this.requestSave());
+        evt.on('levelUp', () => { this.addDailyQuestProgress('level_1', 1); this.requestSave(); });
     }
 
     private requestSave() {
@@ -260,6 +295,56 @@ export class GameManager extends Component {
         if (CraftSystem.getInstance().getAllActiveCrafts().length > 0 || inv.getItemCount('flour') > 0) {
             this.addAchievement('first_craft');
         }
+        if (this.totalCraftCount >= 50) this.addAchievement('craft_50');
+        if (this.unlockedRecipes.length >= getAllRecipes().length) this.addAchievement('recipes_all');
         if (this.discoveredItems.length >= this.getCatalogProgress().total) this.addAchievement('catalog_all');
+    }
+
+    private todayString(): string {
+        const now = new Date();
+        const month = (`0${now.getMonth() + 1}`).slice(-2);
+        const day = (`0${now.getDate()}`).slice(-2);
+        return `${now.getFullYear()}-${month}-${day}`;
+    }
+
+    private ensureDailyQuests() {
+        const today = this.todayString();
+        if (this.lastQuestDate === today) return;
+        this.lastQuestDate = today;
+        this.dailyQuestProgress = {};
+        this.claimedDailyQuests = [];
+        for (const quest of DAILY_QUESTS) this.dailyQuestProgress[quest.id] = 0;
+    }
+
+    private addDailyQuestProgress(id: string, amount: number) {
+        this.ensureDailyQuests();
+        const quest = DAILY_QUESTS.find(q => q.id === id);
+        if (!quest || this.claimedDailyQuests.indexOf(id) >= 0) return;
+        const current = this.dailyQuestProgress[id] || 0;
+        this.dailyQuestProgress[id] = Math.min(quest.target, current + amount);
+        this.eventManager.emit('dailyQuestChanged', id);
+    }
+
+    getDailyQuests() {
+        this.ensureDailyQuests();
+        return DAILY_QUESTS.map(quest => ({
+            ...quest,
+            progress: Math.min(this.dailyQuestProgress[quest.id] || 0, quest.target),
+            claimed: this.claimedDailyQuests.indexOf(quest.id) >= 0,
+        }));
+    }
+
+    claimDailyQuest(id: string): boolean {
+        this.ensureDailyQuests();
+        const quest = DAILY_QUESTS.find(q => q.id === id);
+        if (!quest || this.claimedDailyQuests.indexOf(id) >= 0) return false;
+        if ((this.dailyQuestProgress[id] || 0) < quest.target) return false;
+        this.claimedDailyQuests.push(id);
+        if (quest.rewardGold) this.addGold(quest.rewardGold);
+        if (quest.rewardDiamond) this.addDiamond(quest.rewardDiamond);
+        this.completedQuests.push(`${this.lastQuestDate}:${id}`);
+        this.eventManager.emit('dailyQuestChanged', id);
+        this.requestSave();
+        return true;
     }
 }

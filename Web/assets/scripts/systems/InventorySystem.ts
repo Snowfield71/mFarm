@@ -188,6 +188,7 @@ export class InventorySystem extends Component {
         if (!this.removeItem(itemId, count)) return false;
         const total = def.sellPrice * count;
         goldCallback(total);
+        EventManager.getInstance().emit('itemSold', { itemId, count, gold: total });
         Logger.info(TAG, `出售 ${def.name}×${count} 获得 ${total}金币`);
         return true;
     }
@@ -204,6 +205,7 @@ export class InventorySystem extends Component {
 
         const total = def.sellPrice * count;
         goldCallback(total);
+        EventManager.getInstance().emit('itemSold', { itemId, count, gold: total });
         Logger.info(TAG, `出售 ${itemId}×${count} 获得 ${total}金币`);
         return true;
     }
