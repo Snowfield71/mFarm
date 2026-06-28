@@ -48,8 +48,8 @@ export const FontSpec = {
 export const GameValues = {
     INITIAL_GOLD: 200,
     INITIAL_DIAMOND: 50,
-    INITIAL_LAND: 9,           // 3x3
-    MAX_LAND: 36,              // 6x6
+    INITIAL_LAND: 9,           // 3x3 初始
+    MAX_LAND: 15,              // 5x3 上限
     INVENTORY_SLOTS: 20,
     MAX_STACK: 99,
     EXP_PER_LEVEL: 100,
@@ -57,9 +57,9 @@ export const GameValues = {
 
     // 扩展地块门槛
     LAND_UNLOCK: {
-        5: 3,   // 等级5 +3块
-        10: 6,  // 等级10 +6块
-        15: 9,  // 等级15 +9块
+        5: 2,   // 等级5 +2块 → 共11块
+        10: 2,  // 等级10 +2块 → 共13块
+        15: 2,  // 等级15 +2块 → 共15块
     },
 
     // 合成台配置

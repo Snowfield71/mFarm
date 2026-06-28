@@ -1,10 +1,10 @@
-import { _decorator, Component, Node, instantiate, Prefab, UITransform, Sprite, Color } from 'cc';
-import { GameValues } from '../config/GameConfig';
+import { _decorator, Component } from 'cc';
+import { GameValues, CropGrowthTimes } from '../config/GameConfig';
 import { getItem, getPlantableCrops } from '../config/ItemConfig';
-import { CropGrowthTimes } from '../config/GameConfig';
 import { EventManager } from '../core/EventManager';
 import { Logger } from '../utils/Logger';
-const { ccclass, property } = _decorator;
+
+const { ccclass } = _decorator;
 const TAG = 'LandSystem';
 
 export type LandState = 'empty' | 'growing' | 'harvesting' | 'occupied';
@@ -13,127 +13,168 @@ export interface LandBlock {
     id: number;
     state: LandState;
     cropType?: string;
-    progress: number;    // 0-100
-    plantTime?: number;  // Date.now()
+    progress: number;
+    plantTime?: number;
     growthDuration?: number;
     buildingId?: string;
 }
 
-/**
- * 地块系统 - 管理农田地块状态
- */
 @ccclass('LandSystem')
 export class LandSystem extends Component {
     private static instance: LandSystem;
     private landBlocks: Map<number, LandBlock> = new Map();
-    private maxBlocks: number = GameValues.INITIAL_LAND;
-    private updateTimer: number = 0;
+    private plantCounts: Record<string, number> = {};
+    private updateTimer = 0;
+    private maxBlocks = GameValues.INITIAL_LAND;
 
     static getInstance(): LandSystem { return LandSystem.instance; }
-    onLoad() { LandSystem.instance = this; }
 
-    start() {
-        this.initBlocks();
+    onLoad() {
+        LandSystem.instance = this;
     }
 
-    private initBlocks() {
-        this.landBlocks.clear();
-        for (let i = 0; i < this.maxBlocks; i++) {
-            this.landBlocks.set(i, { id: i, state: 'empty', progress: 0 });
-        }
+    start() {
+        this.reset(GameValues.INITIAL_LAND);
     }
 
     update(dt: number) {
         this.updateTimer += dt;
-        if (this.updateTimer >= 0.5) { // 每0.5秒更新一次
-            this.updateTimer = 0;
-            this.updateGrowth();
-        }
+        if (this.updateTimer < 0.5) return;
+        this.updateTimer = 0;
+        this.updateGrowth();
     }
 
-    private updateGrowth() {
-        for (const block of this.landBlocks.values()) {
-            if (block.state === 'growing' && block.plantTime && block.growthDuration) {
-                const elapsed = (Date.now() - block.plantTime) / 1000;
-                block.progress = Math.min(100, (elapsed / block.growthDuration) * 100);
-                if (block.progress >= 100) {
-                    block.state = 'harvesting';
-                    EventManager.getInstance().emit('cropMatured', { blockId: block.id });
-                    Logger.info(TAG, `地块${block.id}作物已成熟`);
-                }
-            }
+    reset(count: number = GameValues.INITIAL_LAND) {
+        this.landBlocks.clear();
+        this.plantCounts = {};
+        this.maxBlocks = Math.min(Math.max(count, 0), GameValues.MAX_LAND);
+        for (let i = 0; i < this.maxBlocks; i++) {
+            this.landBlocks.set(i, this.createEmptyBlock(i));
         }
+        EventManager.getInstance()?.emit('landChanged');
     }
 
-    /** 种植作物 */
+    getAllBlocks(): LandBlock[] {
+        return Array.from(this.landBlocks.values()).sort((a, b) => a.id - b.id);
+    }
+
+    getBlock(blockId: number): LandBlock | undefined {
+        return this.landBlocks.get(blockId);
+    }
+
+    getUnlockedCount(): number {
+        return this.maxBlocks;
+    }
+
+    expandBlocks(newMax: number) {
+        const target = Math.min(Math.max(newMax, this.maxBlocks), GameValues.MAX_LAND);
+        if (target === this.maxBlocks) return;
+
+        for (let i = this.maxBlocks; i < target; i++) {
+            this.landBlocks.set(i, this.createEmptyBlock(i));
+        }
+        this.maxBlocks = target;
+        EventManager.getInstance().emit('landExpanded', { count: this.maxBlocks });
+        EventManager.getInstance().emit('landChanged');
+    }
+
     plantCrop(blockId: number, cropType: string): boolean {
         const block = this.landBlocks.get(blockId);
         if (!block || block.state !== 'empty') return false;
 
-        const growthTime = CropGrowthTimes[cropType];
-        if (!growthTime) return false;
+        const def = getItem(cropType);
+        const growthDuration = def?.growthTime || CropGrowthTimes[cropType];
+        if (!def?.isCrop || !growthDuration) {
+            Logger.warn(TAG, `Cannot plant unknown crop: ${cropType}`);
+            return false;
+        }
 
         block.state = 'growing';
         block.cropType = cropType;
-        block.plantTime = Date.now();
-        block.growthDuration = growthTime;
         block.progress = 0;
+        block.plantTime = Date.now();
+        block.growthDuration = growthDuration;
+        block.buildingId = undefined;
+        this.plantCounts[cropType] = (this.plantCounts[cropType] || 0) + 1;
 
-        EventManager.getInstance().emit('cropPlanted', { blockId, cropType });
+        EventManager.getInstance().emit('cropPlanted', { blockId, cropType, count: this.plantCounts[cropType] });
+        EventManager.getInstance().emit('landChanged');
         return true;
     }
 
-    /** 收获作物 */
+    getPlantCount(cropType: string): number {
+        return this.plantCounts[cropType] || 0;
+    }
+
+    getTotalPlantCount(): number {
+        let total = 0;
+        for (const id in this.plantCounts) total += this.plantCounts[id] || 0;
+        return total;
+    }
+
     harvestCrop(blockId: number): string | null {
         const block = this.landBlocks.get(blockId);
         if (!block || block.state !== 'harvesting' || !block.cropType) return null;
 
         const cropType = block.cropType;
-        const def = getItem(cropType);
-        const count = def?.harvestCount ?? 1;
-
-        block.state = 'empty';
-        block.cropType = undefined;
-        block.progress = 0;
-        block.plantTime = undefined;
-        block.growthDuration = undefined;
-
-        EventManager.getInstance().emit('cropHarvested', { blockId, cropType, count });
+        this.landBlocks.set(blockId, this.createEmptyBlock(blockId));
+        EventManager.getInstance().emit('cropHarvested', { blockId, cropType });
+        EventManager.getInstance().emit('landChanged');
         return cropType;
     }
 
-    /** 加速生长（消耗钻石或广告） */
     speedUpCrop(blockId: number): boolean {
         const block = this.landBlocks.get(blockId);
         if (!block || block.state !== 'growing') return false;
         block.progress = 100;
         block.state = 'harvesting';
-        EventManager.getInstance().emit('cropMatured', { blockId });
+        EventManager.getInstance().emit('cropMatured', { blockId, cropType: block.cropType });
+        EventManager.getInstance().emit('landChanged');
         return true;
     }
 
-    /** 获取所有地块 */
-    getAllBlocks(): LandBlock[] {
-        return Array.from(this.landBlocks.values());
+    occupyBlock(blockId: number, buildingId: string): boolean {
+        const block = this.landBlocks.get(blockId);
+        if (!block || block.state !== 'empty') return false;
+        block.state = 'occupied';
+        block.buildingId = buildingId;
+        block.progress = 0;
+        EventManager.getInstance().emit('landChanged');
+        return true;
     }
 
-    /** 获取单个地块 */
-    getBlock(blockId: number): LandBlock | undefined {
-        return this.landBlocks.get(blockId);
+    clearBlock(blockId: number): boolean {
+        const block = this.landBlocks.get(blockId);
+        if (!block || block.state === 'growing') return false;
+        this.landBlocks.set(blockId, this.createEmptyBlock(blockId));
+        EventManager.getInstance().emit('landChanged');
+        return true;
     }
 
-    /** 扩展地块数量 */
-    expandBlocks(newMax: number) {
-        const oldMax = this.maxBlocks;
-        this.maxBlocks = Math.min(newMax, GameValues.MAX_LAND);
-        for (let i = oldMax; i < this.maxBlocks; i++) {
-            this.landBlocks.set(i, { id: i, state: 'empty', progress: 0 });
-        }
-        EventManager.getInstance().emit('landExpanded');
-    }
-
-    /** 获取可用作物列表 */
     getPlantableCrops(level: number) {
-        return getPlantableCrops().filter(c => c.unlockLevel <= level);
+        return getPlantableCrops().filter(crop => crop.unlockLevel <= level);
+    }
+
+    private updateGrowth() {
+        let changed = false;
+        for (const block of this.landBlocks.values()) {
+            if (block.state !== 'growing' || !block.plantTime || !block.growthDuration) continue;
+
+            const elapsed = (Date.now() - block.plantTime) / 1000;
+            const nextProgress = Math.min(100, (elapsed / block.growthDuration) * 100);
+            if (Math.floor(nextProgress) !== Math.floor(block.progress)) changed = true;
+            block.progress = nextProgress;
+
+            if (block.progress >= 100) {
+                block.state = 'harvesting';
+                changed = true;
+                EventManager.getInstance().emit('cropMatured', { blockId: block.id, cropType: block.cropType });
+            }
+        }
+        if (changed) EventManager.getInstance().emit('landChanged');
+    }
+
+    private createEmptyBlock(id: number): LandBlock {
+        return { id, state: 'empty', progress: 0 };
     }
 }

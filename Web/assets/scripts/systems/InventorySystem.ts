@@ -1,6 +1,6 @@
 import { _decorator, Component } from 'cc';
 import { GameValues } from '../config/GameConfig';
-import { getItem } from '../config/ItemConfig';
+import { getItem, getPlantableCrops } from '../config/ItemConfig';
 import { EventManager } from '../core/EventManager';
 import { Logger } from '../utils/Logger';
 const { ccclass } = _decorator;
@@ -32,6 +32,11 @@ export class InventorySystem extends Component {
         for (let i = 0; i < this.maxSlots; i++) {
             this.slots.push({ itemId: '', count: 0 });
         }
+        getPlantableCrops()
+            .filter(crop => crop.unlockLevel <= 1)
+            .forEach((crop, index) => {
+                if (index < this.slots.length) this.slots[index] = { itemId: crop.id, count: 3 };
+            });
     }
 
     /** 添加物品 */
@@ -74,14 +79,23 @@ export class InventorySystem extends Component {
 
     /** 移除物品 */
     removeItem(itemId: string, count: number = 1): boolean {
+        if (this.getItemCount(itemId) < count) {
+            Logger.warn(TAG, `物品不足: ${itemId}`);
+            return false;
+        }
+
         let remaining = count;
         for (const slot of this.slots) {
             if (slot.itemId === itemId) {
                 const canRemove = Math.min(remaining, slot.count);
                 slot.count -= canRemove;
                 remaining -= canRemove;
-                if (slot.count === 0) slot.itemId = '';
+                if (slot.count === 0) {
+                    slot.itemId = '';
+                    slot.count = 0;
+                }
                 if (remaining === 0) {
+                    this.compactSlots();
                     EventManager.getInstance().emit('inventoryChanged');
                     return true;
                 }
@@ -91,7 +105,30 @@ export class InventorySystem extends Component {
         return false;
     }
 
-    /** 获取物品数量 */
+    removeFromSlot(slotIndex: number, count: number = 1): boolean {
+        const slot = this.slots[slotIndex];
+        if (!slot || !slot.itemId || slot.count < count) return false;
+
+        slot.count -= count;
+        if (slot.count <= 0) {
+            slot.itemId = '';
+            slot.count = 0;
+        }
+
+        this.compactSlots();
+        EventManager.getInstance().emit('inventoryChanged');
+        return true;
+    }
+
+    /** 整理空槽，让后续物品自动前移 */
+    private compactSlots() {
+        const occupied = this.slots.filter(slot => slot.itemId && slot.count > 0);
+        const emptyCount = this.maxSlots - occupied.length;
+        this.slots = occupied.concat(
+            Array.from({ length: Math.max(0, emptyCount) }, () => ({ itemId: '', count: 0 })),
+        );
+    }
+
     getItemCount(itemId: string): number {
         return this.slots.filter(s => s.itemId === itemId).reduce((sum, s) => sum + s.count, 0);
     }
@@ -103,11 +140,13 @@ export class InventorySystem extends Component {
 
     /** 获取所有非空格子 */
     getNonEmptySlots(): InventorySlot[] {
+        this.compactSlots();
         return this.slots.filter(s => s.count > 0 && s.itemId !== '');
     }
 
     /** 获取物品栏使用信息 */
     getUsage(): { used: number; max: number; percent: number } {
+        this.compactSlots();
         const used = this.slots.filter(s => s.itemId !== '').length;
         return { used, max: this.maxSlots, percent: (used / this.maxSlots) * 100 };
     }
@@ -129,6 +168,22 @@ export class InventorySystem extends Component {
         const total = def.sellPrice * count;
         goldCallback(total);
         Logger.info(TAG, `出售 ${def.name}×${count} 获得 ${total}金币`);
+        return true;
+    }
+
+    sellSlotItem(slotIndex: number, count: number, goldCallback: (price: number) => void): boolean {
+        const slot = this.slots[slotIndex];
+        if (!slot || !slot.itemId || count <= 0 || count > slot.count) return false;
+
+        const def = getItem(slot.itemId);
+        if (!def || def.sellPrice <= 0) return false;
+
+        const itemId = slot.itemId;
+        if (!this.removeFromSlot(slotIndex, count)) return false;
+
+        const total = def.sellPrice * count;
+        goldCallback(total);
+        Logger.info(TAG, `出售 ${itemId}×${count} 获得 ${total}金币`);
         return true;
     }
 }

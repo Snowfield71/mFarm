@@ -58,7 +58,7 @@ export class InventoryUI extends Component {
 
     refreshGrid() {
         const inv = InventorySystem.getInstance();
-        const slots = inv.getNonEmptySlots();
+        const slots = inv.slots.slice(0, inv.maxSlots);
         const info = inv.getUsage();
 
         // 更新使用情况
@@ -83,6 +83,11 @@ export class InventoryUI extends Component {
             const cellBg = cell.addComponent(Sprite);
             cellBg.color = new Color(144, 238, 144, 80);
 
+            if (!slot.itemId) {
+                this.gridContainer.addChild(cell);
+                return;
+            }
+
             const lbl = cell.addComponent(Label);
             // 使用物品emoji
             const emojiMap: Record<string, string> = {
@@ -97,15 +102,21 @@ export class InventoryUI extends Component {
             lbl.verticalAlign = Label.VerticalAlign.CENTER;
 
             // 数量角标
-            if (slot.count > 1) {
+            if (slot.count > 0) {
                 const countNode = new Node('Count');
                 countNode.addComponent(UITransform).setContentSize(24, 16);
-                countNode.setPosition(cellSize / 2 - 2, -cellSize / 2 + 2);
-                const countLbl = countNode.addComponent(Label);
-                countLbl.string = slot.count.toString();
+                countNode.setPosition(13, -18);
+                const countBg = countNode.addComponent(Sprite);
+                countBg.color = new Color(54, 112, 55, 225);
+                const countLabelNode = new Node('CountLabel');
+                countLabelNode.addComponent(UITransform).setContentSize(24, 16);
+                const countLbl = countLabelNode.addComponent(Label);
+                countLbl.string = `x${slot.count}`;
                 countLbl.fontSize = 10;
                 countLbl.color = new Color(255, 255, 255);
-                countLbl.horizontalAlign = Label.HorizontalAlign.RIGHT;
+                countLbl.horizontalAlign = Label.HorizontalAlign.CENTER;
+                countLbl.verticalAlign = Label.VerticalAlign.CENTER;
+                countNode.addChild(countLabelNode);
                 cell.addChild(countNode);
             }
 

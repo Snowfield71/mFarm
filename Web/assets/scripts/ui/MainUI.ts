@@ -1,1395 +1,1495 @@
-import { _decorator, Component, Node, Color, UITransform, Label, Button, Vec3, tween, Graphics, Sprite, view } from 'cc';
-import { Design } from '../config/GameConfig';
+﻿import { _decorator, Button, Color, Component, EditBox, Graphics, Label, Mask, Node, ScrollView, UITransform, Vec3, tween, view } from 'cc';
+import { Design, GameValues } from '../config/GameConfig';
 import { GameManager } from '../core/GameManager';
 import { EventManager } from '../core/EventManager';
 import { InventorySystem } from '../systems/InventorySystem';
-import { LandSystem, LandBlock } from '../systems/LandSystem';
+import { LandBlock, LandSystem } from '../systems/LandSystem';
 import { CraftSystem } from '../systems/CraftSystem';
 import { getItem, getPlantableCrops, ItemDef } from '../config/ItemConfig';
-import { getRecipesByLevel } from '../config/RecipeConfig';
-import { ImageCache } from '../utils/ImageCache';
+import { getRecipesByLevel, RecipeDef } from '../config/RecipeConfig';
+import { fillRect, fillRoundRect, strokeRoundRect } from './utils/UIDraw';
+import {
+    createLabel, createItemIcon, applyUiIcon,
+    getItemDisplayName, getRecipeDisplayName, seededRandom,
+} from './utils/UIWidgetFactory';
 
 const { ccclass } = _decorator;
 
-// ===== 绘图工具函数 =====
-function fillRect(node: Node, w: number, h: number, color: Color) {
-    const g = node.getComponent(Graphics) || node.addComponent(Graphics);
-    g.fillColor = color;
-    g.rect(-w / 2, -h / 2, w, h);
-    g.fill();
-}
-function fillRoundRect(node: Node, w: number, h: number, r: number, color: Color) {
-    const g = node.getComponent(Graphics) || node.addComponent(Graphics);
-    g.fillColor = color;
-    g.roundRect(-w / 2, -h / 2, w, h, r);
-    g.fill();
-}
-function strokeRoundRect(node: Node, w: number, h: number, r: number, color: Color, lineW: number = 2) {
-    const g = node.getComponent(Graphics) || node.addComponent(Graphics);
-    g.strokeColor = color;
-    g.lineWidth = lineW;
-    g.roundRect(-w / 2, -h / 2, w, h, r);
-    g.stroke();
-}
+type PanelName = 'inventory' | 'craft' | 'shop' | 'quest';
 
 @ccclass('MainUI')
 export class MainUI extends Component {
     private topBar!: Node;
-    private landContainer!: Node;
-    private bottomNav!: Node;
-    private inventoryPanel!: Node;
-    private craftPanel!: Node;
-    private shopPanel!: Node;
-    private popupDialog!: Node;
+    private landRoot!: Node;
+    private bubbleRoot!: Node;
+    private dialogRoot!: Node;
+    private panels: Partial<Record<PanelName, Node>> = {};
+
     private landTiles: Node[] = [];
-    private currentCropForPlanting: string | null = null;
+    private selectedSeedId: string | null = null;
+    private activeBubbleLandId = -1;
+    private progressRefreshTimer = 0;
+    private suppressNextLandExpandedRefresh = false;
+
+    private static readonly LAND_COLS = 3;
+    private static readonly LAND_ROWS = 5;
+    private static readonly TILE_SIZE = 68;
+    private static readonly TILE_GAP = 8;
+    private static readonly LAND_UNLOCK_DIAMOND = 10;
+    private static readonly BOTTOM_NAV_HEIGHT = 66;
 
     start() {
-        this.createSkyBackground();
+        this.createBackground();
         this.createTopBar();
-        this.createLandGrid();
-        this.createGrassDecoration();
+        this.createLandArea();
         this.createBottomNav();
         this.createPanels();
-        this.createPopupDialog();
+        this.createDialogRoot();
+        this.createBubbleRoot();
         this.bindEvents();
         this.refreshAll();
     }
 
-    // ============================
-    //  1. 天空背景（自适应屏幕比例）
-    // ============================
-    private createSkyBackground() {
-        const sky = new Node('Sky');
+    update(dt: number) {
+        this.progressRefreshTimer += dt;
+        if (this.progressRefreshTimer < 0.5) return;
+        this.progressRefreshTimer = 0;
+
+        LandSystem.getInstance()
+            .getAllBlocks()
+            .filter(block => block.state === 'growing')
+            .forEach(block => this.updateGrowingProgress(block.id, block.progress));
+    }
+
+    // Scene
+    private createBackground() {
         const vs = view.getVisibleSize();
-        const vw = vs.width;
-        const vh = vs.height;
-        const bigW = vw * 2;
-        const bigH = vh * 2;
+        const sky = new Node('Sky');
+        sky.addComponent(UITransform).setContentSize(vs.width * 2, vs.height * 2);
         const g = sky.addComponent(Graphics);
-        const steps = 20;
+        const steps = 16;
+        const skyHeight = vs.height * 0.66;
         for (let i = 0; i < steps; i++) {
-            const t = i / steps;
-            const r = Math.round(135 + (240 - 135) * t);
-            const gr = Math.round(206 + (248 - 206) * t);
-            const b = Math.round(235 + (232 - 235) * t);
-            g.fillColor = new Color(r, gr, b);
-            const y0 = bigH / 2 - (i / steps) * bigH;
-            const y1 = bigH / 2 - ((i + 1) / steps) * bigH;
-            g.rect(-bigW / 2, y1, bigW, y0 - y1);
+            const t = i / (steps - 1);
+            g.fillColor = new Color(
+                Math.round(139 + 87 * t),
+                Math.round(211 + 28 * t),
+                Math.round(238 - 4 * t),
+                255,
+            );
+            const y = vs.height - (i + 1) * (skyHeight / steps);
+            g.rect(-vs.width, y - vs.height / 2, vs.width * 2, skyHeight / steps + 2);
             g.fill();
         }
-
-        // 太阳（位置按可见区域比例）
-        const sun = new Node('Sun');
-        sun.setPosition(vw * 0.3, vh * 0.38);
-
-        // 最外层光晕（大）
-        const sunGlow = new Node('Glow');
-        const sgg = sunGlow.addComponent(Graphics);
-        sgg.fillColor = new Color(255, 240, 150, 40);
-        sgg.circle(0, 0, 55);
-        sgg.fill();
-        sgg.fillColor = new Color(255, 230, 120, 60);
-        sgg.circle(0, 0, 45);
-        sgg.fill();
-        sun.addChild(sunGlow);
-
-        // 中层主体（橙色）
-        const sunBody = new Node('Body');
-        const sb = sunBody.addComponent(Graphics);
-        sb.fillColor = new Color(255, 200, 50, 220);
-        sb.circle(0, 0, 38);
-        sb.fill();
-        // 高光1
-        sb.fillColor = new Color(255, 220, 80, 180);
-        sb.circle(-8, 8, 25);
-        sb.fill();
-        // 高光2（亮白）
-        sb.fillColor = new Color(255, 255, 200, 120);
-        sb.circle(-12, 12, 15);
-        sb.fill();
-        sun.addChild(sunBody);
-
-        // 柔和光芒（圆角射线）
-        const sunRays = new Node('Rays');
-        const sr = sunRays.addComponent(Graphics);
-        sr.fillColor = new Color(255, 220, 100, 100);
-        for (let a = 0; a < 8; a++) {
-            const angle = (a * Math.PI * 2) / 8;
-            const rx = 48 * Math.cos(angle);
-            const ry = 48 * Math.sin(angle);
-            sr.circle(rx, ry, 6);
-        }
-        sr.fill();
-        // 小光芒点
-        sr.fillColor = new Color(255, 240, 150, 80);
-        for (let a = 0; a < 8; a++) {
-            const angle = (a * Math.PI * 2) / 8 + Math.PI / 8;
-            const rx = 58 * Math.cos(angle);
-            const ry = 58 * Math.sin(angle);
-            sr.circle(rx, ry, 3);
-        }
-        sr.fill();
-        sun.addChild(sunRays);
-
-        sky.addChild(sun);
-
-        // 云朵（按可见区域比例分布，覆盖天空上半部分）
-        const cloudTemplates: [number, number, number][] = [
-            [-0.30, 0.42, 48], [-0.42, 0.32, 52], [-0.24, 0.22, 40],
-            [0.06, 0.26, 45],  [0.18, 0.18, 35],
-        ];
-        for (const [cxRatio, cyRatio, size] of cloudTemplates) {
-            const cloud = new Node('Cloud');
-            cloud.setPosition(cxRatio * vw, cyRatio * vh);
-            const cg = cloud.addComponent(Graphics);
-            cg.fillColor = new Color(255, 255, 255, 100);
-            const s = size;
-            cg.circle(0, 0, s * 0.5);
-            cg.circle(-s * 0.4, s * 0.1, s * 0.35);
-            cg.circle(s * 0.4, s * 0.05, s * 0.38);
-            cg.circle(-s * 0.15, s * 0.25, s * 0.28);
-            cg.circle(s * 0.2, s * 0.2, s * 0.3);
-            cg.fill();
-            sky.addChild(cloud);
-        }
-
-        sky.setPosition(0, 0);
         this.node.addChild(sky);
 
-        // 下方草地（自适应：顶部在天空与地面分界处，向下覆盖）
         const grass = new Node('Grass');
-        const grassTop = vh * 0.12;
-        const grassH = bigH;
-        const gg = grass.addComponent(Graphics);
-        gg.fillColor = new Color(144, 238, 144, 180);
-        gg.rect(-bigW / 2, -grassH / 2, bigW, grassH);
-        gg.fill();
-        grass.setPosition(0, grassTop - grassH / 2);
+        const grassTop = vs.height * 0.14;
+        const grassHeight = vs.height;
+        grass.setPosition(0, grassTop - grassHeight / 2);
+        fillRect(grass, vs.width * 2, grassHeight, new Color(148, 236, 158, 255));
         this.node.addChild(grass);
-    }
+        this.createGrassPatches(grass, vs.width, grassHeight, grassTop);
 
-    // ============================
-    //  3. 顶部栏（固定在顶部）
-    // ============================
-    // ============================
-    //  装饰小星星
-    // ============================
-    private drawStar(parent: Node, cx: number, cy: number, size: number, color: Color) {
-        const star = new Node('Star');
-        star.setPosition(cx, cy);
-        const g = star.addComponent(Graphics);
-        g.fillColor = color;
-        const s = size;
-        const points = 5;
-        for (let i = 0; i < points * 2; i++) {
-            const r = i % 2 === 0 ? s : s * 0.4;
-            const angle = (i * Math.PI) / points - Math.PI / 2;
-            if (i === 0) g.moveTo(r * Math.cos(angle), r * Math.sin(angle));
-            else g.lineTo(r * Math.cos(angle), r * Math.sin(angle));
-        }
-        g.close();
-        g.fill();
-        parent.addChild(star);
-    }
+        const sun = this.createSun(vs.width * 0.31, vs.height * 0.39);
+        this.node.addChild(sun);
 
-    // ============================
-    //  装饰小叶子
-    // ============================
-    private drawLeafDeco(parent: Node, cx: number, cy: number, size: number, color: Color, flip: boolean = false) {
-        const leaf = new Node('Leaf');
-        leaf.setPosition(cx, cy);
-        if (flip) leaf.setScale(-1, 1);
-        const g = leaf.addComponent(Graphics);
-        g.fillColor = color;
-        // 绘制简单的叶子形状
-        g.moveTo(0, 0);
-        g.bezierCurveTo(size * 0.3, size * 0.5, size * 0.7, size * 0.4, size, 0);
-        g.bezierCurveTo(size * 0.7, -size * 0.4, size * 0.3, -size * 0.5, 0, 0);
-        g.fill();
-        parent.addChild(leaf);
-    }
-
-    // ============================
-    //  简约卡通草（单个叶片）
-    // ============================
-    private drawGrassBlade(parent: Node, cx: number, cy: number, height: number, color: Color, bendX: number = 0) {
-        const blade = new Node('GrassBlade');
-        blade.setPosition(cx, cy);
-        const g = blade.addComponent(Graphics);
-        g.fillColor = color;
-        g.moveTo(0, 0);
-        g.quadraticCurveTo(bendX - 2.5, height * 0.5, bendX + 1, height);
-        g.quadraticCurveTo(bendX + 2.5, height * 0.5, 0, 0);
-        g.fill();
-        // 叶片中间细线装饰（增强立体感）
-        g.strokeColor = new Color(color.r - 30, color.g - 30, color.b - 20, 60);
-        g.lineWidth = 0.8;
-        g.moveTo(0, 2);
-        g.quadraticCurveTo(bendX, height * 0.4, bendX + 0.5, height - 2);
-        g.stroke();
-        parent.addChild(blade);
-    }
-
-    // ============================
-    //  一簇草（多个叶片组合）
-    // ============================
-    private drawGrassCluster(parent: Node, cx: number, cy: number, size: number, color: Color) {
-        const cluster = new Node('GrassCluster');
-        cluster.setPosition(cx, cy);
-        const count = 4;
-        for (let i = 0; i < count; i++) {
-            const t = i / (count - 1);
-            const offsetX = (t - 0.5) * 8;
-            const h = size * (0.7 + 0.3 * (1 - Math.abs(t - 0.5) * 0.6));
-            const bend = (t - 0.5) * 6;
-            this.drawGrassBlade(cluster, offsetX, 0, h, color, bend);
-        }
-        parent.addChild(cluster);
-    }
-
-    // ============================
-    //  在田地两侧绘制草装饰
-    // ============================
-    private createGrassDecoration() {
-        const grassColors = [
-            new Color(120, 200, 100, 200),
-            new Color(100, 185, 80, 200),
-            new Color(140, 215, 110, 180),
-            new Color(80, 170, 70, 190),
+        const cloudScale = Math.max(0.86, Math.min(1.12, vs.width / Design.WIDTH));
+        const cloudData: Array<[number, number, number]> = [
+            [-0.34, 0.33, 42],
+            [-0.16, 0.25, 32],
+            [0.16, 0.28, 32],
+            [0.39, 0.19, 26],
         ];
-
-        // 计算田地区域
-        const tileSize = 68;
-        const gap = 8;
-        const cols = 3;
-        const totalW = cols * tileSize + (cols - 1) * gap;
-        const rows = Math.ceil(9 / cols);
-        const totalH = rows * tileSize + (rows - 1) * gap;
-        const leftEdge = -totalW / 2;
-        const rightEdge = totalW / 2;
-
-        const rand = (min: number, max: number) => min + Math.random() * (max - min);
-
-        // 底部空白填充范围（landContainer 坐标系）
-        const fillTop = -totalH / 2;  // 田地底部边缘
-        const fillBottom = -220;      // 底部导航栏上方约30px
-
-        // === 1. 底部大量留白填充草（最多、分布最广，填补留白）===
-        const fillContainer = new Node('BottomFillLayer');
-        fillContainer.setPosition(0, 0);
-        this.landContainer.addChild(fillContainer);
-
-        // 基础填充 22 簇（覆盖整个底部，增加数量）
-        for (let i = 0; i < 22; i++) {
-            this.drawGrassCluster(
-                fillContainer,
-                rand(-150, 150),
-                rand(fillTop + 5, fillBottom),
-                rand(10, 17),
-                grassColors[Math.floor(rand(0, 4))],
-            );
-        }
-        // 左下额外 5 簇（集中在左侧偏下区域加深填充）
-        for (let i = 0; i < 5; i++) {
-            this.drawGrassCluster(
-                fillContainer,
-                rand(-150, -40),
-                rand(fillTop - 20, fillBottom + 20),
-                rand(11, 16),
-                grassColors[Math.floor(rand(0, 4))],
-            );
-        }
-
-        // === 2. 左右侧草（中等层级）===
-        const sideContainer = new Node('SideGrassLayer');
-        sideContainer.setPosition(0, 0);
-        this.landContainer.addChild(sideContainer);
-
-        // 左侧 5 簇（整体往左5px）
-        for (let i = 0; i < 5; i++) {
-            this.drawGrassCluster(
-                sideContainer,
-                rand(leftEdge - 31, leftEdge - 13),
-                rand(-totalH / 2 + 10, totalH / 2 - 10),
-                rand(11, 18),
-                grassColors[Math.floor(rand(0, 4))],
-            );
-        }
-        // 右侧 3 簇
-        for (let i = 0; i < 3; i++) {
-            this.drawGrassCluster(
-                sideContainer,
-                rand(rightEdge + 8, rightEdge + 26),
-                rand(-totalH / 2 + 10, totalH / 2 - 10),
-                rand(12, 17),
-                grassColors[Math.floor(rand(0, 4))],
-            );
-        }
-        // 右上额外 3 簇（集中在右侧上方）
-        for (let i = 0; i < 3; i++) {
-            this.drawGrassCluster(
-                sideContainer,
-                rand(rightEdge + 8, rightEdge + 28),
-                rand(0, totalH / 2 - 10),
-                rand(12, 17),
-                grassColors[Math.floor(rand(0, 4))],
-            );
-        }
-
-        // === 3. 预留扩展背景草（最底层，远离tile避免重叠）===
-        const extendContainer = new Node('ExtendGrassLayer');
-        extendContainer.setPosition(0, 0);
-        this.landContainer.insertChild(extendContainer, 0);
-
-        const extendCount = Math.floor(rand(3, 5));
-        for (let i = 0; i < extendCount; i++) {
-            this.drawGrassCluster(
-                extendContainer,
-                rand(-totalW / 2 + 15, totalW / 2 - 15),
-                rand(-totalH / 2 - 35, -totalH / 2 - 20),
-                rand(9, 13),
-                grassColors[Math.floor(rand(0, 4))],
-            );
+        for (const [xRatio, yRatio, s] of cloudData) {
+            this.createCloud(vs.width * xRatio, vs.height * yRatio, s * cloudScale);
         }
     }
 
-    // ============================
-    private createTopBar() {
-        const visibleH = view.getVisibleSize().height;
-        this.topBar = new Node('TopBar');
-        const barH = 64;
-        this.topBar.setPosition(0, visibleH / 2 - barH / 2);
+    private createGrassPatches(parent: Node, viewWidth: number, grassHeight: number, grassTop: number) {
+        const colors = [
+            new Color(76, 164, 73, 175),
+            new Color(94, 184, 78, 165),
+            new Color(116, 198, 88, 150),
+        ];
+        const rows = 10;
+        const cols = 10;
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                if ((row + col * 2) % 7 === 0 && row > 2) continue;
+                const seed = row * 17 + col * 29;
+                const x = -viewWidth / 2 + 14 + col * (viewWidth - 28) / (cols - 1) + (this.rng(seed, 1) - 0.5) * 20;
+                const worldY = grassTop - 16 - row * 38 + (this.rng(seed, 2) - 0.5) * 16;
+                const localY = worldY - (grassTop - grassHeight / 2);
+                this.drawGrassPatch(parent, x, localY, 6 + this.rng(seed, 3) * 4, colors[(row + col) % colors.length]);
+            }
+        }
+    }
 
-        // 主背景（深绿渐变底）
+    private drawGrassPatch(parent: Node, x: number, y: number, size: number, color: Color) {
+        const patch = new Node('GrassPatch');
+        patch.setPosition(x, y);
+        const g = patch.addComponent(Graphics);
+        g.strokeColor = color;
+        g.lineWidth = 1.2;
+        const blades = 3 + Math.floor(this.rng(x, y) * 3);
+        for (let i = 0; i < blades; i++) {
+            const center = (blades - 1) / 2;
+            const offset = (i - center) * 2.5;
+            const height = size * (0.66 + this.rng(x + y, i) * 0.42);
+            const bend = (i - center) * 2.1;
+            g.moveTo(offset, 0);
+            g.quadraticCurveTo(offset + bend * 0.5, height * 0.48, offset + bend, height);
+        }
+        g.stroke();
+        parent.addChild(patch);
+    }
+
+    private createSun(x: number, y: number): Node {
+        const sun = new Node('Sun');
+        sun.setPosition(x, y);
+
+        const rays = new Node('SunRays');
+        const rg = rays.addComponent(Graphics);
+        rg.fillColor = new Color(255, 221, 94, 120);
+        for (let i = 0; i < 14; i++) {
+            const angle = (Math.PI * 2 * i) / 14;
+            const half = 0.07;
+            const inner = 38;
+            const outer = i % 2 === 0 ? 57 : 51;
+            rg.moveTo(Math.cos(angle - half) * inner, Math.sin(angle - half) * inner);
+            rg.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+            rg.lineTo(Math.cos(angle + half) * inner, Math.sin(angle + half) * inner);
+            rg.close();
+            rg.fill();
+        }
+        sun.addChild(rays);
+
+        const glow = new Node('SunGlow');
+        const gg = glow.addComponent(Graphics);
+        gg.fillColor = new Color(255, 214, 72, 48);
+        gg.circle(0, 0, 50);
+        gg.fill();
+        gg.fillColor = new Color(255, 226, 104, 72);
+        gg.circle(0, 0, 42);
+        gg.fill();
+        sun.addChild(glow);
+
+        const body = new Node('SunBody');
+        const bg = body.addComponent(Graphics);
+        bg.fillColor = new Color(255, 194, 42, 255);
+        bg.circle(0, 0, 34);
+        bg.fill();
+        bg.fillColor = new Color(255, 218, 79, 255);
+        bg.circle(-5, 6, 24);
+        bg.fill();
+        bg.fillColor = new Color(255, 242, 156, 185);
+        bg.circle(-12, 13, 11);
+        bg.fill();
+        sun.addChild(body);
+
+        return sun;
+    }
+
+    private createCloud(x: number, y: number, size: number) {
+        const cloud = new Node('Cloud');
+        cloud.setPosition(x, y);
+        const g = cloud.addComponent(Graphics);
+        g.fillColor = new Color(217, 243, 250, 62);
+        g.roundRect(-size * 0.68, -size * 0.25, size * 1.36, size * 0.42, size * 0.2);
+        g.fill();
+        g.fillColor = new Color(255, 255, 255, 160);
+        g.roundRect(-size * 0.62, -size * 0.2, size * 1.24, size * 0.36, size * 0.18);
+        g.fill();
+        g.circle(-size * 0.38, -size * 0.02, size * 0.34);
+        g.circle(-size * 0.08, size * 0.16, size * 0.42);
+        g.circle(size * 0.34, size * 0.02, size * 0.33);
+        g.fill();
+        g.fillColor = new Color(255, 255, 255, 72);
+        g.circle(-size * 0.28, size * 0.15, size * 0.22);
+        g.circle(size * 0.1, size * 0.24, size * 0.18);
+        g.fill();
+        this.node.addChild(cloud);
+    }
+
+    private createTopBar() {
+        const vs = view.getVisibleSize();
+        this.topBar = new Node('TopBar');
+        this.topBar.setPosition(0, vs.height / 2 - 31);
+        this.topBar.addComponent(UITransform).setContentSize(Design.WIDTH, 62);
+
         const bg = new Node('Bg');
-        bg.addComponent(UITransform).setContentSize(Design.WIDTH, barH);
-        const bgG = bg.addComponent(Graphics);
-        // 上半截深绿
-        bgG.fillColor = new Color(65, 165, 65, 235);
-        bgG.roundRect(-Design.WIDTH / 2, -barH / 2, Design.WIDTH, barH / 2, 0);
-        bgG.fill();
-        // 下半截稍浅
-        bgG.fillColor = new Color(85, 185, 85, 235);
-        bgG.roundRect(-Design.WIDTH / 2, 0, Design.WIDTH, barH / 2, 0);
-        bgG.fill();
-        // 底部圆角过渡
-        bgG.fillColor = new Color(75, 175, 75, 235);
-        bgG.roundRect(-Design.WIDTH / 2, -barH / 2, Design.WIDTH, barH, 14);
-        bgG.fill();
+        fillRoundRect(bg, Design.WIDTH + 8, 64, 0, new Color(70, 170, 76, 245));
         this.topBar.addChild(bg);
 
-        // 底部深色阴影带（更明显的边界）
-        const shadow = new Node('Shadow');
-        shadow.setPosition(0, -barH / 2);
-        const sg = shadow.addComponent(Graphics);
-        sg.fillColor = new Color(45, 130, 45, 160);
-        sg.rect(-Design.WIDTH / 2, -3, Design.WIDTH, 5);
-        sg.fill();
-        sg.fillColor = new Color(40, 110, 40, 80);
-        sg.rect(-Design.WIDTH / 2, -8, Design.WIDTH, 5);
-        sg.fill();
-        this.topBar.addChild(shadow);
+        const levelBadge = new Node('LevelBadge');
+        levelBadge.setPosition(-124, 0);
+        fillRoundRect(levelBadge, 70, 42, 20, new Color(84, 190, 86, 245));
+        strokeRoundRect(levelBadge, 70, 42, 20, new Color(47, 135, 58, 105), 2);
+        this.topBar.addChild(levelBadge);
 
-        // 装饰条（白色细线）
-        const deco = new Node('Deco');
-        const dg = deco.addComponent(Graphics);
-        dg.fillColor = new Color(255, 255, 255, 25);
-        dg.rect(-Design.WIDTH / 2, -barH / 2 + 10, Design.WIDTH, 2);
-        dg.fill();
-        this.topBar.addChild(deco);
-
-        // 等级标签（堆叠卡片效果）
-        const lvX = -138, lvY = 6;
-        // 底层阴影（偏移）
-        const lvShadow = new Node('LvShadow');
-        lvShadow.setPosition(lvX + 2, lvY - 2);
-        fillRoundRect(lvShadow, 68, 38, 18, new Color(0, 80, 0, 80));
-        this.topBar.addChild(lvShadow);
-        // 中层高光边
-        const lvMid = new Node('LvMid');
-        lvMid.setPosition(lvX, lvY);
-        fillRoundRect(lvMid, 68, 38, 18, new Color(100, 200, 100, 180));
-        this.topBar.addChild(lvMid);
-        // 顶层主体
-        const lvBg = new Node('LvBg');
-        lvBg.setPosition(lvX, lvY + 1);
-        fillRoundRect(lvBg, 64, 34, 16, new Color(80, 180, 80, 220));
-        // 内发光边框
-        const lvBorder = lvBg.addComponent(Graphics);
-        lvBorder.strokeColor = new Color(200, 255, 200, 100);
-        lvBorder.lineWidth = 1.5;
-        lvBorder.roundRect(-32, -17, 64, 34, 16);
-        lvBorder.stroke();
-        this.topBar.addChild(lvBg);
-        const lvNode = this.makeLabel('Lv.1', 22, new Color(255, 255, 255), true, 0, 0, 64, 34);
-        lvNode.setPosition(lvX, lvY + 1);
-        lvNode.name = 'LevelText';
-        this.topBar.addChild(lvNode);
-
-        // 等级两侧艺术星星
-        const starColor = new Color(255, 255, 200, 150);
-        this.drawStar(this.topBar, lvX - 42, lvY + 2, 6, starColor);
-        this.drawStar(this.topBar, lvX + 42, lvY + 2, 6, starColor);
-        this.drawStar(this.topBar, lvX + 50, lvY - 4, 4, starColor);
-        this.drawStar(this.topBar, lvX - 50, lvY - 4, 4, starColor);
-
-        // 经验条（堆叠3层效果）
-        const expBarW = 140, expBarH = 14;
-        const expX = -25, expY = -8;
-        // 底层阴影
-        const expShadow = new Node('ExpShadow');
-        expShadow.setPosition(expX + 2, expY - 2);
-        const esg = expShadow.addComponent(Graphics);
-        esg.fillColor = new Color(0, 60, 0, 80);
-        esg.roundRect(-expBarW / 2, -expBarH / 2, expBarW, expBarH, 7);
-        esg.fill();
-        this.topBar.addChild(expShadow);
-        // 中层背景（灰色槽）
         const expBg = new Node('ExpBg');
-        expBg.setPosition(expX, expY);
-        const ebg = expBg.addComponent(Graphics);
-        ebg.fillColor = new Color(60, 60, 60, 100);
-        ebg.roundRect(-expBarW / 2, -expBarH / 2, expBarW, expBarH, 7);
-        ebg.fill();
+        expBg.setPosition(-27, -1);
+        fillRoundRect(expBg, 108, 14, 8, new Color(45, 116, 55, 190));
         this.topBar.addChild(expBg);
 
-        // 顶层填充条（当前经验）
+        const level = this.makeLabel('Lv.1', 22, new Color(255, 255, 255), true, 0, 1, 64, 30);
+        level.name = 'LevelText';
+        levelBadge.addChild(level);
+
         const expFill = new Node('ExpFill');
-        expFill.setPosition(-expBarW / 2, 0);
         expFill.name = 'ExpFill';
-        const efg = expFill.addComponent(Graphics);
-        efg.fillColor = new Color(255, 215, 0);
-        efg.roundRect(0, -expBarH / 2, 0, expBarH, 7);
-        efg.fill();
-        // 填充条上再加一层高光亮条
-        const expHighlight = new Node('ExpHighlight');
-        expHighlight.setPosition(0, -expBarH / 2 + 3);
-        const ehg = expHighlight.addComponent(Graphics);
-        ehg.fillColor = new Color(255, 255, 200, 60);
-        ehg.roundRect(0, -2, 0, 4, 2);
-        ehg.fill();
-        expFill.addChild(expHighlight);
+        expFill.setPosition(-50, 0);
         expBg.addChild(expFill);
 
-        // 经验文字
-        const expText = this.makeLabel('0/100', 12, new Color(255, 255, 255, 220), false, 0, 0, 56, 16);
-        expText.setPosition(0, 1);
+        const expText = this.makeLabel('0/100', 11, new Color(255, 255, 255), false, 0, 0, 70, 14);
         expText.name = 'ExpText';
-        expText.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
         expBg.addChild(expText);
-
-        // 经验条旁边的装饰叶子
-        const leafColor = new Color(180, 230, 150, 150);
-        this.drawLeafDeco(this.topBar, expX + expBarW / 2 + 18, expY, 10, leafColor);
-        this.drawLeafDeco(this.topBar, expX - expBarW / 2 - 18, expY, 10, leafColor, true);
-
-        // 右侧货币区（堆叠卡片效果）
-        const cy = 6;
-        // 底层阴影
-        const curShadow = new Node('CurShadow');
-        curShadow.setPosition(113, cy - 2);
-        fillRoundRect(curShadow, 116, 42, 12, new Color(0, 80, 0, 70));
-        this.topBar.addChild(curShadow);
-        // 背景主体
-        const currencyBg = new Node('CurrencyBg');
-        currencyBg.setPosition(113, cy + 1);
-        fillRoundRect(currencyBg, 116, 42, 12, new Color(255, 255, 255, 35));
-        // 边框
-        const curBorder = currencyBg.addComponent(Graphics);
-        curBorder.strokeColor = new Color(255, 255, 255, 50);
-        curBorder.lineWidth = 1;
-        curBorder.roundRect(-58, -21, 116, 42, 12);
-        curBorder.stroke();
-        // 内部分隔竖线
-        const curDiv = currencyBg.addComponent(Graphics);
-        curDiv.fillColor = new Color(255, 255, 255, 18);
-        curDiv.rect(4, -17, 1, 34);
-        curDiv.fill();
-        this.topBar.addChild(currencyBg);
-
-        // 金币组（图标 + 3px间距 + 文字，整体居中左半边）
-        const goldGroupX = 90;
-        const goldIcon = new Node('GoldIcon');
-        goldIcon.addComponent(UITransform).setContentSize(26, 26);
-        goldIcon.setPosition(goldGroupX - 12, cy + 1);
-        this.createUiIcon('gold', goldIcon, 26);
-        this.topBar.addChild(goldIcon);
-
-        const goldNode = this.makeLabel('200', 16, new Color(255, 215, 0), true, 0, 4, 50, 20);
-        goldNode.setPosition(goldGroupX + 9, cy + 1);
-        goldNode.name = 'GoldDisplay';
-        this.topBar.addChild(goldNode);
-
-        // 分隔竖线（金币和钻石之间）
-        const divider = new Node('Divider');
-        divider.setPosition(113, cy + 1);
-        const ddg = divider.addComponent(Graphics);
-        ddg.fillColor = new Color(255, 255, 255, 25);
-        ddg.rect(-1, -16, 2, 32);
-        ddg.fill();
-        this.topBar.addChild(divider);
-
-        // 钻石组（图标 + 3px间距 + 文字，整体居中右半边）
-        const diaGroupX = 138;
-        const diamondIcon = new Node('DiamondIcon');
-        diamondIcon.addComponent(UITransform).setContentSize(26, 26);
-        diamondIcon.setPosition(diaGroupX - 10, cy + 1);
-        this.createUiIcon('diamond', diamondIcon, 26);
-        this.topBar.addChild(diamondIcon);
-
-        const diamondNode = this.makeLabel('50', 16, new Color(255, 150, 200), true, 0, 4, 40, 20);
-        diamondNode.setPosition(diaGroupX + 14, cy + 1);
-        diamondNode.name = 'DiamondDisplay';
-        this.topBar.addChild(diamondNode);
+        this.createCurrencyArea();
 
         this.node.addChild(this.topBar);
     }
 
-    // ============================
-    //  4. 农田网格（3×3 精致地块）
-    // ============================
-    private createLandGrid() {
-        this.landContainer = new Node('LandContainer');
-        // 放在地面区域中间偏上
-        this.landContainer.setPosition(0, -40);
-        this.node.addChild(this.landContainer);
-        this.renderLandTiles();
+    private createCurrencyArea() {
+        const holder = new Node('CurrencyArea');
+        holder.setPosition(96, 0);
+        holder.addComponent(UITransform).setContentSize(124, 30);
+        fillRoundRect(holder, 124, 30, 15, new Color(55, 145, 63, 220));
+        this.topBar.addChild(holder);
+
+        this.createCurrencyEntry(holder, 'gold', 'GoldDisplay', '200', -32, new Color(255, 217, 59));
+        this.createCurrencyEntry(holder, 'diamond', 'DiamondDisplay', '50', 30, new Color(255, 144, 205));
     }
 
-    private renderLandTiles() {
-        for (const t of this.landTiles) t.destroy();
-        this.landTiles = [];
+    private createCurrencyEntry(parent: Node, icon: string, labelName: string, value: string, x: number, color: Color) {
+        const iconNode = new Node(`${icon}Icon`);
+        iconNode.addComponent(UITransform).setContentSize(22, 22);
+        iconNode.setPosition(x - 20, 0);
+        parent.addChild(iconNode);
+        this.applyUiIcon(icon, iconNode);
 
-        const land = LandSystem.getInstance();
-        const blocks = land.getAllBlocks();
-        const total = blocks.length;
-        const cols = 3;
-        const tileSize = 68;
-        const gap = 8;
-        const totalW = cols * tileSize + (cols - 1) * gap;
-        const rows = Math.ceil(total / cols);
-        const totalH = rows * tileSize + (rows - 1) * gap;
-
-        blocks.forEach((block, i) => {
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const tile = this.createLandTile(block, tileSize);
-            tile.setPosition(
-                -totalW / 2 + col * (tileSize + gap) + tileSize / 2,
-                totalH / 2 - row * (tileSize + gap) - tileSize / 2
-            );
-            this.landContainer.addChild(tile);
-            this.landTiles.push(tile);
-        });
+        const label = this.makeLabel(value, 14, color, true, x + 8, -1, 38, 20);
+        label.name = labelName;
+        parent.addChild(label);
     }
 
-    // ============================
+    private createLandArea() {
+        this.landRoot = new Node('LandRoot');
+        const size = this.getLandGridSize();
+        this.landRoot.addComponent(UITransform).setContentSize(size.width, size.height);
+        this.layoutLandArea();
+        this.node.addChild(this.landRoot);
+    }
 
-    private createLandTile(block: LandBlock, size: number): Node {
-        const tile = new Node(`Tile_${block.id}`);
-        tile.addComponent(UITransform).setContentSize(size, size);
+    private layoutLandArea() {
+        if (!this.landRoot) return;
 
-        // 地块底色（带泥土纹理感的颜色）
-        const stateColors: Record<string, [number, number, number, number]> = {
-            empty: [139, 119, 80, 200],     // 泥土色
-            growing: [100, 160, 80, 220],   // 生长期的绿色
-            harvesting: [255, 215, 0, 220], // 成熟金色
-            occupied: [139, 115, 85, 200],  // 建筑灰棕
+        const vs = view.getVisibleSize();
+        const grid = this.getLandGridSize();
+        const grassTopY = vs.height * 0.14;
+        const topLimit = grassTopY - 12;
+        const navTop = -vs.height / 2 + 32 + MainUI.BOTTOM_NAV_HEIGHT / 2;
+        const bottomLimit = navTop + 14;
+        const availableH = Math.max(240, topLimit - bottomLimit);
+        const availableW = Math.max(Design.WIDTH - 42, 220);
+        const scale = Math.min(1, availableW / grid.width, availableH / grid.height);
+        const centerY = (topLimit + bottomLimit) / 2;
+
+        this.landRoot.setPosition(0, centerY);
+        this.landRoot.setScale(new Vec3(scale, scale, 1));
+    }
+
+    private getLandGridSize(): { width: number; height: number } {
+        return {
+            width: MainUI.LAND_COLS * MainUI.TILE_SIZE + (MainUI.LAND_COLS - 1) * MainUI.TILE_GAP,
+            height: MainUI.LAND_ROWS * MainUI.TILE_SIZE + (MainUI.LAND_ROWS - 1) * MainUI.TILE_GAP,
         };
-        const c = stateColors[block.state] || [180, 160, 130, 180];
-
-        // 底层阴影（右下偏移，营造浮起感）
-        const shadowTile = new Node('Shadow');
-        shadowTile.setPosition(3, -3);
-        fillRoundRect(shadowTile, size - 2, size - 2, 8, new Color(60, 40, 20, 80));
-        tile.addChild(shadowTile);
-
-        // 中层主体（略大一圈的深色底，营造厚度）
-        const midTile = new Node('Mid');
-        midTile.setPosition(0, 1);
-        fillRoundRect(midTile, size - 2, size - 2, 8, new Color(Math.max(c[0]-40,0), Math.max(c[1]-40,0), Math.max(c[2]-30,0), c[3]));
-        tile.addChild(midTile);
-
-        // 顶层主体（实际地块面）
-        const bg = new Node('Bg');
-        bg.setPosition(0, 2);
-        fillRoundRect(bg, size - 6, size - 6, 6, new Color(c[0], c[1], c[2], c[3]));
-        tile.addChild(bg);
-
-        // ---- 土壤质感效果（仅泥土态地块） ----
-        if (block.state === 'empty' || block.state === 'occupied') {
-            const soilNode = new Node('SoilDetail');
-            const soilG = soilNode.addComponent(Graphics);
-            soilNode.setPosition(0, 2);
-
-            // 深浅颗粒点（模拟土壤颗粒）
-            const darkBrown = new Color(c[0] - 40, c[1] - 35, c[2] - 25, 120);
-            const midBrown = new Color(c[0] - 20, c[1] - 15, c[2] - 10, 90);
-            for (let i = 0; i < 18; i++) {
-                const px = (Math.random() - 0.5) * (size - 18);
-                const py = (Math.random() - 0.5) * (size - 18);
-                const pr = 1.8 + Math.random() * 2.5;
-                soilG.fillColor = i % 2 === 0 ? darkBrown : midBrown;
-                soilG.circle(px, py, pr);
-                soilG.fill();
-            }
-
-            // 细腻泥土纹路（短弧线）
-            soilG.strokeColor = new Color(c[0] - 30, c[1] - 25, c[2] - 20, 80);
-            soilG.lineWidth = 1;
-            for (let i = 0; i < 5; i++) {
-                const sx = (Math.random() - 0.5) * (size - 18);
-                const sy = (Math.random() - 0.5) * (size - 18);
-                soilG.moveTo(sx, sy);
-                soilG.quadraticCurveTo(
-                    sx + (Math.random() - 0.5) * 10,
-                    sy + (Math.random() - 0.5) * 10,
-                    sx + (Math.random() - 0.5) * 12,
-                    sy + (Math.random() - 0.5) * 12,
-                );
-                soilG.stroke();
-            }
-
-            tile.addChild(soilNode);
-        }
-
-        // 田埂外框（凸起效果）
-        const borderOut = new Node('BorderOut');
-        borderOut.setPosition(0, 2);
-        strokeRoundRect(borderOut, size - 4, size - 4, 7, new Color(120, 100, 70, 120), 1.5);
-        tile.addChild(borderOut);
-
-        // 内框高光线（左上亮边）
-        const highlight = new Node('Highlight');
-        highlight.setPosition(0, 2);
-        const hg = highlight.addComponent(Graphics);
-        hg.strokeColor = new Color(255, 255, 255, 30);
-        hg.lineWidth = 1;
-        hg.roundRect(-(size-8)/2, -(size-8)/2, size-8, size-8, 5);
-        hg.stroke();
-        tile.addChild(highlight);
-
-        // 状态图标
-        const iconMap: Record<string, string> = {
-            empty: '🌱',
-            growing: '🌿',
-            harvesting: '⭐',
-            occupied: '🏡',
-        };
-        const iconLbl = tile.addComponent(Label);
-        iconLbl.string = iconMap[block.state] || '?';
-        iconLbl.fontSize = block.state === 'harvesting' ? 28 : 22;
-        iconLbl.horizontalAlign = Label.HorizontalAlign.CENTER;
-        iconLbl.verticalAlign = Label.VerticalAlign.CENTER;
-        iconLbl.color = new Color(255, 255, 255);
-
-        // 进度文字（生长中显示进度）
-        if (block.state === 'growing') {
-            const pct = this.makeLabel(`${Math.floor(block.progress)}%`, 10, new Color(255, 255, 255, 200), false, 0, -size / 2 + 8, 40, 14);
-            pct.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            tile.addChild(pct);
-        }
-
-
-        // 点击事件
-        const btn = tile.addComponent(Button);
-        btn.node.on(Node.EventType.TOUCH_END, () => this.onTileClick(block.id));
-
-        return tile;
     }
 
-    // ============================
-    //  5. 底部导航（固定在底部）
-    // ============================
     private createBottomNav() {
-        const visibleH = view.getVisibleSize().height;
-        this.bottomNav = new Node('BottomNav');
-        const navH = 66;
-        this.bottomNav.setPosition(0, -visibleH / 2 + navH / 2);
+        const vs = view.getVisibleSize();
+        const nav = new Node('BottomNav');
+        nav.setPosition(0, -vs.height / 2 + 32);
+        fillRoundRect(nav, Design.WIDTH + 8, 66, 12, new Color(60, 154, 65, 245));
+        this.node.addChild(nav);
 
-        // 主背景（上圆角 + 渐变效果）
-        const bg = new Node('Bg');
-        bg.addComponent(UITransform).setContentSize(Design.WIDTH, navH);
-        const bgG = bg.addComponent(Graphics);
-        // 上半截深色
-        bgG.fillColor = new Color(55, 145, 55, 240);
-        bgG.roundRect(-Design.WIDTH / 2, 0, Design.WIDTH, navH / 2, 0);
-        bgG.fill();
-        // 下半截（带圆角顶部）
-        bgG.fillColor = new Color(65, 155, 65, 240);
-        bgG.roundRect(-Design.WIDTH / 2, -navH / 2, Design.WIDTH, navH, 14);
-        bgG.fill();
-        this.bottomNav.addChild(bg);
-
-        // 顶部装饰光晕
-        const glow = new Node('Glow');
-        glow.setPosition(0, navH / 2 - 8);
-        const gg = glow.addComponent(Graphics);
-        gg.fillColor = new Color(255, 255, 255, 12);
-        gg.roundRect(-Design.WIDTH / 2 + 20, -4, Design.WIDTH - 40, 6, 3);
-        gg.fill();
-        this.bottomNav.addChild(glow);
-
-        // 散落五角星装饰（底部一排，增强效果）
-        const starPositions2: [number, number, number, [number, number, number, number]][] = [
-            [-Design.WIDTH / 2 + 26, -navH / 2 + 12, 7, [255, 255, 200, 200]],
-            [-Design.WIDTH / 2 + 80, -navH / 2 + 6, 4, [255, 220, 120, 160]],
-            [-Design.WIDTH / 2 + 130, -navH / 2 + 14, 6, [255, 255, 220, 180]],
-            [-70, -navH / 2 + 7, 5, [255, 220, 150, 170]],
-            [-10, -navH / 2 + 13, 7, [200, 255, 200, 190]],
-            [50, -navH / 2 + 6, 4, [255, 255, 200, 160]],
-            [110, -navH / 2 + 12, 6, [255, 230, 130, 180]],
-            [Design.WIDTH / 2 - 110, -navH / 2 + 7, 5, [255, 255, 220, 170]],
-            [Design.WIDTH / 2 - 60, -navH / 2 + 14, 7, [200, 255, 200, 200]],
-            [Design.WIDTH / 2 - 20, -navH / 2 + 7, 4, [255, 220, 120, 160]],
-        ];
-        for (const [sx, sy, ssize, scol] of starPositions2) {
-            this.drawStar(this.bottomNav, sx, sy, ssize, new Color(scol[0], scol[1], scol[2], scol[3]));
-        }
-
-        // 按钮分割竖线
-        const spacing = Design.WIDTH / 4;
-        for (let i = 1; i < 4; i++) {
-            const line = new Node(`Divider_${i}`);
-            line.setPosition(-Design.WIDTH / 2 + spacing * i, 0);
-            const lg = line.addComponent(Graphics);
-            lg.fillColor = new Color(255, 255, 255, 18);
-            lg.rect(-1, -navH / 2 + 8, 2, navH - 16);
-            lg.fill();
-            this.bottomNav.addChild(line);
-        }
-
-        const items = [
-            { name: '物品', icon: 'bag', handler: () => this.showPanel('inventory') },
-            { name: '合成', icon: 'gear', handler: () => this.showPanel('craft') },
-            { name: '商店', icon: 'shop', handler: () => this.showPanel('shop') },
-            { name: '种植', icon: 'leaf', handler: () => this.showPlantMenu() },
+        const buttons: Array<{ name: string; icon: string; panel: PanelName }> = [
+            { name: '背包', icon: 'bag', panel: 'inventory' },
+            { name: '合成', icon: 'gear', panel: 'craft' },
+            { name: '商店', icon: 'shop', panel: 'shop' },
+            { name: '任务', icon: 'leaf', panel: 'quest' },
         ];
 
-        items.forEach((item, i) => {
-            const btn = new Node(`Btn_${item.name}`);
-            btn.addComponent(UITransform).setContentSize(Design.WIDTH / 4 - 10, navH - 10);
-            btn.setPosition(-Design.WIDTH / 2 + spacing * i + spacing / 2, 0);
+        const slotW = Design.WIDTH / buttons.length;
+        buttons.forEach((item, index) => {
+            const btn = new Node(`Nav_${item.panel}`);
+            btn.addComponent(UITransform).setContentSize(74, 48);
+            btn.setPosition(-Design.WIDTH / 2 + slotW * index + slotW / 2, 1);
+            fillRoundRect(btn, 74, 46, 9, new Color(76, 181, 78, 235));
 
-            // 堆叠按钮：阴影层
-            const btnShadow = new Node('BtnShadow');
-            btnShadow.setPosition(2, -2);
-            fillRoundRect(btnShadow, Design.WIDTH / 4 - 10, navH - 10, 10, new Color(30, 90, 30, 100));
-            btn.addChild(btnShadow);
+            const icon = new Node('Icon');
+            icon.addComponent(UITransform).setContentSize(22, 22);
+            icon.setPosition(0, 9);
+            this.applyUiIcon(item.icon, icon);
+            btn.addChild(icon);
 
-            // 按钮主体凸起层
-            const btnBg = new Node('BtnBg');
-            btnBg.setPosition(0, 1);
-            fillRoundRect(btnBg, Design.WIDTH / 4 - 14, navH - 16, 9, new Color(70, 170, 70, 220));
-            // 内发光边框
-            const btnBorder = btnBg.addComponent(Graphics);
-            btnBorder.strokeColor = new Color(150, 255, 150, 60);
-            btnBorder.lineWidth = 1;
-            btnBorder.roundRect(-((Design.WIDTH / 4 - 14) / 2), -((navH - 16) / 2), Design.WIDTH / 4 - 14, navH - 16, 9);
-            btnBorder.stroke();
-            btn.addChild(btnBg);
+            const navLabels: Record<PanelName, string> = { inventory: '背包', craft: '合成', shop: '商店', quest: '任务' };
+            const displayName = item.panel === 'quest' ? '图鉴' : navLabels[item.panel];
+            const label = this.makeLabel(displayName, 10, new Color(255, 255, 255), true, 0, -15, 66, 16);
+            btn.addChild(label);
 
-            // 图标
-            const iconNode = new Node('Icon');
-            iconNode.addComponent(UITransform).setContentSize(34, 34);
-            iconNode.setPosition(0, 5);
-            this.createUiIcon(item.icon, iconNode, 34);
-            btn.addChild(iconNode);
-
-            // 按钮内散落星星
-            const btnW2 = (Design.WIDTH / 4 - 10) / 2;
-            const btnH2 = (navH - 10) / 2;
-            const btnStars = [
-                [-btnW2 + 8, btnH2 - 8, 4, [255, 255, 200, 150]],
-                [btnW2 - 8, -btnH2 + 8, 3, [255, 220, 120, 130]],
-                [i === 1 || i === 3 ? -btnW2 + 8 : btnW2 - 8, -btnH2 + 8, 3, [200, 255, 200, 120]],
-            ] as [number, number, number, [number, number, number, number]][];
-            for (const [sx, sy, ssize, scol] of btnStars) {
-                this.drawStar(btn, sx, sy, ssize, new Color(scol[0], scol[1], scol[2], scol[3]));
-            }
-
-            // 文字（单独节点避免被遮挡）
-            const labelNode = this.makeLabel(item.name, 13, new Color(255, 255, 255, 230), false, 0, -18, 60, 20);
-            labelNode.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            btn.addChild(labelNode);
-
-            const button = btn.addComponent(Button);
-            button.target = btn;
-            button.transition = Button.Transition.SCALE;
-            button.zoomScale = 0.92;
-            button.node.on(Node.EventType.TOUCH_END, item.handler);
-            this.bottomNav.addChild(btn);
+            btn.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.showPanel(item.panel));
+            nav.addChild(btn);
         });
-
-        this.node.addChild(this.bottomNav);
     }
 
-    // ============================
-    //  6. 面板（物品/合成/商店）
-    // ============================
     private createPanels() {
-        this.inventoryPanel = this.makePanel('🎒 物品栏', 320, 440);
-        this.craftPanel = this.makePanel('⚙️ 合成台', 320, 440);
-        this.shopPanel = this.makePanel('🏪 种子商店', 320, 440);
-        this.inventoryPanel.active = false;
-        this.craftPanel.active = false;
-        this.shopPanel.active = false;
-        this.node.addChild(this.inventoryPanel);
-        this.node.addChild(this.craftPanel);
-        this.node.addChild(this.shopPanel);
-    }
-
-    // ---- 物品栏 ----
-    private renderInventoryGrid() {
-        const body = this.inventoryPanel.getChildByName('Body');
-        if (body) body.destroy();
-        const newBody = new Node('Body');
-        newBody.addComponent(UITransform).setContentSize(290, 340);
-        newBody.setPosition(0, -20);
-        this.inventoryPanel.addChild(newBody);
-
-        const inv = InventorySystem.getInstance();
-        const slots = inv.getNonEmptySlots();
-        const info = inv.getUsage();
-        const cols = 4;
-        const cellSize = 64;
-        const gap = 8;
-
-        // 使用情况提示
-        const usageText = this.makeLabel(`📦 ${info.used}/${info.max}`, 11, new Color(120, 120, 120), false, 0, 0, 100, 18);
-        usageText.setPosition(-80, 160);
-        usageText.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-        newBody.addChild(usageText);
-
-        slots.forEach((slot, i) => {
-            const def = getItem(slot.itemId);
-            if (!def) return;
-
-            const cell = new Node(`Slot_${i}`);
-            const col = i % cols;
-            const row = Math.floor(i / cols);
-            const startX = -(cols * (cellSize + gap)) / 2 + cellSize / 2;
-            cell.setPosition(startX + col * (cellSize + gap), 130 - row * (cellSize + gap));
-            cell.addComponent(UITransform).setContentSize(cellSize, cellSize);
-
-            // 格子背景
-            fillRoundRect(cell, cellSize, cellSize, 8, new Color(230, 240, 220, 200));
-            strokeRoundRect(cell, cellSize, cellSize, 8, new Color(180, 200, 170, 150), 1);
-
-            // 物品图标（优先加载后端图片）
-            const icon = this.createItemIcon(slot.itemId, cellSize - 12);
-            cell.addChild(icon);
-
-            // 数量角标
-            if (slot.count > 1) {
-                const cn = this.makeLabel(slot.count.toString(), 11, new Color(255, 255, 255), true, 0, 0, 22, 16);
-                cn.setPosition(cellSize / 2 - 12, -cellSize / 2 + 10);
-                cn.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-                const cb = new Node('CountBg');
-                cb.setPosition(cellSize / 2 - 12, -cellSize / 2 + 10);
-                fillRoundRect(cb, 24, 18, 9, new Color(255, 50, 50, 200));
-                cell.addChild(cb);
-                cell.addChild(cn);
-            }
-
-            // 出售点击
-            const btn = cell.addComponent(Button);
-            btn.node.on(Node.EventType.TOUCH_END, () => this.showSellDialog(slot.itemId, def));
-            newBody.addChild(cell);
-        });
-
-        if (slots.length === 0) {
-            const empty = this.makeLabel('✨ 背包空空的~', 14, new Color(160, 160, 160), false, 0, 20, 200, 24);
-            empty.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            newBody.addChild(empty);
+        this.panels.inventory = this.createPanel('背包仓库', 318, 398);
+        this.panels.craft = this.createPanel('合成工坊', 318, 398);
+        this.panels.shop = this.createPanel('集市商店', 318, 398);
+        this.panels.quest = this.createPanel('图鉴', 318, 398);
+        for (const panel of [this.panels.inventory, this.panels.craft, this.panels.shop, this.panels.quest]) {
+            if (!panel) continue;
+            panel.active = false;
+            this.node.addChild(panel);
         }
     }
 
-    // ---- 合成台 ----
-    private renderCraftPanel() {
-        const old = this.craftPanel.getChildByName('Body');
-        if (old) old.destroy();
-        const body = new Node('Body');
-        body.addComponent(UITransform).setContentSize(290, 350);
-        body.setPosition(0, -20);
-        this.craftPanel.addChild(body);
-
-        const gm = GameManager.getInstance();
-        const recipes = getRecipesByLevel(gm.playerLevel);
-        const cs = CraftSystem.getInstance();
-        const activeCount = cs.getActiveCraftCount();
-        const rowH = 60;
-        const totalH = (activeCount > 0 ? 28 : 0) + recipes.length * rowH + 10;
-
-        // 活跃合成提示
-        let offsetY = totalH / 2 - 10;
-        if (activeCount > 0) {
-            const info = this.makeLabel(`⏳ 进行中: ${activeCount} 个`, 14, new Color(230, 120, 0), false, 0, 0, 150, 22);
-            info.setPosition(0, offsetY);
-            info.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            body.addChild(info);
-            offsetY -= 28;
-        }
-
-        recipes.forEach((recipe, i) => {
-            const y = offsetY - i * rowH - rowH / 2;
-
-            const row = new Node(`R_${recipe.id}`);
-            row.addComponent(UITransform).setContentSize(280, 56);
-            row.setPosition(0, y);
-
-            fillRoundRect(row, 280, 54, 8, new Color(245, 250, 240, 220));
-            strokeRoundRect(row, 280, 54, 8, new Color(200, 220, 190, 120), 1);
-
-            // 产出图标
-            const prod = recipe.product;
-            const iconNode = this.createItemIcon(prod.itemId, 32);
-            iconNode.setPosition(-115, 5);
-            row.addChild(iconNode);
-
-            // 配方名
-            const nameN = this.makeLabel(recipe.name, 15, new Color(50, 50, 50), true, 0, 12, 90, 22);
-            nameN.setPosition(-82, 0);
-            row.addChild(nameN);
-
-            // 材料
-            const matStr = recipe.materials.map(m => `${m.itemId}×${m.count}`).join(' ');
-            const matN = this.makeLabel(matStr, 12, new Color(120, 120, 120), false, 0, -10, 140, 20);
-            matN.setPosition(-72, 0);
-            row.addChild(matN);
-
-            // 合成按钮
-            const btn = new Node('Btn');
-            btn.addComponent(UITransform).setContentSize(64, 32);
-            btn.setPosition(103, 0);
-            fillRoundRect(btn, 64, 32, 8, new Color(80, 200, 80));
-            const bl = btn.addComponent(Label);
-            bl.string = '合成';
-            bl.fontSize = 14;
-            bl.color = new Color(255, 255, 255);
-            bl.isBold = true;
-            bl.horizontalAlign = Label.HorizontalAlign.CENTER;
-            bl.verticalAlign = Label.VerticalAlign.CENTER;
-            const bb = btn.addComponent(Button);
-            bb.node.on(Node.EventType.TOUCH_END, () => {
-                const id = CraftSystem.getInstance().startCraft(recipe.id);
-                if (id >= 0) { this.toast(`🔨 ${recipe.name}`); this.renderCraftPanel(); }
-                else { this.toast('❌ 材料不足'); }
-            });
-            row.addChild(btn);
-            body.addChild(row);
-        });
-
-        if (recipes.length === 0) {
-            const e = this.makeLabel('提升等级解锁配方', 13, new Color(160, 160, 160), false, 0, 0, 160, 24);
-            e.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            body.addChild(e);
-        }
-    }
-
-    // ---- 商店 ----
-    private renderShopPanel() {
-        const old = this.shopPanel.getChildByName('Body');
-        if (old) old.destroy();
-        const body = new Node('Body');
-        body.addComponent(UITransform).setContentSize(290, 350);
-        body.setPosition(0, -20);
-        this.shopPanel.addChild(body);
-
-        const gm = GameManager.getInstance();
-        const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel + 2);
-        const rowH = 60;
-        const totalH = crops.length * rowH + 10;
-
-        crops.forEach((crop, i) => {
-            const y = totalH / 2 - i * rowH - rowH / 2;
-
-            const row = new Node(`Shop_${crop.id}`);
-            row.addComponent(UITransform).setContentSize(280, 54);
-            row.setPosition(0, y);
-
-            const unlocked = crop.unlockLevel <= gm.playerLevel;
-            fillRoundRect(row, 280, 52, 8, new Color(245, 250, 240, 220));
-            if (!unlocked) {
-                const g = row.addComponent(Graphics);
-                g.fillColor = new Color(0, 0, 0, 30);
-                g.roundRect(-140, -26, 280, 52, 8);
-                g.fill();
-            }
-
-            // 物品图标
-            const iconNode = this.createItemIcon(crop.id, 36);
-            iconNode.setPosition(-115, 0);
-            row.addChild(iconNode);
-
-            // 名称
-            const nameN = this.makeLabel(crop.name, 15, unlocked ? new Color(50, 50, 50) : new Color(160, 160, 160), false, 0, 10, 60, 20);
-            nameN.setPosition(-82, 0);
-            row.addChild(nameN);
-
-            // 价格
-            const price = crop.sellPrice * 2;
-            const priceN = this.makeLabel(`💰${price}`, 14, new Color(255, 180, 0), false, 0, -10, 60, 20);
-            priceN.setPosition(-82, 0);
-            row.addChild(priceN);
-
-            // 生长时间
-            const timeN = this.makeLabel(`⏱${crop.growthTime}s`, 12, new Color(140, 140, 140), false, 0, -10, 50, 18);
-            timeN.setPosition(-24, 0);
-            row.addChild(timeN);
-
-            // 购买按钮
-            const btn = new Node('Btn');
-            btn.addComponent(UITransform).setContentSize(60, 32);
-            btn.setPosition(103, 0);
-            fillRoundRect(btn, 60, 32, 8, unlocked ? new Color(80, 200, 80) : new Color(180, 180, 180));
-            const bl = btn.addComponent(Label);
-            bl.string = unlocked ? '购买' : '🔒';
-            bl.fontSize = 14;
-            bl.color = new Color(255, 255, 255);
-            bl.horizontalAlign = Label.HorizontalAlign.CENTER;
-            bl.verticalAlign = Label.VerticalAlign.CENTER;
-            const bb = btn.addComponent(Button);
-            bb.node.on(Node.EventType.TOUCH_END, () => {
-                if (!unlocked) { this.toast(`需要 Lv.${crop.unlockLevel}`); return; }
-                if (gm.spendGold(price)) {
-                    InventorySystem.getInstance().addItem(crop.id, 1);
-                    this.toast(`✅ 购买了 ${crop.name}`);
-                    this.renderShopPanel();
-                    this.refreshTopBar();
-                } else { this.toast('❌ 金币不足'); }
-            });
-            row.addChild(btn);
-            body.addChild(row);
-        });
-
-        if (crops.length === 0) {
-            const e = this.makeLabel('暂无可用种子', 13, new Color(160, 160, 160), false, 0, 0, 120, 24);
-            e.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-            body.addChild(e);
-        }
-    }
-
-    // ============================
-    //  7. 弹窗
-    // ============================
-    private createPopupDialog() {
-        const visibleH = view.getVisibleSize().height;
-        this.popupDialog = new Node('PopupDialog');
-        this.popupDialog.addComponent(UITransform).setContentSize(Design.WIDTH, visibleH);
-        this.popupDialog.active = false;
-        this.node.addChild(this.popupDialog);
-    }
-
-    private showDialog(title: string, msg: string, btns: Array<{ text: string; cb: () => void }>) {
-        this.popupDialog.active = true;
-        // 遮罩
-        const oldMask = this.popupDialog.getChildByName('Mask');
-        if (oldMask) oldMask.destroy();
-        const mask = new Node('Mask');
-        const vh = view.getVisibleSize().height;
-        mask.addComponent(UITransform).setContentSize(Design.WIDTH, vh);
-        fillRect(mask, Design.WIDTH, vh, new Color(0, 0, 0, 130));
-        mask.on(Node.EventType.TOUCH_END, () => { this.popupDialog.active = false; });
-        this.popupDialog.addChild(mask);
-
-        const oldDlg = this.popupDialog.getChildByName('Dlg');
-        if (oldDlg) oldDlg.destroy();
-        const dlg = new Node('Dlg');
-        const dw = 270, dh = 190;
-        dlg.addComponent(UITransform).setContentSize(dw, dh);
-        fillRoundRect(dlg, dw, dh, 16, new Color(255, 250, 235));
-        strokeRoundRect(dlg, dw, dh, 16, new Color(180, 200, 170), 2);
-        this.popupDialog.addChild(dlg);
-
-        const t = this.makeLabel(title, 17, new Color(50, 50, 50), true, 0, 0, dw - 30, 26);
-        t.setPosition(0, dh / 2 - 30);
-        t.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-        dlg.addChild(t);
-
-        const m = this.makeLabel(msg, 13, new Color(100, 100, 100), false, 0, 5, dw - 30, 70);
-        m.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
-        m.getComponent(Label)!.lineHeight = 22;
-        dlg.addChild(m);
-
-        const startX = -((btns.length - 1) * 100) / 2;
-        btns.forEach((btn, i) => {
-            const b = new Node(`B_${i}`);
-            b.addComponent(UITransform).setContentSize(90, 34);
-            b.setPosition(startX + i * 100, -dh / 2 + 30);
-            const isPrimary = i === btns.length - 1;
-            fillRoundRect(b, 90, 34, 10, isPrimary ? new Color(80, 200, 80) : new Color(200, 200, 200));
-            const bl = b.addComponent(Label);
-            bl.string = btn.text;
-            bl.fontSize = 14;
-            bl.color = new Color(255, 255, 255);
-            bl.horizontalAlign = Label.HorizontalAlign.CENTER;
-            bl.verticalAlign = Label.VerticalAlign.CENTER;
-            const bb = b.addComponent(Button);
-            bb.node.on(Node.EventType.TOUCH_END, () => { btn.cb(); this.popupDialog.active = false; });
-            dlg.addChild(b);
-        });
-
-        // 弹入动画
-        dlg.scale = new Vec3(0.6, 0.6, 1);
-        tween(dlg).to(0.25, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
-    }
-
-    // ============================
-    //  工具方法
-    // ============================
-    private makeLabel(text: string, fontSize: number, color: Color, bold: boolean, x: number, y: number, w: number, h: number): Node {
-        const node = new Node('Label');
-        node.setPosition(x, y);
-        const label = node.addComponent(Label);
-        label.string = text;
-        label.fontSize = fontSize;
-        label.color = color;
-        label.isBold = bold;
-        label.horizontalAlign = Label.HorizontalAlign.CENTER;
-        label.verticalAlign = Label.VerticalAlign.CENTER;
-        return node;
-    }
-
-    private makePanel(title: string, w: number, h: number): Node {
-        const panel = new Node('Panel');
+    private createPanel(title: string, w: number, h: number): Node {
+        const panel = new Node(`Panel_${title}`);
+        panel.setPosition(0, 5);
         panel.addComponent(UITransform).setContentSize(w, h);
-        // 背景
-        fillRoundRect(panel, w, h, 16, new Color(255, 250, 235));
-        strokeRoundRect(panel, w, h, 16, new Color(180, 200, 170), 2);
-        // 标题
-        const t = this.makeLabel(title, 18, new Color(50, 50, 50), true, 0, 0, 200, 28);
-        t.setPosition(-w / 2 + 18, h / 2 - 28);
-        t.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-        panel.addChild(t);
-        // 关闭按钮
-        const closeBtn = new Node('Close');
-        closeBtn.addComponent(UITransform).setContentSize(30, 30);
-        closeBtn.setPosition(w / 2 - 22, h / 2 - 24);
-        const cl = closeBtn.addComponent(Label);
-        cl.string = '✕';
-        cl.fontSize = 18;
-        cl.color = new Color(150, 150, 150);
-        cl.horizontalAlign = Label.HorizontalAlign.CENTER;
-        cl.verticalAlign = Label.VerticalAlign.CENTER;
-        const cb = closeBtn.addComponent(Button);
-        cb.node.on(Node.EventType.TOUCH_END, () => { panel.active = false; });
-        panel.addChild(closeBtn);
+        fillRoundRect(panel, w, h, 14, new Color(255, 250, 230, 252));
+        strokeRoundRect(panel, w, h, 14, new Color(124, 184, 105, 160), 2);
+
+        const close = new Node('Close');
+        close.addComponent(UITransform).setContentSize(32, 32);
+        close.setPosition(w / 2 - 24, h / 2 - 24);
+        fillRoundRect(close, 28, 28, 14, new Color(232, 238, 219, 255));
+        const x = this.makeLabel('x', 18, new Color(92, 104, 82), true, 0, 1, 28, 28);
+        close.addChild(x);
+        close.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => { panel.active = false; });
+        panel.addChild(close);
+
         return panel;
     }
 
-    /**
-     * 创建物品图标节点（优先加载后端图片，失败回退 emoji）
-     * @param itemId 物品 ID
-     * @param size 图标大小
-     * @returns Node 包含 Sprite（图片）或 Label（emoji fallback）
-     */
-    /**
-     * 加载 UI 图标（金币、钻石、导航等），异步加载图片，无 emoji 回退
-     */
-    private createUiIcon(iconName: string, node: Node, size: number) {
-        ImageCache.getInstance().loadUiIcon(iconName).then(sf => {
-            if (sf && sf.texture) {
-                const sprite = node.addComponent(Sprite);
-                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-                sprite.trim = false;
-                sprite.spriteFrame = sf;
-            }
-        });
+    private createDialogRoot() {
+        this.dialogRoot = new Node('DialogRoot');
+        this.dialogRoot.active = false;
+        this.node.addChild(this.dialogRoot);
     }
 
-    /**
-     * 创建物品图标节点
-     * 立即显示 emoji，后端图片加载成功后替换
-     */
-    private createItemIcon(itemId: string, size: number): Node {
-        const node = new Node(`Icon_${itemId}`);
-        node.addComponent(UITransform).setContentSize(size, size);
-
-        // 1. 立即显示 emoji（保证任何时候都有内容）
-        const lbl = node.addComponent(Label);
-        lbl.string = this.emoji(itemId);
-        lbl.fontSize = size * 0.6;
-        lbl.horizontalAlign = Label.HorizontalAlign.CENTER;
-        lbl.verticalAlign = Label.VerticalAlign.CENTER;
-
-        // 2. 后台加载图片，成功则替换 emoji
-        ImageCache.getInstance().load(itemId).then(sf => {
-            if (sf && sf.texture) {
-                lbl.node.active = false;
-                const sprite = node.addComponent(Sprite);
-                sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-                sprite.trim = false;
-                sprite.spriteFrame = sf;
-            }
-        });
-        return node;
+    private createBubbleRoot() {
+        this.bubbleRoot = new Node('BubbleRoot');
+        this.node.addChild(this.bubbleRoot);
     }
 
-    private emoji(itemId: string): string {
-        const m: Record<string, string> = {
-            wheat: '🌾', corn: '🌽', tomato: '🍅', carrot: '🥕', pumpkin: '🎃',
-            strawberry: '🍓', cherry: '🍒', banana: '🍌', apple: '🍎', lettuce: '🥬',
-            egg: '🥚', milk: '🥛', flour: '🌾', butter: '🧈', honey: '🍯', sugar: '🧂',
-            oatmeal: '🥣', jam: '🍓', cheese: '🧀', ketchup: '🍅',
-            bread: '🍞', croissant: '🥐', cake: '🍰', cupcake: '🧁', cookie: '🍪',
-            pie: '🥧', strawberryCake: '🍓', baguette: '🥖', donut: '🍩',
-            chocolateCake: '🍫', cereal: '🥣', pasta: '🍝',
-            butterToast: '🍞', honeyToast: '🍞', jamToast: '🍞',
-            craftTable: '⚙️', chickenCoop: '🐔', barn: '🐄',
-            mysteryBox: '🎁', luckyStar: '⭐', jade: '💎',
-            speedTicket: '⏰', doubleHarvestCard: '🎯', goldBoostCard: '💰', universalSeed: '🌱',
-            sunflower: '🌻', tulip: '🌷', rose: '🌹', tree: '🌲',
-        };
-        return m[itemId] || '📦';
-    }
+    // Land
+    private refreshLand() {
+        this.layoutLandArea();
+        this.ensureLandCountForLevel();
+        this.landTiles.forEach(tile => tile.destroy());
+        this.landTiles = [];
 
-    // ============================
-    //  交互
-    // ============================
-    private onTileClick(blockId: number) {
-        const land = LandSystem.getInstance();
-        const block = land.getBlock(blockId);
-        if (!block) return;
-        switch (block.state) {
-            case 'empty':
-                if (this.currentCropForPlanting) {
-                    if (land.plantCrop(blockId, this.currentCropForPlanting)) {
-                        InventorySystem.getInstance().removeItem(this.currentCropForPlanting, 1);
-                        this.toast('🌱 种植成功!');
-                        this.currentCropForPlanting = null;
-                        this.refreshLand();
-                    }
-                } else {
-                    this.showPlantMenu();
-                }
-                break;
-            case 'growing': this.toast('⏳ 生长中...'); break;
-            case 'harvesting':
-                const crop = land.harvestCrop(blockId);
-                if (crop) {
-                    const def = getItem(crop);
-                    const count = def?.harvestCount ?? 1;
-                    InventorySystem.getInstance().addItem(crop, count);
-                    GameManager.getInstance().addExperience(5);
-                    this.toast(`🎉 收获 ${def?.name || crop} ×${count}`);
-                    this.refreshLand();
-                    this.refreshTopBar();
-                }
-                break;
-            case 'occupied': this.toast('🏠 建筑占用'); break;
+        const blocks = LandSystem.getInstance().getAllBlocks();
+        const totalSlots = Math.min(GameValues.MAX_LAND, MainUI.LAND_COLS * MainUI.LAND_ROWS);
+        for (let index = 0; index < totalSlots; index++) {
+            const block = blocks[index];
+            const tile = block ? this.createLandTile(block) : this.createLockedTile(index);
+            const pos = this.getLandPosition(index);
+            tile.setPosition(pos.x, pos.y);
+            this.landRoot.addChild(tile);
+            this.landTiles.push(tile);
         }
     }
 
-    private showPlantMenu() {
-        const gm = GameManager.getInstance();
-        const inv = InventorySystem.getInstance();
-        const owned = getPlantableCrops()
-            .filter(c => c.unlockLevel <= gm.playerLevel)
-            .filter(c => inv.hasItems(c.id, 1));
-        if (owned.length === 0) {
-            this.showPanel('shop');
-            this.toast('没有种子，去商店买 🌱');
+    private refreshLandBlock(blockId: number) {
+        const index = this.landTiles.findIndex(tile => tile.name === `Land_${blockId}`);
+        const block = LandSystem.getInstance().getBlock(blockId);
+        if (index < 0 || !block) return;
+
+        const oldTile = this.landTiles[index];
+        const newTile = this.createLandTile(block);
+        newTile.setPosition(oldTile.position);
+        oldTile.removeFromParent();
+        oldTile.destroy();
+        this.landRoot.addChild(newTile);
+        newTile.setSiblingIndex(index);
+        this.landTiles[index] = newTile;
+    }
+
+    private animateUnlockLand(index: number) {
+        const block = LandSystem.getInstance().getBlock(index);
+        const oldTile = this.landTiles[index];
+        if (!block || !oldTile) {
+            this.refreshLand();
             return;
         }
-        this.currentCropForPlanting = owned[0].id;
-        this.toast(`选择 ${owned[0].name}，点击空地种植 🌱`);
-    }
 
-    private showSellDialog(itemId: string, def: ItemDef) {
-        const inv = InventorySystem.getInstance();
-        const count = inv.getItemCount(itemId);
-        const total = def.sellPrice * count;
-        this.showDialog(
-            `💼 出售 ${def.name}`,
-            `数量: ${count}  单价: 💰${def.sellPrice}\n总价: 💰${total}`,
-            [
-                { text: '取消', cb: () => {} },
-                { text: '全部出售', cb: () => {
-                    inv.sellItem(itemId, count, (p) => {
-                        GameManager.getInstance().addGold(p);
-                        this.refreshAll();
-                        this.toast(`💰 +${p} 金币`);
-                    });
-                }},
-            ]
-        );
-    }
+        const newTile = this.createLandTile(block);
+        newTile.setPosition(oldTile.position);
+        newTile.scale = new Vec3(0, 1, 1);
+        oldTile.addComponent(Button).interactable = false;
+        this.landRoot.addChild(newTile);
+        newTile.setSiblingIndex(index + 1);
 
-    private toast(text: string) {
-        const toast = new Node('Toast');
-        toast.addComponent(UITransform).setContentSize(220, 36);
-        const tg = toast.addComponent(Graphics);
-        tg.fillColor = new Color(40, 40, 40, 210);
-        tg.roundRect(-110, -18, 220, 36, 10);
-        tg.fill();
-        const tl = toast.addComponent(Label);
-        tl.string = text;
-        tl.fontSize = 13;
-        tl.color = new Color(255, 255, 255);
-        tl.horizontalAlign = Label.HorizontalAlign.CENTER;
-        tl.verticalAlign = Label.VerticalAlign.CENTER;
-        this.node.addChild(toast);
-        tween(toast)
-            .to(0.3, { position: new Vec3(0, 70, 0) }, { easing: 'backOut' })
-            .delay(1.2)
-            .to(0.25, { position: new Vec3(0, 120, 0), scale: new Vec3(0.8, 0.8, 0.8) })
-            .call(() => toast.destroy())
+        tween(oldTile)
+            .to(0.16, { scale: new Vec3(0, 1, 1) }, { easing: 'quadIn' })
+            .call(() => {
+                oldTile.removeFromParent();
+                oldTile.destroy();
+                this.landTiles[index] = newTile;
+            })
+            .start();
+
+        tween(newTile)
+            .delay(0.12)
+            .to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
             .start();
     }
 
-    private showPanel(name: string) {
-        this.inventoryPanel.active = name === 'inventory';
-        this.craftPanel.active = name === 'craft';
-        this.shopPanel.active = name === 'shop';
-        if (name === 'inventory') this.renderInventoryGrid();
-        else if (name === 'craft') this.renderCraftPanel();
-        else if (name === 'shop') this.renderShopPanel();
+    private updateGrowingProgress(blockId: number, progress: number) {
+        const tile = this.landTiles.find(tile => tile.name === `Land_${blockId}`);
+        const water = tile?.getChildByName('WaterProgress');
+        if (!tile || !water) {
+            this.refreshLandBlock(blockId);
+            return;
+        }
+        this.drawWaterProgress(water, progress);
     }
 
-    // ============================
-    //  事件 & 刷新
-    // ============================
+    private createLandTile(block: LandBlock): Node {
+        const tile = new Node(`Land_${block.id}`);
+        tile.addComponent(UITransform).setContentSize(MainUI.TILE_SIZE, MainUI.TILE_SIZE);
+
+        const stateColor: Record<string, Color> = {
+            empty: new Color(143, 117, 78, 235),
+            growing: new Color(143, 117, 78, 235),
+            harvesting: new Color(235, 188, 70, 245),
+            occupied: new Color(130, 115, 95, 235),
+        };
+        this.drawTileBase(tile, stateColor[block.state] || stateColor.empty);
+
+        if ((block.state === 'growing' || block.state === 'harvesting') && block.cropType) {
+            const cropIcon = this.createItemIcon(block.cropType, block.state === 'harvesting' ? 52 : 46);
+            cropIcon.name = 'CropIcon';
+            cropIcon.setPosition(0, 6);
+            tile.addChild(cropIcon);
+            if (block.state === 'growing') {
+                tile.addChild(this.createWaterProgress(block.progress));
+            }
+        } else if (block.state === 'occupied') {
+            this.drawOccupiedMarker(tile);
+        }
+
+        if (block.state === 'harvesting') {
+            const ring = new Node('HarvestRing');
+            ring.setPosition(0, 2);
+            const g = ring.addComponent(Graphics);
+            g.strokeColor = new Color(255, 244, 138, 220);
+            g.lineWidth = 3;
+            g.roundRect(-31, -31, 62, 62, 8);
+            g.stroke();
+            tile.addChild(ring);
+        }
+
+        tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.handleLandClick(block.id));
+        return tile;
+    }
+
+    private createLockedTile(index: number): Node {
+        const tile = new Node(`Locked_${index}`);
+        tile.addComponent(UITransform).setContentSize(MainUI.TILE_SIZE, MainUI.TILE_SIZE);
+        this.drawTileBase(tile, new Color(92, 145, 80, 225), true);
+
+        tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.handleLockedLandClick(index));
+        return tile;
+    }
+
+    private drawTileBase(tile: Node, color: Color, locked = false) {
+        const shadow = new Node('Shadow');
+        shadow.setPosition(3, -3);
+        fillRoundRect(shadow, MainUI.TILE_SIZE - 2, MainUI.TILE_SIZE - 2, 9, new Color(44, 40, 28, 75));
+        tile.addChild(shadow);
+
+        const base = new Node('Base');
+        base.setPosition(0, 1);
+        fillRoundRect(base, MainUI.TILE_SIZE - 2, MainUI.TILE_SIZE - 2, 9, new Color(Math.max(color.r - 42, 0), Math.max(color.g - 42, 0), Math.max(color.b - 32, 0), color.a));
+        tile.addChild(base);
+
+        const face = new Node('Face');
+        face.setPosition(0, 3);
+        fillRoundRect(face, MainUI.TILE_SIZE - 7, MainUI.TILE_SIZE - 7, 7, color);
+        strokeRoundRect(face, MainUI.TILE_SIZE - 7, MainUI.TILE_SIZE - 7, 7, locked ? new Color(92, 168, 76, 120) : new Color(104, 81, 50, 120), 1.5);
+        tile.addChild(face);
+
+        const detail = new Node('Detail');
+        detail.setPosition(0, 3);
+        const g = detail.addComponent(Graphics);
+        g.fillColor = locked ? new Color(66, 156, 58, 105) : new Color(82, 64, 39, 100);
+        for (let i = 0; i < 14; i++) {
+            const px = (this.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3) - 0.5) * 48;
+            const py = (this.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3 + 1) - 0.5) * 48;
+            g.circle(px, py, 1.3 + this.rng(i + 1, i + 7) * 2.2);
+            g.fill();
+        }
+        tile.addChild(detail);
+    }
+
+    private drawOccupiedMarker(tile: Node) {
+        const marker = new Node('OccupiedMarker');
+        marker.setPosition(0, 2);
+        const g = marker.addComponent(Graphics);
+        g.fillColor = new Color(112, 94, 72, 210);
+        g.roundRect(-16, -10, 32, 22, 4);
+        g.fill();
+        g.fillColor = new Color(154, 124, 82, 235);
+        g.moveTo(-19, 1);
+        g.lineTo(0, 17);
+        g.lineTo(19, 1);
+        g.close();
+        g.fill();
+        g.fillColor = new Color(82, 64, 48, 230);
+        g.roundRect(-4, -10, 8, 12, 2);
+        g.fill();
+        tile.addChild(marker);
+    }
+
+    private createWaterProgress(progress: number): Node {
+        const node = new Node('WaterProgress');
+        node.addComponent(UITransform).setContentSize(MainUI.TILE_SIZE, MainUI.TILE_SIZE);
+        node.setPosition(0, 3);
+        this.drawWaterProgress(node, progress);
+        return node;
+    }
+
+    private drawWaterProgress(node: Node, progress: number) {
+        const g = node.getComponent(Graphics) || node.addComponent(Graphics);
+        g.clear();
+        const pct = Math.max(0, Math.min(100, progress)) / 100;
+        const radius = 31;
+
+        g.strokeColor = new Color(96, 160, 220, 72);
+        g.lineWidth = 4;
+        g.arc(0, 0, radius, 0, Math.PI * 2, false);
+        g.stroke();
+
+        if (pct <= 0) return;
+        const start = Math.PI / 2;
+        const end = start - Math.PI * 2 * pct;
+        g.strokeColor = new Color(78, 188, 246, 230);
+        g.lineWidth = 5;
+        g.arc(0, 0, radius, start, end, true);
+        g.stroke();
+
+        const capRadius = 2.5;
+        g.fillColor = new Color(78, 188, 246, 230);
+        g.circle(Math.cos(start) * radius, Math.sin(start) * radius, capRadius);
+        g.circle(Math.cos(end) * radius, Math.sin(end) * radius, capRadius);
+        g.fill();
+
+        const particleCount = Math.min(5, Math.max(1, Math.floor(pct * 5)));
+        g.fillColor = new Color(136, 224, 255, 165);
+        for (let i = 0; i < particleCount; i++) {
+            const t = (i + 0.55) / (particleCount + 0.8);
+            const angle = start - Math.PI * 2 * pct * t;
+            const pr = radius + (i % 2 === 0 ? 6 : -6);
+            g.circle(Math.cos(angle) * pr, Math.sin(angle) * pr, 1.2 + (i % 2) * 0.35);
+        }
+        g.fill();
+    }
+
+    private animatePlanting(blockId: number) {
+        const tile = this.landTiles.find(tile => tile.name === `Land_${blockId}`);
+        if (!tile) return;
+
+        const cropIcon = tile.getChildByName('CropIcon');
+        if (cropIcon) {
+            cropIcon.setScale(new Vec3(0.28, 0.28, 1));
+            cropIcon.setPosition(0, -12);
+            tween(cropIcon)
+                .to(0.18, { position: new Vec3(0, 9, 0), scale: new Vec3(1.18, 1.18, 1) }, { easing: 'backOut' })
+                .to(0.1, { position: new Vec3(0, 5, 0), scale: new Vec3(0.96, 0.96, 1) }, { easing: 'quadOut' })
+                .to(0.12, { position: new Vec3(0, 6, 0), scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+                .start();
+        }
+
+        const pulse = new Node('PlantPulse');
+        pulse.setPosition(0, 3);
+        pulse.setScale(new Vec3(0.58, 0.58, 1));
+        const g = pulse.addComponent(Graphics);
+        g.strokeColor = new Color(78, 188, 246, 205);
+        g.lineWidth = 5;
+        g.circle(0, 0, 30);
+        g.stroke();
+        tile.addChild(pulse);
+
+        tween(pulse)
+            .to(0.28, { scale: new Vec3(1.08, 1.08, 1) }, { easing: 'quadOut' })
+            .call(() => pulse.destroy())
+            .start();
+
+        const burst = new Node('WaterBurst');
+        burst.setPosition(0, 3);
+        burst.setScale(new Vec3(0.72, 0.72, 1));
+        const bg = burst.addComponent(Graphics);
+        bg.fillColor = new Color(136, 224, 255, 185);
+        for (let i = 0; i < 9; i++) {
+            const angle = Math.PI / 2 - (Math.PI * 2 * i) / 9;
+            const radius = 24 + (i % 3) * 4;
+            bg.circle(Math.cos(angle) * radius, Math.sin(angle) * radius, 1.2 + (i % 2) * 0.45);
+        }
+        bg.fill();
+        tile.addChild(burst);
+        tween(burst)
+            .to(0.32, { scale: new Vec3(1.18, 1.18, 1) }, { easing: 'quadOut' })
+            .call(() => burst.destroy())
+            .start();
+
+        const soilRipple = new Node('SoilRipple');
+        soilRipple.setPosition(0, -2);
+        soilRipple.setScale(new Vec3(0.72, 0.72, 1));
+        const rg = soilRipple.addComponent(Graphics);
+        rg.strokeColor = new Color(114, 96, 62, 95);
+        rg.lineWidth = 3;
+        rg.roundRect(-23, -12, 46, 24, 12);
+        rg.stroke();
+        tile.addChild(soilRipple);
+        tween(soilRipple)
+            .to(0.24, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'quadOut' })
+            .call(() => soilRipple.destroy())
+            .start();
+
+        const water = tile.getChildByName('WaterProgress');
+        if (water) {
+            water.setScale(new Vec3(0.86, 0.86, 1));
+            tween(water)
+                .to(0.24, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+                .start();
+        }
+    }
+
+    private getLandPosition(index: number): { x: number; y: number } {
+        const col = index % MainUI.LAND_COLS;
+        const row = Math.floor(index / MainUI.LAND_COLS);
+        const totalW = MainUI.LAND_COLS * MainUI.TILE_SIZE + (MainUI.LAND_COLS - 1) * MainUI.TILE_GAP;
+        const totalH = MainUI.LAND_ROWS * MainUI.TILE_SIZE + (MainUI.LAND_ROWS - 1) * MainUI.TILE_GAP;
+        return {
+            x: -totalW / 2 + col * (MainUI.TILE_SIZE + MainUI.TILE_GAP) + MainUI.TILE_SIZE / 2,
+            y: totalH / 2 - row * (MainUI.TILE_SIZE + MainUI.TILE_GAP) - MainUI.TILE_SIZE / 2,
+        };
+    }
+
+    private ensureLandCountForLevel() {
+        const land = LandSystem.getInstance();
+        const target = this.getAutoUnlockedLandCount();
+        if (land.getAllBlocks().length < target) land.expandBlocks(target);
+    }
+
+    private getAutoUnlockedLandCount(): number {
+        const gm = GameManager.getInstance();
+        let count = GameValues.INITIAL_LAND;
+        const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
+        for (const lv of levels) {
+            if (gm.playerLevel >= lv) count = GameValues.INITIAL_LAND + GameValues.LAND_UNLOCK[lv];
+        }
+        return Math.min(count, GameValues.MAX_LAND);
+    }
+
+    private getNextLandUnlockLevel(index: number): number {
+        const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
+        for (const lv of levels) {
+            if (index < GameValues.INITIAL_LAND + GameValues.LAND_UNLOCK[lv]) return lv;
+        }
+        return 99;
+    }
+
+    // Actions
+    private handleLandClick(blockId: number) {
+        const land = LandSystem.getInstance();
+        const block = land.getBlock(blockId);
+        if (!block) return;
+
+        if (block.state === 'empty') {
+            if (this.selectedSeedId) {
+                this.plantCrop(blockId, this.selectedSeedId);
+            } else {
+                this.openSeedBubble(blockId);
+            }
+            return;
+        }
+
+        if (block.state === 'growing') {
+            this.showDialog(
+                '作物生长中',
+                `当前进度 ${Math.floor(block.progress)}%\n消耗 ${GameValues.SPEEDUP_DIAMOND} 钻石立即成熟`,
+                [
+                    { text: '取消', cb: () => {} },
+                    { text: '加速', cb: () => {
+                        const gm = GameManager.getInstance();
+                        if (!gm.spendDiamond(GameValues.SPEEDUP_DIAMOND)) {
+                            this.toast('钻石不足');
+                            return;
+                        }
+                        land.speedUpCrop(blockId);
+                        this.refreshTopBar();
+                        this.refreshLandBlock(blockId);
+                        this.toast('加速成功');
+                    }},
+                ],
+            );
+            return;
+        }
+
+        if (block.state === 'harvesting') {
+            const cropId = land.harvestCrop(blockId);
+            if (!cropId) return;
+            const def = getItem(cropId);
+            const count = def?.harvestCount ?? 1;
+            InventorySystem.getInstance().addItem(cropId, count);
+            GameManager.getInstance().addExperience(5);
+            this.toast(`收获 ${this.itemName(cropId)} x${count}`);
+            this.refreshTopBar();
+            this.refreshLandBlock(blockId);
+            if (this.panels.inventory?.active) this.renderInventoryPanel();
+            return;
+        }
+
+        this.toast('这块田地暂时被占用');
+    }
+
+    private handleLockedLandClick(index: number) {
+        const land = LandSystem.getInstance();
+        const gm = GameManager.getInstance();
+        const currentCount = land.getAllBlocks().length;
+        const unlockIndex = currentCount;
+        const maxVisibleLand = Math.min(GameValues.MAX_LAND, MainUI.LAND_COLS * MainUI.LAND_ROWS);
+
+        if (unlockIndex >= maxVisibleLand) {
+            this.toast('田地已全部解锁');
+            return;
+        }
+
+        const needLevel = this.getNextLandUnlockLevel(unlockIndex);
+        if (gm.playerLevel >= needLevel) {
+            this.suppressNextLandExpandedRefresh = true;
+            land.expandBlocks(unlockIndex + 1);
+            this.toast('新田地解锁');
+            this.animateUnlockLand(unlockIndex);
+            return;
+        }
+
+        this.showDialog(
+            '扩建田地',
+            `Lv.${needLevel} 自动解锁\n也可消耗 ${MainUI.LAND_UNLOCK_DIAMOND} 钻石提前扩建`,
+            [
+                { text: '稍后', cb: () => {} },
+                { text: '扩建', cb: () => {
+                    if (!gm.spendDiamond(MainUI.LAND_UNLOCK_DIAMOND)) {
+                        this.toast('钻石不足');
+                        return;
+                    }
+                    this.suppressNextLandExpandedRefresh = true;
+                    land.expandBlocks(unlockIndex + 1);
+                    this.refreshTopBar();
+                    this.animateUnlockLand(unlockIndex);
+                    this.toast('扩建成功');
+                }},
+            ],
+        );
+    }
+
+    private plantCrop(blockId: number, cropId: string) {
+        const inv = InventorySystem.getInstance();
+        if (!inv.hasItems(cropId, 1)) {
+            this.selectedSeedId = null;
+            this.toast('种子不足');
+            return;
+        }
+        if (!LandSystem.getInstance().plantCrop(blockId, cropId)) {
+            this.toast('这块田不能种植');
+            return;
+        }
+        inv.removeItem(cropId, 1);
+        this.selectedSeedId = null;
+        this.closeSeedBubble();
+        this.toast('种植成功');
+        this.refreshLandBlock(blockId);
+        this.animatePlanting(blockId);
+        if (this.panels.inventory?.active) this.renderInventoryPanel();
+    }
+
+    private ownedPlantableCrops(): ItemDef[] {
+        const gm = GameManager.getInstance();
+        const inv = InventorySystem.getInstance();
+        return getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel && inv.hasItems(c.id, 1));
+    }
+
+    private openSeedBubble(blockId: number) {
+        const crops = this.ownedPlantableCrops();
+        if (crops.length === 0) {
+            this.toast('没有种子，去商店购买');
+            this.showPanel('shop');
+            return;
+        }
+
+        this.closeSeedBubble();
+        this.activeBubbleLandId = blockId;
+
+        const mask = new Node('BubbleMask');
+        mask.addComponent(UITransform).setContentSize(Design.WIDTH, view.getVisibleSize().height);
+        fillRect(mask, Design.WIDTH, view.getVisibleSize().height, new Color(0, 0, 0, 0));
+        mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.scheduleOnce(() => this.closeSeedBubble(), 0));
+        this.bubbleRoot.addChild(mask);
+
+        const itemSize = 54;
+        const cols = Math.min(3, crops.length);
+        const rows = Math.ceil(crops.length / cols);
+        const gap = 6;
+        const w = cols * itemSize + (cols - 1) * gap + 18;
+        const h = rows * itemSize + (rows - 1) * gap + 20;
+        const landPos = this.getLandPosition(blockId);
+
+        const bubble = new Node('SeedBubble');
+        bubble.addComponent(UITransform).setContentSize(w, h);
+        bubble.setPosition(Design.WIDTH / 2 - w / 2 - 12, this.landRoot.position.y + landPos.y * this.landRoot.scale.y);
+        fillRoundRect(bubble, w, h, 12, new Color(255, 250, 231, 250));
+        strokeRoundRect(bubble, w, h, 12, new Color(118, 184, 96, 170), 2);
+        bubble.on(Node.EventType.TOUCH_END, (event: any) => event?.stopPropagation?.());
+        this.bubbleRoot.addChild(bubble);
+
+        const startX = -w / 2 + itemSize / 2 + 9;
+        const startY = h / 2 - itemSize / 2 - 10;
+        crops.forEach((crop, index) => {
+            const cell = new Node(`Seed_${crop.id}`);
+            cell.addComponent(UITransform).setContentSize(itemSize, itemSize);
+            cell.setPosition(startX + (index % cols) * (itemSize + gap), startY - Math.floor(index / cols) * (itemSize + gap));
+            fillRoundRect(cell, itemSize, itemSize, 10, new Color(236, 247, 226, 245));
+            strokeRoundRect(cell, itemSize, itemSize, 10, new Color(140, 200, 120, 120), 1);
+
+            const icon = this.createItemIcon(crop.id, 38);
+            icon.setPosition(0, 6);
+            cell.addChild(icon);
+            cell.addChild(this.makeLabel(this.itemName(crop.id), 9, new Color(50, 78, 44), false, 0, -20, itemSize - 4, 12));
+
+            cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+                const target = this.activeBubbleLandId;
+                this.scheduleOnce(() => {
+                    if (target >= 0) this.plantCrop(target, crop.id);
+                }, 0);
+            });
+            bubble.addChild(cell);
+        });
+
+        bubble.scale = new Vec3(0.7, 0.7, 1);
+        tween(bubble).to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+    }
+
+    private closeSeedBubble() {
+        this.bubbleRoot.removeAllChildren();
+        this.activeBubbleLandId = -1;
+    }
+
+    // Panels
+    private showPanel(name: PanelName) {
+        this.closeSeedBubble();
+        if (this.panels.inventory) this.panels.inventory.active = name === 'inventory';
+        if (this.panels.craft) this.panels.craft.active = name === 'craft';
+        if (this.panels.shop) this.panels.shop.active = name === 'shop';
+        if (this.panels.quest) this.panels.quest.active = name === 'quest';
+
+        if (name === 'inventory') this.renderInventoryPanel();
+        if (name === 'craft') this.renderCraftPanel();
+        if (name === 'shop') this.renderShopPanel();
+        if (name === 'quest') this.renderQuestPanel();
+    }
+
+    private clearPanelBody(panel: Node): Node {
+        const old = panel.getChildByName('Body');
+        if (old) {
+            old.removeFromParent();
+            old.destroy();
+        }
+        const body = new Node('Body');
+        body.addComponent(UITransform).setContentSize(288, 360);
+        body.setPosition(0, -8);
+        panel.addChild(body);
+        return body;
+    }
+
+    private renderInventoryPanel() {
+        const panel = this.panels.inventory!;
+        const body = this.clearPanelBody(panel);
+        const inv = InventorySystem.getInstance();
+        const usage = inv.getUsage();
+
+        const info = this.makeLabel(`容量 ${usage.used}/${usage.max}`, 13, new Color(92, 104, 82), false, -100, 152, 120, 20);
+        body.addChild(info);
+
+        const slots = inv.slots.slice(0, inv.maxSlots);
+        const cellSize = 48;
+        const cols = 5;
+        slots.forEach((slot, index) => {
+            const x = -112 + (index % cols) * 56;
+            const y = 112 - Math.floor(index / cols) * 58;
+            const cell = new Node(`Slot_${index}`);
+            cell.addComponent(UITransform).setContentSize(cellSize, cellSize);
+            cell.setPosition(x, y);
+            fillRoundRect(cell, cellSize, cellSize, 8, slot.itemId ? new Color(246, 250, 236, 255) : new Color(225, 235, 218, 220));
+            strokeRoundRect(cell, cellSize, cellSize, 8, new Color(160, 190, 145, 130), 1);
+
+            if (slot.itemId) {
+                const icon = this.createItemIcon(slot.itemId, 36);
+                icon.setPosition(0, 4);
+                cell.addChild(icon);
+
+                const badge = new Node('CountBadge');
+                badge.setPosition(13, -15);
+                badge.addComponent(UITransform).setContentSize(28, 15);
+                fillRoundRect(badge, 28, 15, 7, new Color(54, 112, 55, 225));
+                const countLabel = this.makeLabel(`x${slot.count}`, 10, new Color(255, 255, 255), true, 0, 0, 26, 13);
+                badge.addChild(countLabel);
+                cell.addChild(badge);
+                cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.openSellDialog(index));
+            }
+            body.addChild(cell);
+        });
+    }
+
+    private renderShopPanel() {
+        this.renderShopPanelScrollable();
+        return;
+
+        const panel = this.panels.shop!;
+        const body = this.clearPanelBody(panel);
+        const gm = GameManager.getInstance();
+        const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel + 2).slice(0, 8);
+
+        crops.forEach((crop, index) => {
+            const y = 128 - index * 38;
+            const row = new Node(`Shop_${crop.id}`);
+            row.addComponent(UITransform).setContentSize(276, 34);
+            row.setPosition(0, y);
+            const unlocked = crop.unlockLevel <= gm.playerLevel;
+            fillRoundRect(row, 276, 34, 8, unlocked ? new Color(248, 252, 238, 245) : new Color(222, 226, 216, 235));
+            strokeRoundRect(row, 276, 34, 8, new Color(154, 196, 138, 120), 1);
+
+            const icon = this.createItemIcon(crop.id, 28);
+            icon.setPosition(-120, 0);
+            row.addChild(icon);
+            const name = this.makeLabel(`${this.itemName(crop.id)} Lv.${crop.unlockLevel}`, 13, new Color(54, 72, 46), true, -60, 7, 105, 16);
+            name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(name);
+            const price = this.makeLabel(`${Math.max(5, Math.floor(crop.sellPrice * 0.8))}金`, 11, new Color(194, 132, 20), false, -60, -9, 86, 14);
+            price.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(price);
+
+            const buy = new Node('Buy');
+            buy.addComponent(UITransform).setContentSize(62, 26);
+            buy.setPosition(103, 0);
+            fillRoundRect(buy, 62, 26, 9, unlocked ? new Color(76, 188, 83) : new Color(165, 170, 160));
+            buy.addChild(this.makeLabel(unlocked ? '购买' : '未解锁', 12, new Color(255, 255, 255), true, 0, 0, 60, 22));
+            buy.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.buySeed(crop));
+            row.addChild(buy);
+            body.addChild(row);
+        });
+    }
+
+    private renderShopPanelScrollable() {
+        const panel = this.panels.shop!;
+        const body = this.clearPanelBody(panel);
+        const gm = GameManager.getInstance();
+        const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel + 5);
+
+        const viewportH = 336;
+        const viewport = new Node('ShopViewport');
+        viewport.addComponent(UITransform).setContentSize(284, viewportH);
+        viewport.setPosition(0, -4);
+        viewport.addComponent(Mask);
+        body.addChild(viewport);
+
+        const rowH = 48;
+        const gap = 6;
+        const contentH = Math.max(viewportH, crops.length * (rowH + gap) - gap + 8);
+        const content = new Node('ShopContent');
+        content.addComponent(UITransform).setContentSize(274, contentH);
+        content.setPosition(0, 0);
+        viewport.addChild(content);
+
+        const scrollView = viewport.addComponent(ScrollView);
+        scrollView.horizontal = false;
+        scrollView.vertical = true;
+        scrollView.inertia = true;
+        scrollView.content = content;
+
+        crops.forEach((crop, index) => {
+            const y = contentH / 2 - 4 - rowH / 2 - index * (rowH + gap);
+            const row = new Node(`Shop_${crop.id}`);
+            row.addComponent(UITransform).setContentSize(266, rowH);
+            row.setPosition(-4, y);
+            const unlocked = crop.unlockLevel <= gm.playerLevel;
+            fillRoundRect(row, 266, rowH, 8, unlocked ? new Color(248, 252, 238, 245) : new Color(224, 228, 216, 232));
+            strokeRoundRect(row, 266, rowH, 8, new Color(154, 196, 138, 120), 1);
+
+            const icon = this.createItemIcon(crop.id, 34);
+            icon.setPosition(-112, 0);
+            row.addChild(icon);
+
+            const name = this.makeLabel(`${this.itemName(crop.id)} Lv.${crop.unlockLevel}`, 12, new Color(54, 72, 46), true, -52, 8, 124, 16);
+            name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(name);
+
+            const price = Math.max(5, Math.floor(crop.sellPrice * 0.8));
+            const priceLabel = this.makeLabel(`${price} 金`, 10, new Color(194, 132, 20), false, -52, -9, 90, 14);
+            priceLabel.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(priceLabel);
+
+            const buy = new Node('Buy');
+            buy.addComponent(UITransform).setContentSize(58, 26);
+            buy.setPosition(101, 0);
+            fillRoundRect(buy, 58, 26, 9, unlocked ? new Color(76, 188, 83) : new Color(165, 170, 160));
+            buy.addChild(this.makeLabel(unlocked ? '购买' : '未解锁', 11, new Color(255, 255, 255), true, 0, 0, 54, 22));
+            buy.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.buySeed(crop));
+            row.addChild(buy);
+            content.addChild(row);
+        });
+
+        const track = new Node('ShopScrollTrack');
+        track.setPosition(140, -4);
+        fillRoundRect(track, 4, viewportH, 2, new Color(167, 192, 145, 100));
+        body.addChild(track);
+
+        const thumbH = Math.max(34, viewportH * viewportH / contentH);
+        const thumb = new Node('ShopScrollThumb');
+        thumb.setPosition(0, (viewportH - thumbH) / 2);
+        fillRoundRect(thumb, 4, thumbH, 2, new Color(105, 174, 86, 210));
+        track.addChild(thumb);
+
+        const syncThumb = () => {
+            if (!thumb.isValid) return;
+            const maxOffset = scrollView.getMaxScrollOffset().y;
+            if (maxOffset <= 0) return;
+            const ratio = Math.max(0, Math.min(1, scrollView.getScrollOffset().y / maxOffset));
+            thumb.setPosition(0, (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH));
+        };
+        scrollView.node.on(ScrollView.EventType.SCROLLING, syncThumb);
+        scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, syncThumb);
+        this.scheduleOnce(() => {
+            if (!viewport.isValid || !content.isValid) return;
+            scrollView.scrollToTop(0);
+            syncThumb();
+        }, 0);
+    }
+
+    private renderCraftPanel() {
+        const panel = this.panels.craft!;
+        const body = this.clearPanelBody(panel);
+        const gm = GameManager.getInstance();
+        const craft = CraftSystem.getInstance();
+        const inv = InventorySystem.getInstance();
+        const recipes = getRecipesByLevel(gm.playerLevel).slice(0, 6);
+        const active = craft.getAllActiveCrafts();
+
+        const status = this.makeLabel(`进行中 ${active.length}/${GameValues.MAX_CRAFT_TABLES}`, 12, new Color(92, 104, 82), false, -8, 152, 260, 20);
+        status.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+        body.addChild(status);
+
+        recipes.forEach((recipe, index) => {
+            const y = 112 - index * 54;
+            const row = new Node(`Recipe_${recipe.id}`);
+            row.addComponent(UITransform).setContentSize(276, 48);
+            row.setPosition(0, y);
+            fillRoundRect(row, 276, 48, 8, new Color(248, 252, 238, 245));
+            strokeRoundRect(row, 276, 48, 8, new Color(154, 196, 138, 120), 1);
+
+            const productIcon = this.createItemIcon(recipe.product.itemId, 28);
+            productIcon.setPosition(-114, 0);
+            row.addChild(productIcon);
+            const name = this.makeLabel(`${this.recipeName(recipe)} x${recipe.product.count}`, 12, new Color(54, 72, 46), true, -18, 9, 128, 16);
+            name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(name);
+            const materialText = recipe.materials.map(m => `${this.itemName(m.itemId)} ${inv.getItemCount(m.itemId)}/${m.count}`).join(' ');
+            const mats = this.makeLabel(materialText, 10, new Color(108, 112, 96), false, -18, -9, 128, 14);
+            mats.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(mats);
+
+            const start = new Node('Start');
+            start.addComponent(UITransform).setContentSize(58, 28);
+            start.setPosition(104, 0);
+            fillRoundRect(start, 58, 28, 9, new Color(76, 188, 83));
+            start.addChild(this.makeLabel('合成', 12, new Color(255, 255, 255), true, 0, 0, 54, 22));
+            start.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => this.startCraft(recipe.id));
+            row.addChild(start);
+            body.addChild(row);
+        });
+    }
+
+    private renderQuestPanel() {
+        const panel = this.panels.quest!;
+        const body = this.clearPanelBody(panel);
+        const gm = GameManager.getInstance();
+        const inv = InventorySystem.getInstance();
+        const land = LandSystem.getInstance();
+        const crops = getPlantableCrops().filter(crop => crop.unlockLevel <= gm.playerLevel + 5);
+
+        crops.slice(0, 6).forEach((crop, index) => {
+            const unlocked = crop.unlockLevel <= gm.playerLevel;
+            const row = new Node(`Catalog_${crop.id}`);
+            row.addComponent(UITransform).setContentSize(276, 46);
+            row.setPosition(0, 140 - index * 52);
+            fillRoundRect(row, 276, 46, 8, unlocked ? new Color(248, 252, 238, 245) : new Color(224, 228, 216, 232));
+            strokeRoundRect(row, 276, 46, 8, new Color(154, 196, 138, 120), 1);
+
+            const icon = this.createItemIcon(crop.id, 30);
+            icon.setPosition(-118, 0);
+            row.addChild(icon);
+
+            const name = this.makeLabel(`${this.itemName(crop.id)} Lv.${crop.unlockLevel}`, 12, new Color(54, 72, 46), true, -48, 8, 132, 16);
+            name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(name);
+
+            const stats = this.makeLabel(`拥有 ${inv.getItemCount(crop.id)}  种植 ${land.getPlantCount(crop.id)} 次`, 10, new Color(108, 112, 96), false, -48, -9, 166, 14);
+            stats.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+            row.addChild(stats);
+
+            const state = this.makeLabel(unlocked ? '已解锁' : '未解锁', 10, unlocked ? new Color(76, 166, 78) : new Color(150, 156, 140), true, 104, 0, 56, 18);
+            row.addChild(state);
+            body.addChild(row);
+        });
+    }
+
+    private buySeed(crop: ItemDef) {
+        const gm = GameManager.getInstance();
+        if (crop.unlockLevel > gm.playerLevel) {
+            this.toast(`Lv.${crop.unlockLevel} 解锁`);
+            return;
+        }
+        const price = Math.max(5, Math.floor(crop.sellPrice * 0.8));
+        if (!gm.spendGold(price)) {
+            this.toast('金币不足');
+            return;
+        }
+        InventorySystem.getInstance().addItem(crop.id, 1);
+        this.toast(`购买 ${this.itemName(crop.id)} x1`);
+    }
+
+    private startCraft(recipeId: string) {
+        const id = CraftSystem.getInstance().startCraft(recipeId);
+        if (id < 0) {
+            this.toast('材料或等级不足');
+            return;
+        }
+        this.toast('开始合成');
+        return;
+        if (id < 0) {
+            this.toast('材料、金币或等级不足');
+            return;
+        }
+        this.toast('开始合成');
+    }
+
+    private openSellDialog(slotIndex: number) {
+        const inv = InventorySystem.getInstance();
+        const slot = inv.slots[slotIndex];
+        if (!slot || !slot.itemId || slot.count <= 0) {
+            this.toast('物品数量不足');
+            return;
+        }
+
+        const itemId = slot.itemId;
+        const def = getItem(itemId);
+        if (!def || def.sellPrice <= 0) {
+            this.toast('该物品不能出售');
+            return;
+        }
+        const count = slot.count;
+        if (count <= 0) {
+            this.toast('物品数量不足');
+            return;
+        }
+
+        this.dialogRoot.removeAllChildren();
+        this.dialogRoot.active = true;
+
+        const vs = view.getVisibleSize();
+        const mask = new Node('Mask');
+        mask.addComponent(UITransform).setContentSize(Design.WIDTH, vs.height);
+        fillRect(mask, Design.WIDTH, vs.height, new Color(0, 0, 0, 120));
+        mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => { this.dialogRoot.active = false; });
+        this.dialogRoot.addChild(mask);
+
+        const dialog = new Node('SellDialog');
+        dialog.addComponent(UITransform).setContentSize(286, 232);
+        fillRoundRect(dialog, 286, 232, 16, new Color(255, 250, 230, 255));
+        strokeRoundRect(dialog, 286, 232, 16, new Color(124, 184, 105, 160), 2);
+        this.dialogRoot.addChild(dialog);
+
+        dialog.addChild(this.makeLabel(`出售 ${this.itemName(itemId)}`, 17, new Color(52, 72, 45), true, 0, 84, 230, 26));
+
+        const icon = this.createItemIcon(itemId, 38);
+        icon.setPosition(-94, 42);
+        dialog.addChild(icon);
+
+        const owned = this.makeLabel(`拥有 ${count}    单价 ${def.sellPrice} 金`, 12, new Color(92, 104, 82), false, 18, 44, 176, 18);
+        owned.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+        dialog.addChild(owned);
+
+        let selected = 1;
+        let amountInput: EditBox;
+        let totalLabel: Label;
+        let quantityLabel: Label | null = null;
+        let syncingInput = false;
+
+        const setQuantity = (next: number) => {
+            selected = Math.max(1, Math.min(count, Math.floor(next || 1)));
+            const text = selected.toString();
+            if (quantityLabel) quantityLabel.string = text;
+            if (amountInput.string !== text) {
+                syncingInput = true;
+                amountInput.string = text;
+                syncingInput = false;
+            }
+            totalLabel.string = `合计 ${selected * def.sellPrice} 金`;
+        };
+
+        const makeStepper = (name: string, text: string, x: number, onTap: () => void) => {
+            const button = new Node(name);
+            button.addComponent(UITransform).setContentSize(34, 32);
+            button.setPosition(x, 0);
+            fillRoundRect(button, 34, 32, 10, new Color(76, 188, 83));
+            button.addChild(this.makeLabel(text, 20, new Color(255, 255, 255), true, 0, 1, 30, 26));
+            button.addComponent(Button).node.on(Node.EventType.TOUCH_END, onTap);
+            dialog.addChild(button);
+        };
+
+        makeStepper('Minus', '-', -72, () => setQuantity(selected - 1));
+
+        const inputNode = new Node('QuantityInput');
+        inputNode.addComponent(UITransform).setContentSize(74, 32);
+        inputNode.setPosition(0, 0);
+        fillRoundRect(inputNode, 74, 32, 10, new Color(246, 250, 236, 255));
+        strokeRoundRect(inputNode, 74, 32, 10, new Color(154, 196, 138, 150), 1);
+
+        const editNode = new Node('QuantityEditBox');
+        editNode.addComponent(UITransform).setContentSize(64, 28);
+        editNode.setPosition(0, 0);
+        inputNode.addChild(editNode);
+        amountInput = editNode.addComponent(EditBox);
+        amountInput.string = '1';
+        amountInput.placeholder = '1';
+        (amountInput as any).inputMode = 2;
+        (amountInput as any).maxLength = 3;
+        editNode.on('text-changed', () => {
+            if (syncingInput) return;
+            const raw = amountInput.string.replace(/[^\d]/g, '');
+            const value = Number(raw || '1');
+            setQuantity(value);
+        });
+        editNode.on('editing-did-ended', () => setQuantity(Number(amountInput.string || '1')));
+
+        const displayNode = this.makeLabel('1', 16, new Color(54, 72, 46), true, 0, 0, 64, 28);
+        displayNode.name = 'QuantityValue';
+        quantityLabel = displayNode.getComponent(Label)!;
+        inputNode.addChild(displayNode);
+        dialog.addChild(inputNode);
+        this.applyEditBoxTextColor(amountInput, new Color(54, 72, 46, 0), new Color(150, 156, 140, 0));
+
+        makeStepper('Plus', '+', 72, () => setQuantity(selected + 1));
+
+        const total = this.makeLabel(`合计 ${def.sellPrice} 金`, 13, new Color(194, 132, 20), true, 0, -38, 220, 20);
+        totalLabel = total.getComponent(Label)!;
+        dialog.addChild(total);
+
+        const cancel = new Node('Cancel');
+        cancel.addComponent(UITransform).setContentSize(88, 34);
+        cancel.setPosition(-50, -78);
+        fillRoundRect(cancel, 88, 34, 10, new Color(185, 190, 178));
+        cancel.addChild(this.makeLabel('取消', 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
+        cancel.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => { this.dialogRoot.active = false; });
+        dialog.addChild(cancel);
+
+        const sell = new Node('Sell');
+        sell.addComponent(UITransform).setContentSize(88, 34);
+        sell.setPosition(50, -78);
+        fillRoundRect(sell, 88, 34, 10, new Color(76, 188, 83));
+        sell.addChild(this.makeLabel('出售', 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
+        sell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+            const finalCount = Math.max(1, Math.min(count, Number(amountInput.string || selected)));
+            if (!InventorySystem.getInstance().sellSlotItem(slotIndex, finalCount, gold => GameManager.getInstance().addGold(gold))) {
+                this.toast('出售失败');
+                return;
+            }
+            this.dialogRoot.active = false;
+            this.toast(`获得 ${def.sellPrice * finalCount} 金`);
+        });
+        dialog.addChild(sell);
+
+        dialog.scale = new Vec3(0.72, 0.72, 1);
+        tween(dialog).to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+    }
+
+    private applyEditBoxTextColor(editBox: EditBox, color: Color, placeholderColor: Color) {
+        const apply = () => {
+            const box = editBox as any;
+            const tintLabel = (target: any, targetColor: Color) => {
+                const label = target instanceof Label
+                    ? target
+                    : target?.getComponent?.(Label) || target?.node?.getComponent?.(Label);
+                if (label) label.color = targetColor;
+            };
+
+            tintLabel(box.textLabel, color);
+            tintLabel(box._textLabel, color);
+            tintLabel(box.placeholderLabel, placeholderColor);
+            tintLabel(box._placeholderLabel, placeholderColor);
+
+            for (const child of editBox.node.children) {
+                const label = child.getComponent(Label);
+                if (!label) continue;
+                const isPlaceholder = child.name.toLowerCase().indexOf('placeholder') >= 0;
+                label.color = isPlaceholder ? placeholderColor : color;
+            }
+        };
+
+        apply();
+        this.scheduleOnce(apply, 0);
+    }
+
+    // Dialogs and feedback
+    private showDialog(title: string, message: string, buttons: Array<{ text: string; cb: () => void }>) {
+        this.dialogRoot.removeAllChildren();
+        this.dialogRoot.active = true;
+
+        const vs = view.getVisibleSize();
+        const mask = new Node('Mask');
+        mask.addComponent(UITransform).setContentSize(Design.WIDTH, vs.height);
+        fillRect(mask, Design.WIDTH, vs.height, new Color(0, 0, 0, 120));
+        mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => { this.dialogRoot.active = false; });
+        this.dialogRoot.addChild(mask);
+
+        const dialog = new Node('Dialog');
+        dialog.addComponent(UITransform).setContentSize(274, 184);
+        fillRoundRect(dialog, 274, 184, 16, new Color(255, 250, 230, 255));
+        strokeRoundRect(dialog, 274, 184, 16, new Color(124, 184, 105, 160), 2);
+        this.dialogRoot.addChild(dialog);
+
+        dialog.addChild(this.makeLabel(title, 17, new Color(52, 72, 45), true, 0, 58, 230, 26));
+        const msg = this.makeLabel(message, 13, new Color(92, 104, 82), false, 0, 9, 230, 60);
+        msg.getComponent(Label)!.lineHeight = 21;
+        dialog.addChild(msg);
+
+        const startX = -((buttons.length - 1) * 98) / 2;
+        buttons.forEach((button, index) => {
+            const node = new Node(`Button_${index}`);
+            node.addComponent(UITransform).setContentSize(88, 34);
+            node.setPosition(startX + index * 98, -58);
+            fillRoundRect(node, 88, 34, 10, index === buttons.length - 1 ? new Color(76, 188, 83) : new Color(185, 190, 178));
+            node.addChild(this.makeLabel(button.text, 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
+            node.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+                this.dialogRoot.active = false;
+                button.cb();
+            });
+            dialog.addChild(node);
+        });
+
+        dialog.scale = new Vec3(0.72, 0.72, 1);
+        tween(dialog).to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+    }
+
+    private toast(text: string) {
+        const node = new Node('Toast');
+        node.addComponent(UITransform).setContentSize(230, 36);
+        node.setPosition(0, 55);
+        fillRoundRect(node, 230, 36, 10, new Color(40, 50, 40, 215));
+        node.addChild(this.makeLabel(text, 13, new Color(255, 255, 255), true, 0, 0, 220, 30));
+        this.node.addChild(node);
+        tween(node)
+            .to(0.16, { position: new Vec3(0, 72, 0) })
+            .delay(1.25)
+            .to(0.18, { position: new Vec3(0, 102, 0), scale: new Vec3(0.86, 0.86, 1) })
+            .call(() => node.destroy())
+            .start();
+    }
+
+    // Refresh
     private bindEvents() {
         const evt = EventManager.getInstance();
         evt.on('goldChanged', () => this.refreshTopBar());
         evt.on('diamondChanged', () => this.refreshTopBar());
+        evt.on('experienceChanged', () => this.refreshTopBar());
         evt.on('levelUp', () => this.refreshAll());
-        evt.on('inventoryChanged', () => { if (this.inventoryPanel.active) this.renderInventoryGrid(); });
-        evt.on('craftCompleted', (d: any) => {
-            this.toast(`🎉 ${d.recipe?.name || ''} 合成完成!`);
-            this.refreshAll();
-            if (this.craftPanel.active) this.renderCraftPanel();
+        evt.on('inventoryChanged', () => {
+            if (this.panels.inventory?.active) this.renderInventoryPanel();
+            if (this.panels.quest?.active) this.renderQuestPanel();
         });
-        evt.on('cropMatured', () => this.refreshLand());
+        evt.on('craftStarted', () => {
+            if (this.panels.craft?.active) this.renderCraftPanel();
+        });
+        evt.on('craftCompleted', (data: any) => {
+            this.toast(`${this.recipeName(data.recipe)} 完成`);
+            if (this.panels.craft?.active) this.renderCraftPanel();
+            if (this.panels.inventory?.active) this.renderInventoryPanel();
+        });
+        evt.on('cropMatured', (data: any) => this.refreshLandBlock(data.blockId));
+        evt.on('landExpanded', () => {
+            if (this.suppressNextLandExpandedRefresh) {
+                this.suppressNextLandExpandedRefresh = false;
+                return;
+            }
+            this.refreshLand();
+        });
     }
 
-    private refreshAll() { this.refreshTopBar(); this.refreshLand(); }
+    private refreshAll() {
+        this.refreshTopBar();
+        this.refreshLand();
+        if (this.panels.inventory?.active) this.renderInventoryPanel();
+        if (this.panels.shop?.active) this.renderShopPanel();
+        if (this.panels.craft?.active) this.renderCraftPanel();
+        if (this.panels.quest?.active) this.renderQuestPanel();
+    }
 
     private refreshTopBar() {
         const gm = GameManager.getInstance();
-        const lt = this.topBar.getChildByName('LevelText');
-        if (lt) lt.getComponent(Label)!.string = `Lv.${gm.playerLevel}`;
-        const gd = this.topBar.getChildByName('GoldDisplay');
-        if (gd) gd.getComponent(Label)!.string = gm.gold.toLocaleString();
-        const dd = this.topBar.getChildByName('DiamondDisplay');
-        if (dd) dd.getComponent(Label)!.string = gm.diamond.toString();
-        // 经验条
-        const expFill = this.topBar.getChildByName('ExpFill');
-        if (expFill) {
-            const pct = gm.experience / gm.nextLevelExp;
-            const w = Math.max(0, 120 * pct);
-            expFill.getComponent(Graphics)!.clear();
-            const efg = expFill.getComponent(Graphics)!;
-            efg.fillColor = new Color(255, 215, 0);
-            efg.roundRect(0, -5, w, 10, 5);
-            efg.fill();
-        }
-        const expText = this.topBar.getChildByName('ExpText');
+        const level = this.topBar.getChildByName('LevelBadge')?.getChildByName('LevelText');
+        if (level) level.getComponent(Label)!.string = `Lv.${gm.playerLevel}`;
+        const gold = this.topBar.getChildByName('CurrencyArea')?.getChildByName('GoldDisplay');
+        if (gold) gold.getComponent(Label)!.string = gm.gold.toString();
+        const diamond = this.topBar.getChildByName('CurrencyArea')?.getChildByName('DiamondDisplay');
+        if (diamond) diamond.getComponent(Label)!.string = gm.diamond.toString();
+        const expText = this.topBar.getChildByName('ExpBg')?.getChildByName('ExpText');
         if (expText) expText.getComponent(Label)!.string = `${gm.experience}/${gm.nextLevelExp}`;
+        const fill = this.topBar.getChildByName('ExpBg')?.getChildByName('ExpFill');
+        if (fill) {
+            const width = Math.max(0, Math.min(100, 100 * gm.experience / gm.nextLevelExp));
+            fillRoundRect(fill, width, 9, 5, new Color(255, 218, 72, 255));
+            fill.setPosition(-50 + width / 2, 0);
+        }
     }
 
-    private refreshLand() { this.renderLandTiles(); }
+    private makeLabel(text: string, fontSize: number, color: Color, bold: boolean, x: number, y: number, w: number, h: number): Node {
+        return createLabel(text, fontSize, color, bold, x, y, w, h);
+    }
+
+    private createItemIcon(itemId: string, size: number): Node {
+        return createItemIcon(itemId, size);
+    }
+
+    private applyUiIcon(name: string, node: Node) {
+        applyUiIcon(name, node);
+    }
+
+    private itemName(itemId: string): string {
+        return getItemDisplayName(itemId);
+    }
+
+    private recipeName(recipe: RecipeDef | undefined): string {
+        return getRecipeDisplayName(recipe);
+    }
+
+    private rng(seed: number, offset: number): number {
+        return seededRandom(seed, offset);
+    }
+
 }

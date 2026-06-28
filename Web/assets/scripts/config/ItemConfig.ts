@@ -107,14 +107,23 @@ export const ITEM_DB: Record<string, ItemDef> = {
     universalSeed: { id: 'universalSeed', name: '万能种子', category: ItemCategory.TOOL, description: '开出随机种子', sellPrice: 0, unlockLevel: 1, rarity: 4, iconColor: '#FFB6C1' },
 };
 
+/** Object.values polyfill (兼容 ES2015 编译目标) */
+function objValues<T>(obj: Record<string, T>): T[] {
+    const result: T[] = [];
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) result.push(obj[key]);
+    }
+    return result;
+}
+
 /** 按分类获取物品 */
 export function getItemsByCategory(category: ItemCategory): ItemDef[] {
-    return Object.values(ITEM_DB).filter(i => i.category === category);
+    return objValues(ITEM_DB).filter(i => i.category === category);
 }
 
 /** 获取可种植作物 */
 export function getPlantableCrops(): ItemDef[] {
-    return Object.values(ITEM_DB).filter(i => i.isCrop);
+    return objValues(ITEM_DB).filter(i => i.isCrop);
 }
 
 /** 获取物品 */

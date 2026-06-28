@@ -42,7 +42,7 @@ export class ShopUI extends Component {
     }
 
     refreshShop() {
-        this.cropContainer.children.forEach(c => c.destroy());
+        for (const c of this.cropContainer.children) { c.active = false; c.destroy(); }
         const gm = GameManager.getInstance();
         const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel + 1);
 
