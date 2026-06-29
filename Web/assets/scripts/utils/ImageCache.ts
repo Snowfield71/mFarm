@@ -50,10 +50,15 @@ const UI_ICON_MAP: Record<string, string> = {
     diamond: 'icon_diamond',
     bag: 'icon_bag',
     gear: 'icon_gear',
+    settings: 'icon_settings',
     shop: 'icon_shop',
+    quest: 'icon_quest',
     leaf: 'icon_leaf',
     catalog: 'icon_catalog',
     billboard: 'icon_billboard',
+    field: 'icon_field',
+    greenField: 'icon_green_field',
+    avatarFarmgirl: '../avatar/avatar_farmgirl',
 };
 
 /** 后端当前应存在的物品图片数量 */

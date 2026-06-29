@@ -31,27 +31,28 @@ function updateBottomNavState(ui: any, active: PanelName) {
     const nav = ui.node.getChildByName('BottomNav');
     if (!nav) return;
 
-    const panels: PanelName[] = ['inventory', 'craft', 'shop', 'quest'];
+    const panels: PanelName[] = ['inventory', 'shop', 'task', 'quest'];
     for (const panel of panels) {
         const btn = nav.getChildByName(`Nav_${panel}`);
         if (!btn) continue;
         const isActive = panel === active;
-        fillRoundRect(btn, 74, 46, 10, isActive ? new Color(96, 204, 92, 245) : new Color(76, 181, 78, 235));
-        strokeRoundRect(btn, 74, 46, 10, isActive ? new Color(235, 255, 205, 118) : new Color(38, 132, 52, 105), isActive ? 1.8 : 1.2);
+        fillRoundRect(btn, 76, 58, 13, isActive ? new Color(255, 238, 174, 255) : new Color(255, 247, 210, 255));
+        strokeRoundRect(btn, 76, 58, 13, isActive ? new Color(102, 55, 34, 235) : new Color(126, 78, 48, 225), isActive ? 2.6 : 2.2);
 
         const halo = btn.getChildByName('Halo');
         if (halo) {
-            fillRoundRect(halo, isActive ? 48 : 42, isActive ? 36 : 34, 15, isActive ? new Color(150, 230, 118, 154) : new Color(116, 210, 102, 118));
+            fillRoundRect(halo, isActive ? 44 : 38, isActive ? 34 : 30, 14, isActive ? new Color(255, 219, 126, 160) : new Color(255, 234, 170, 120));
         }
         const shade = btn.getChildByName('Shade');
         if (shade) {
-            fillRoundRect(shade, isActive ? 54 : 48, 10, 5, new Color(36, 124, 48, isActive ? 96 : 78));
+            fillRoundRect(shade, isActive ? 52 : 46, 8, 4, new Color(118, 70, 42, isActive ? 92 : 70));
         }
         const icon = btn.getChildByName('Icon');
         if (icon) {
-            icon.setPosition(0, isActive ? 5 : 2);
+            const isInventory = panel === 'inventory';
+            icon.setPosition(0, isActive ? (isInventory ? 20 : 23) : (isInventory ? 18 : 21));
             tween(icon)
-                .to(0.12, { scale: new Vec3(isActive ? 1.12 : 1, isActive ? 1.12 : 1, 1) }, { easing: 'backOut' })
+                .to(0.12, { scale: new Vec3(isActive ? 1.08 : 1, isActive ? 1.08 : 1, 1) }, { easing: 'backOut' })
                 .start();
         }
         const indicator = btn.getChildByName('Indicator');

@@ -87,6 +87,11 @@ export function updateGrowingProgress(ui: any, blockId: number, progress: number
         return;
     }
     ui.drawWaterProgress(water, progress);
+    const block = LandSystem.getInstance().getBlock(blockId);
+    const bubbleLabel = tile.getChildByName('CropBubble')?.getChildByName('BubbleLabel')?.getComponent(Label);
+    if (block?.cropType && bubbleLabel) {
+        bubbleLabel.string = `${ui.itemName(block.cropType)}\n${formatCountdown(getRemainingSeconds(block))}`;
+    }
 
 }
 
@@ -95,10 +100,10 @@ export function createLandTile(ui: any, block: LandBlock): Node {
     tile.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE, ui.constructor.TILE_SIZE);
 
     const stateColor: Record<string, Color> = {
-        empty: new Color(143, 117, 78, 235),
-        growing: new Color(143, 117, 78, 235),
-        harvesting: new Color(235, 188, 70, 245),
-        occupied: new Color(130, 115, 95, 235),
+        empty: new Color(193, 145, 96, 245),
+        growing: new Color(193, 145, 96, 245),
+        harvesting: new Color(193, 145, 96, 245),
+        occupied: new Color(174, 134, 98, 245),
     };
     ui.drawTileBase(tile, stateColor[block.state] || stateColor.empty);
 
@@ -112,6 +117,8 @@ export function createLandTile(ui: any, block: LandBlock): Node {
             const water = ui.createWaterProgress(block.progress);
             tile.addChild(water);
             cropIcon.setSiblingIndex(tile.children.length - 1);
+            const remaining = getRemainingSeconds(block);
+            tile.addChild(createCropBubble(ui.itemName(block.cropType), formatCountdown(remaining)));
         }
     } else if (block.state === 'occupied') {
         ui.drawOccupiedMarker(tile);
@@ -126,11 +133,74 @@ export function createLandTile(ui: any, block: LandBlock): Node {
         g.roundRect(-31, -31, 62, 62, 8);
         g.stroke();
         tile.addChild(ring);
+        tile.addChild(createCropBubble('收获', ''));
     }
 
     tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.handleLandClick(block.id));
     return tile;
 
+}
+
+function getRemainingSeconds(block: LandBlock): number {
+    if (!block.plantTime || !block.growthDuration) return 0;
+    const elapsed = Math.max(0, (Date.now() - block.plantTime) / 1000);
+    return Math.max(0, Math.ceil(block.growthDuration - elapsed));
+}
+
+function formatCountdown(seconds: number): string {
+    const total = Math.max(0, Math.floor(seconds));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m < 10 ? `0${m}` : m}:${s < 10 ? `0${s}` : s}`;
+}
+
+function createCropBubble(title: string, timeText: string): Node {
+    const bubble = new Node('CropBubble');
+    bubble.setPosition(22, 48);
+    bubble.addComponent(UITransform).setContentSize(66, 48);
+
+    const shadow = new Node('BubbleShadow');
+    shadow.setPosition(2, -2);
+    fillRoundRect(shadow, 64, 42, 14, new Color(78, 54, 38, 58));
+    bubble.addChild(shadow);
+
+    const body = new Node('BubbleBody');
+    fillRoundRect(body, 64, 42, 14, new Color(255, 255, 255, 255));
+    strokeRoundRect(body, 64, 42, 14, new Color(96, 50, 32, 235), 2);
+    bubble.addChild(body);
+
+    const tail = new Node('BubbleTail');
+    tail.setPosition(-18, -18);
+    const tg = tail.addComponent(Graphics);
+    tg.fillColor = new Color(255, 255, 255, 255);
+    tg.moveTo(0, 0);
+    tg.lineTo(-9, -16);
+    tg.lineTo(13, -5);
+    tg.close();
+    tg.fill();
+    tg.strokeColor = new Color(96, 50, 32, 235);
+    tg.lineWidth = 2;
+    tg.moveTo(0, 0);
+    tg.lineTo(-9, -16);
+    tg.lineTo(13, -5);
+    tg.stroke();
+    bubble.addChild(tail);
+
+    const text = timeText ? `${title}\n${timeText}` : title;
+    const label = new Node('BubbleLabel');
+    label.setPosition(0, 1);
+    label.addComponent(UITransform).setContentSize(58, 34);
+    const lbl = label.addComponent(Label);
+    lbl.string = text;
+    lbl.fontSize = timeText ? 15 : 18;
+    lbl.isBold = true;
+    lbl.lineHeight = timeText ? 17 : 22;
+    lbl.color = new Color(88, 45, 24);
+    lbl.horizontalAlign = Label.HorizontalAlign.CENTER;
+    lbl.verticalAlign = Label.VerticalAlign.CENTER;
+    bubble.addChild(label);
+
+    return bubble;
 }
 
 function showSelectedLand(ui: any, blockId: number) {
@@ -188,7 +258,7 @@ function drawCropSoilBed(tile: Node, mature = false) {
 export function createLockedTile(ui: any, index: number): Node {
     const tile = new Node(`Locked_${index}`);
     tile.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE, ui.constructor.TILE_SIZE);
-    ui.drawTileBase(tile, new Color(92, 145, 80, 225), true);
+    ui.drawTileBase(tile, new Color(158, 202, 111, 225), true);
 
     tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.handleLockedLandClick(index));
     return tile;
@@ -197,29 +267,30 @@ export function createLockedTile(ui: any, index: number): Node {
 
 export function drawTileBase(ui: any, tile: Node, color: Color, locked = false) {
     const shadow = new Node('Shadow');
-    shadow.setPosition(3, -3);
-    fillRoundRect(shadow, ui.constructor.TILE_SIZE - 2, ui.constructor.TILE_SIZE - 2, 9, new Color(44, 40, 28, 75));
+    shadow.setPosition(4, -5);
+    const shadowH = locked ? ui.constructor.TILE_SIZE - 3 : ui.constructor.TILE_SIZE - 8;
+    fillRoundRect(shadow, ui.constructor.TILE_SIZE + 2, shadowH, 12, new Color(96, 134, 64, 68));
     tile.addChild(shadow);
 
-    const base = new Node('Base');
-    base.setPosition(0, 1);
-    fillRoundRect(base, ui.constructor.TILE_SIZE - 2, ui.constructor.TILE_SIZE - 2, 9, new Color(Math.max(color.r - 42, 0), Math.max(color.g - 42, 0), Math.max(color.b - 32, 0), color.a));
-    tile.addChild(base);
+    const fieldIcon = locked ? 'greenField' : 'field';
+    const field = new Node('FieldImage');
+    field.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE + 8, ui.constructor.TILE_SIZE + 8);
+    field.setPosition(0, 1);
+    ui.applyUiIcon(fieldIcon, field);
+    tile.addChild(field);
 
-    const face = new Node('Face');
-    face.setPosition(0, 3);
-    fillRoundRect(face, ui.constructor.TILE_SIZE - 7, ui.constructor.TILE_SIZE - 7, 7, color);
-    strokeRoundRect(face, ui.constructor.TILE_SIZE - 7, ui.constructor.TILE_SIZE - 7, 7, locked ? new Color(92, 168, 76, 120) : new Color(104, 81, 50, 120), 1.5);
-    tile.addChild(face);
+    if (!locked) {
+        return;
+    }
 
     const detail = new Node('Detail');
     detail.setPosition(0, 3);
     const g = detail.addComponent(Graphics);
-    g.fillColor = locked ? new Color(66, 156, 58, 105) : new Color(82, 64, 39, 100);
-    for (let i = 0; i < 14; i++) {
-        const px = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3) - 0.5) * 48;
-        const py = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3 + 1) - 0.5) * 48;
-        g.circle(px, py, 1.3 + ui.rng(i + 1, i + 7) * 2.2);
+    g.fillColor = new Color(92, 164, 74, 88);
+    for (let i = 0; i < 7; i++) {
+        const px = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3) - 0.5) * 42;
+        const py = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3 + 1) - 0.5) * 42;
+        g.ellipse(px - 4, py - 2, 8 + ui.rng(i + 1, i + 7) * 6, 3 + ui.rng(i + 2, i + 8) * 3);
         g.fill();
     }
     tile.addChild(detail);

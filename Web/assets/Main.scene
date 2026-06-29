@@ -112,7 +112,7 @@
       "y": 0,
       "z": 0
     },
-    "_id": "fcgVu53eVHp5NeSyEj/6UZ"
+    "_id": "dfqfruVIZH7rnF+bN//qL5"
   },
   {
     "__type__": "cc.Node",
@@ -157,7 +157,7 @@
       "y": 0,
       "z": 0
     },
-    "_id": "dfZAfKjDVMkK7XAAbyCjLv"
+    "_id": "7czDcj4f9PFITwJHAEdagH"
   },
   {
     "__type__": "cc.Camera",
@@ -203,7 +203,7 @@
     "_usePostProcess": false,
     "_cameraType": -1,
     "_trackingType": 0,
-    "_id": "cawi88LoVJuLbUh+7U9qoV"
+    "_id": "8cd6Gsr/1AbZ3OTZCQk43g"
   },
   {
     "__type__": "cc.UITransform",
@@ -225,7 +225,7 @@
       "x": 0.5,
       "y": 0.5
     },
-    "_id": "18hbflbI1NG60cSuvp5t7k"
+    "_id": "fdBY3E39BE+7fSC9KdvjRG"
   },
   {
     "__type__": "cc.Canvas",
@@ -241,7 +241,7 @@
       "__id__": 4
     },
     "_alignCanvasWithScreen": true,
-    "_id": "a5UFGDY0JAFrUatlqQJC22"
+    "_id": "2bkMsnkc9G8JQvkHZ56UAe"
   },
   {
     "__type__": "cc.Widget",
@@ -271,7 +271,7 @@
     "_originalHeight": 0,
     "_alignMode": 2,
     "_lockFlags": 0,
-    "_id": "33egoRWJpC0r/7zjlIAXn6"
+    "_id": "79QSBHr+1Do79zvX+rZZHu"
   },
   {
     "__type__": "9d1ddC3xdpEaYGzl1B5I/7f",
@@ -283,7 +283,7 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "_id": "c5Ojv4jNBK4KcUR85oaqJA"
+    "_id": "cfmTB4xQJAtqq3sQFw3ZU4"
   },
   {
     "__type__": "cc.SceneGlobals",

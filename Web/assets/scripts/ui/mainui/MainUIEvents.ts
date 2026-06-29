@@ -66,18 +66,19 @@ export function refreshAll(ui: any) {
 export function refreshTopBar(ui: any) {
     const gm = GameManager.getInstance();
     const level = ui.topBar.getChildByName('LevelBadge')?.getChildByName('LevelText');
-    if (level) level.getComponent(Label)!.string = `Lv.${gm.playerLevel}`;
-    const gold = ui.topBar.getChildByName('CurrencyArea')?.getChildByName('GoldDisplay');
+    if (level) level.getComponent(Label)!.string = `Lv.${gm.playerLevel} 农场`;
+    const currencyArea = ui.topBar.getChildByName('CurrencyArea');
+    const gold = findNode(currencyArea, 'GoldDisplay');
     if (gold) {
         const label = gold.getComponent(Label)!;
         label.string = formatCurrency(gm.gold);
-        label.fontSize = label.string.length > 4 ? 13 : 15;
+        label.fontSize = label.string.length > 4 ? 18 : 20;
     }
-    const diamond = ui.topBar.getChildByName('CurrencyArea')?.getChildByName('DiamondDisplay');
+    const diamond = findNode(currencyArea, 'DiamondDisplay');
     if (diamond) {
         const label = diamond.getComponent(Label)!;
         label.string = formatCurrency(gm.diamond);
-        label.fontSize = label.string.length > 4 ? 13 : 15;
+        label.fontSize = label.string.length > 4 ? 18 : 20;
     }
     const expText = ui.topBar.getChildByName('ExpBg')?.getChildByName('ExpText');
     if (expText) expText.getComponent(Label)!.string = `${gm.experience}/${gm.nextLevelExp}`;
@@ -85,11 +86,43 @@ export function refreshTopBar(ui: any) {
     if (fill) {
         const expBg = ui.topBar.getChildByName('ExpBg');
         const expW = expBg?.getComponent(UITransform)?.width || 100;
-        const width = Math.max(0, Math.min(expW, expW * gm.experience / gm.nextLevelExp));
-        fillRoundRect(fill, width, 9, 5, new Color(255, 218, 72, 255));
-        fill.setPosition(-expW / 2 + width / 2, 0);
+        const paddingX = 4;
+        const innerW = Math.max(0, expW - paddingX * 2);
+        const width = Math.max(0, Math.min(innerW, innerW * gm.experience / gm.nextLevelExp));
+        const visualWidth = width > 0 ? Math.min(innerW, Math.max(width, 18)) : 0;
+        drawExpFill(fill, visualWidth);
+        fill.setPosition(-expW / 2 + paddingX + visualWidth / 2, 0);
     }
 
+}
+
+function drawExpFill(node: Node, width: number) {
+    const g = node.getComponent(Graphics) || node.addComponent(Graphics);
+    g.clear();
+    if (width <= 0) return;
+
+    const height = 14;
+    const radius = height / 2;
+    g.fillColor = new Color(249, 213, 107, 255);
+    g.roundRect(-width / 2, -height / 2, width, height, radius);
+    g.fill();
+
+    if (width > 8) {
+        const warmW = width * 0.42;
+        g.fillColor = new Color(246, 185, 59, 185);
+        g.roundRect(width / 2 - warmW, -height / 2, warmW, height, radius);
+        g.fill();
+    }
+}
+
+function findNode(root: Node | null | undefined, name: string): Node | null {
+    if (!root) return null;
+    if (root.name === name) return root;
+    for (const child of root.children) {
+        const found = findNode(child, name);
+        if (found) return found;
+    }
+    return null;
 }
 
 function formatCurrency(value: number): string {
