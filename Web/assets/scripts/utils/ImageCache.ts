@@ -16,6 +16,9 @@ const TAG = '[ImageCache]';
 const CATEGORY_MAP: Record<string, string> = {
     // Vegetables
     wheat: 'Vegetables', corn: 'Vegetables', tomato: 'Vegetables',
+    wheat_stage_1: 'Vegetables', wheat_stage_2: 'Vegetables', wheat_stage_3: 'Vegetables',
+    corn_stage_1: 'Vegetables', corn_stage_2: 'Vegetables', corn_stage_3: 'Vegetables',
+    tomato_stage_1: 'Vegetables', tomato_stage_2: 'Vegetables', tomato_stage_3: 'Vegetables',
     carrot: 'Vegetables', pumpkin: 'Vegetables', lettuce: 'Vegetables',
     // Fruits
     strawberry: 'Fruits', cherry: 'Fruits', banana: 'Fruits', apple: 'Fruits',
@@ -58,7 +61,9 @@ const UI_ICON_MAP: Record<string, string> = {
     billboard: 'icon_billboard',
     field: 'icon_field',
     greenField: 'icon_green_field',
+    cropBubble: 'crop_action_bubble',
     avatarFarmgirl: '../avatar/avatar_farmgirl',
+    bgFarmSkyHills: 'bg_farm_sky_hills',
 };
 
 /** 后端当前应存在的物品图片数量 */

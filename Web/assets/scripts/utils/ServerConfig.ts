@@ -7,7 +7,7 @@
 
 export const ServerConfig = {
     /** 后端基础地址 */
-    baseUrl: 'http://localhost:3000',
+    baseUrl: 'http://192.168.2.3:3000',
 
     /** 静态资源版本。开发期用启动时间戳，避免替换同名图片后继续命中浏览器/Cocos 缓存。 */
     assetVersion: Date.now().toString(),

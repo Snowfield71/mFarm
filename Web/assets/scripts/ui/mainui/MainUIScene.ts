@@ -89,6 +89,13 @@ export function createBackground(ui: any) {
     createSideTree(ui, vs.width / 2 - 25, fieldTop + 8, 1.12, 1);
     createSideTree(ui, vs.width / 2 - 88, fieldTop + 1, 0.82, 1);
 
+    const artBg = new Node('ArtBackground');
+    artBg.addComponent(UITransform).setContentSize(vs.width, vs.height);
+    artBg.setPosition(0, 0);
+    ui.applyUiIcon('bgFarmSkyHills', artBg);
+    ui.node.addChild(artBg);
+    artBg.setSiblingIndex(ui.node.children.length - 1);
+
 }
 
 function createSideTree(ui: any, x: number, y: number, scale: number, side: number) {
@@ -342,12 +349,12 @@ export function createCurrencyArea(ui: any, x = 109, width = 126, height = 42) {
     ui.topBar.addChild(holder);
 
     ui.createCurrencyEntry(holder, 'gold', 'GoldDisplay', '200', 22, new Color(82, 42, 22), 52, 80);
-    ui.createCurrencyEntry(holder, 'diamond', 'DiamondDisplay', '50', -22, new Color(82, 42, 22), 52, 80);
+    ui.createCurrencyEntry(holder, 'diamond', 'DiamondDisplay', '50', -22, new Color(82, 42, 22), 52, 80, 1);
     holder.setSiblingIndex(ui.topBar.children.length - 1);
 
 }
 
-export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelName: string, value: string, y: number, color: Color, iconSize = 32, pillW = 96) {
+export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelName: string, value: string, y: number, color: Color, iconSize = 32, pillW = 96, iconOffsetY = 0) {
     const pillH = 34;
     const pill = new Node(`${icon}Pill`);
     pill.setPosition(0, y);
@@ -357,8 +364,8 @@ export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelNa
 
     const iconNode = new Node(`${icon}Icon`);
     iconNode.addComponent(UITransform).setContentSize(iconSize, iconSize);
-    const iconCenterX = -pillW / 2;
-    iconNode.setPosition(iconCenterX, 0);
+    const iconCenterX = -pillW / 2 + 5;
+    iconNode.setPosition(iconCenterX, iconOffsetY);
     pill.addChild(iconNode);
     ui.applyUiIcon(icon, iconNode);
 
@@ -478,7 +485,7 @@ export function layoutLandArea(ui: any) {
     const availableH = Math.max(240, topLimit - bottomLimit);
     const availableW = Math.max(Design.WIDTH - 42, 220);
     const scale = Math.min(1, availableW / grid.width, availableH / grid.height);
-    const centerY = (topLimit + bottomLimit) / 2 - 15;
+    const centerY = (topLimit + bottomLimit) / 2 + 5;
 
     ui.landRoot.setPosition(0, centerY);
     ui.landRoot.setScale(new Vec3(scale, scale, 1));
@@ -507,11 +514,13 @@ export function createBottomNav(ui: any) {
         { name: '图鉴', icon: 'catalog', panel: 'quest' },
     ];
 
+    buttons[1] = { name: '合成', icon: 'gear', panel: 'craft' };
+
     const slotW = Design.WIDTH / buttons.length;
     buttons.forEach((item, index) => {
         const btn = new Node(`Nav_${item.panel}`);
-        const iconSize = item.panel === 'inventory' ? 59 : 44;
-        const iconY = item.panel === 'inventory' ? 18 : 21;
+        const iconSize = item.panel === 'inventory' ? 49 : (item.panel === 'craft' ? 54 : 49);
+        const iconY = item.panel === 'quest' ? 16 : 18;
         btn.addComponent(UITransform).setContentSize(76, 58);
         btn.setPosition(-Design.WIDTH / 2 + slotW * index + slotW / 2, 1);
         fillRoundRect(btn, 76, 58, 13, new Color(255, 247, 210, 255));
@@ -704,7 +713,7 @@ function closePanelWithAnimation(ui: any, panel: Node) {
 function clearBottomNavState(ui: any) {
     const nav = ui.node.getChildByName('BottomNav');
     if (!nav) return;
-    const panels: PanelName[] = ['inventory', 'shop', 'task', 'quest'];
+    const panels: PanelName[] = ['inventory', 'craft', 'task', 'quest'];
     for (const panel of panels) {
         const btn = nav.getChildByName(`Nav_${panel}`);
         if (!btn) continue;
@@ -713,7 +722,7 @@ function clearBottomNavState(ui: any) {
         const icon = btn.getChildByName('Icon');
         if (icon) {
             icon.setScale(new Vec3(1, 1, 1));
-            icon.setPosition(0, panel === 'inventory' ? 18 : 21);
+            icon.setPosition(0, 18);
         }
         const indicator = btn.getChildByName('Indicator');
         if (indicator) indicator.active = false;

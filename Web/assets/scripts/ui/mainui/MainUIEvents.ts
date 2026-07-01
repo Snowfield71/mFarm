@@ -39,7 +39,7 @@ export function bindEvents(ui: any) {
         updateTaskEntryState(ui);
     });
     evt.on('cropMatured', (data: any) => {
-        ui.refreshLandBlock(data.blockId);
+        ui.refreshLandBlock(data.blockId, true);
     });
     evt.on('landExpanded', () => {
         if (ui.suppressNextLandExpandedRefresh) {
@@ -127,6 +127,10 @@ function findNode(root: Node | null | undefined, name: string): Node | null {
 
 function formatCurrency(value: number): string {
     const n = Math.max(0, Math.floor(value || 0));
+    if (n < 1000) return `${n}`;
+    if (n < 10000) return `${formatCompactNumber(n / 1000)}\u5343`;
+    if (n < 100000000) return `${formatCompactNumber(n / 10000)}\u4e07`;
+    return `${formatCompactNumber(n / 100000000)}\u4ebf`;
     if (n < 10000) return `${n}`;
     if (n < 100000000) {
         const v = n / 10000;
@@ -134,6 +138,11 @@ function formatCurrency(value: number): string {
     }
     const v = n / 100000000;
     return `${v >= 10 ? Math.floor(v) : Math.floor(v * 10) / 10}亿`;
+}
+
+function formatCompactNumber(value: number): string {
+    const compact = value >= 10 ? Math.floor(value) : Math.floor(value * 10) / 10;
+    return `${compact}`.replace(/\.0$/, '');
 }
 
 function updateTaskEntryState(ui: any) {

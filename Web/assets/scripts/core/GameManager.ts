@@ -70,6 +70,8 @@ export class GameManager extends Component {
         (window as any).gameManager = this;
 
         // 1. 设置设计分辨率
+        view.enableRetina(true);
+        view.resizeWithBrowserSize(true);
         view.setDesignResolutionSize(Design.WIDTH, Design.HEIGHT, ResolutionPolicy.FIXED_WIDTH);
 
         // 2. 创建所有管理器节点

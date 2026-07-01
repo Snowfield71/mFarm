@@ -38,7 +38,7 @@ export class MainUI extends Component {
     private static readonly LAND_COLS = 3;
     private static readonly LAND_ROWS = 5;
     private static readonly TILE_SIZE = 68;
-    private static readonly TILE_GAP = 8;
+    private static readonly TILE_GAP = 18;
     private static readonly LAND_UNLOCK_DIAMOND = 10;
     private static readonly BOTTOM_NAV_HEIGHT = 66;
 
@@ -81,8 +81,8 @@ export class MainUI extends Component {
     private createCloud(x: number, y: number, size: number) { return MainUIScene.createCloud(this, x, y, size); }
     private createTopBar() { return MainUIScene.createTopBar(this); }
     private createCurrencyArea(x?: number, width?: number, height?: number) { return MainUIScene.createCurrencyArea(this, x, width, height); }
-    private createCurrencyEntry(parent: Node, icon: string, labelName: string, value: string, y: number, color: Color, iconSize?: number, pillW?: number) {
-        return MainUIScene.createCurrencyEntry(this, parent, icon, labelName, value, y, color, iconSize, pillW);
+    private createCurrencyEntry(parent: Node, icon: string, labelName: string, value: string, y: number, color: Color, iconSize?: number, pillW?: number, iconOffsetY?: number) {
+        return MainUIScene.createCurrencyEntry(this, parent, icon, labelName, value, y, color, iconSize, pillW, iconOffsetY);
     }
     private createLandArea() { return MainUIScene.createLandArea(this); }
     private layoutLandArea() { return MainUIScene.layoutLandArea(this); }
@@ -95,15 +95,13 @@ export class MainUI extends Component {
     private createBubbleRoot() { return MainUIScene.createBubbleRoot(this); }
 
     private refreshLand() { return MainUILand.refreshLand(this); }
-    private refreshLandBlock(blockId: number) { return MainUILand.refreshLandBlock(this, blockId); }
+    private refreshLandBlock(blockId: number, animateStage = false) { return MainUILand.refreshLandBlock(this, blockId, animateStage); }
     private animateUnlockLand(index: number) { return MainUILand.animateUnlockLand(this, index); }
     private updateGrowingProgress(blockId: number, progress: number) { return MainUILand.updateGrowingProgress(this, blockId, progress); }
     private createLandTile(block: LandBlock): Node { return MainUILand.createLandTile(this, block); }
     private createLockedTile(index: number): Node { return MainUILand.createLockedTile(this, index); }
     private drawTileBase(tile: Node, color: Color, locked = false) { return MainUILand.drawTileBase(this, tile, color, locked); }
     private drawOccupiedMarker(tile: Node) { return MainUILand.drawOccupiedMarker(this, tile); }
-    private createWaterProgress(progress: number): Node { return MainUILand.createWaterProgress(this, progress); }
-    private drawWaterProgress(node: Node, progress: number) { return MainUILand.drawWaterProgress(this, node, progress); }
     private animatePlanting(blockId: number) { return MainUILand.animatePlanting(this, blockId); }
     private getLandPosition(index: number): { x: number; y: number } { return MainUILand.getLandPosition(this, index); }
     private ensureLandCountForLevel() { return MainUILand.ensureLandCountForLevel(this); }

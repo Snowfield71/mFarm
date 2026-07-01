@@ -12,6 +12,10 @@ import type { PanelName } from './MainUITypes';
 
 export function showPanel(ui: any, name: PanelName) {
     ui.closeSeedBubble();
+    if (ui.panels[name]?.active) {
+        closeActivePanel(ui, name);
+        return;
+    }
     if (ui.panels.inventory) ui.panels.inventory.active = name === 'inventory';
     if (ui.panels.craft) ui.panels.craft.active = name === 'craft';
     if (ui.panels.shop) ui.panels.shop.active = name === 'shop';
@@ -27,11 +31,17 @@ export function showPanel(ui: any, name: PanelName) {
 
 }
 
+function closeActivePanel(ui: any, name: PanelName) {
+    const panel = ui.panels[name];
+    if (panel) panel.active = false;
+    clearBottomNavState(ui);
+}
+
 function updateBottomNavState(ui: any, active: PanelName) {
     const nav = ui.node.getChildByName('BottomNav');
     if (!nav) return;
 
-    const panels: PanelName[] = ['inventory', 'shop', 'task', 'quest'];
+    const panels: PanelName[] = ['inventory', 'craft', 'task', 'quest'];
     for (const panel of panels) {
         const btn = nav.getChildByName(`Nav_${panel}`);
         if (!btn) continue;
@@ -49,14 +59,35 @@ function updateBottomNavState(ui: any, active: PanelName) {
         }
         const icon = btn.getChildByName('Icon');
         if (icon) {
-            const isInventory = panel === 'inventory';
-            icon.setPosition(0, isActive ? (isInventory ? 20 : 23) : (isInventory ? 18 : 21));
+            const baseIconY = panel === 'quest' ? 16 : 18;
+            icon.setPosition(0, isActive ? baseIconY + 2 : baseIconY);
             tween(icon)
                 .to(0.12, { scale: new Vec3(isActive ? 1.08 : 1, isActive ? 1.08 : 1, 1) }, { easing: 'backOut' })
                 .start();
         }
         const indicator = btn.getChildByName('Indicator');
         if (indicator) indicator.active = isActive;
+    }
+}
+
+function clearBottomNavState(ui: any) {
+    const nav = ui.node.getChildByName('BottomNav');
+    if (!nav) return;
+
+    const panels: PanelName[] = ['inventory', 'craft', 'task', 'quest'];
+    for (const panel of panels) {
+        const btn = nav.getChildByName(`Nav_${panel}`);
+        if (!btn) continue;
+        fillRoundRect(btn, 76, 58, 13, new Color(255, 247, 210, 255));
+        strokeRoundRect(btn, 76, 58, 13, new Color(126, 78, 48, 225), 2.2);
+
+        const icon = btn.getChildByName('Icon');
+        if (icon) {
+            icon.setScale(new Vec3(1, 1, 1));
+            icon.setPosition(0, panel === 'quest' ? 16 : 18);
+        }
+        const indicator = btn.getChildByName('Indicator');
+        if (indicator) indicator.active = false;
     }
 }
 

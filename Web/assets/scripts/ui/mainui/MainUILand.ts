@@ -30,7 +30,7 @@ export function refreshLand(ui: any) {
 
 }
 
-export function refreshLandBlock(ui: any, blockId: number) {
+export function refreshLandBlock(ui: any, blockId: number, animateStage = false) {
     const index = ui.landTiles.findIndex(tile => tile.name === `Land_${blockId}`);
     const block = LandSystem.getInstance().getBlock(blockId);
     if (index < 0 || !block) return;
@@ -43,6 +43,7 @@ export function refreshLandBlock(ui: any, blockId: number) {
     ui.landRoot.addChild(newTile);
     newTile.setSiblingIndex(index);
     ui.landTiles[index] = newTile;
+    if (animateStage) animateCropStageChange(newTile);
     if (ui.activeBubbleLandId === blockId) showSelectedLand(ui, blockId);
     updateHarvestAllButton(ui);
 
@@ -69,6 +70,7 @@ export function animateUnlockLand(ui: any, index: number) {
             oldTile.removeFromParent();
             oldTile.destroy();
             ui.landTiles[index] = newTile;
+            refreshLockedExpansionBillboard(ui, index + 1);
         })
         .start();
 
@@ -81,17 +83,18 @@ export function animateUnlockLand(ui: any, index: number) {
 
 export function updateGrowingProgress(ui: any, blockId: number, progress: number) {
     const tile = ui.landTiles.find(tile => tile.name === `Land_${blockId}`);
-    const water = tile?.getChildByName('WaterProgress');
-    if (!tile || !water) {
+    if (!tile) {
         ui.refreshLandBlock(blockId);
         return;
     }
-    ui.drawWaterProgress(water, progress);
     const block = LandSystem.getInstance().getBlock(blockId);
-    const bubbleLabel = tile.getChildByName('CropBubble')?.getChildByName('BubbleLabel')?.getComponent(Label);
-    if (block?.cropType && bubbleLabel) {
-        bubbleLabel.string = `${ui.itemName(block.cropType)}\n${formatCountdown(getRemainingSeconds(block))}`;
+    const cropIcon = tile.getChildByName('CropIcon') as any;
+    if (block?.cropType && cropIcon && cropIcon.__cropVisualId !== getCropVisualId(block)) {
+        ui.refreshLandBlock(blockId, true);
+        return;
     }
+    const progressBar = tile.getChildByName('CropProgressBar');
+    if (block?.cropType && progressBar) drawCropProgressBar(progressBar, block.progress);
 
 }
 
@@ -108,32 +111,19 @@ export function createLandTile(ui: any, block: LandBlock): Node {
     ui.drawTileBase(tile, stateColor[block.state] || stateColor.empty);
 
     if ((block.state === 'growing' || block.state === 'harvesting') && block.cropType) {
-        drawCropSoilBed(tile, block.state === 'harvesting');
-        const cropIcon = ui.createItemIcon(block.cropType, block.state === 'harvesting' ? 52 : 46);
+        const cropVisualId = getCropVisualId(block);
+        const cropSize = getCropVisualSize(block);
+        const cropIcon = ui.createItemIcon(cropVisualId, cropSize);
         cropIcon.name = 'CropIcon';
-        cropIcon.setPosition(0, block.state === 'harvesting' ? 7 : 4);
+        (cropIcon as any).__cropVisualId = cropVisualId;
+        cropIcon.setPosition(0, getCropIconY(ui, block, cropSize));
         tile.addChild(cropIcon);
+        cropIcon.setSiblingIndex(tile.children.length - 1);
         if (block.state === 'growing') {
-            const water = ui.createWaterProgress(block.progress);
-            tile.addChild(water);
-            cropIcon.setSiblingIndex(tile.children.length - 1);
-            const remaining = getRemainingSeconds(block);
-            tile.addChild(createCropBubble(ui.itemName(block.cropType), formatCountdown(remaining)));
+            tile.addChild(createCropProgressBar(block.progress));
         }
     } else if (block.state === 'occupied') {
         ui.drawOccupiedMarker(tile);
-    }
-
-    if (block.state === 'harvesting') {
-        const ring = new Node('HarvestRing');
-        ring.setPosition(0, 2);
-        const g = ring.addComponent(Graphics);
-        g.strokeColor = new Color(255, 244, 138, 220);
-        g.lineWidth = 3;
-        g.roundRect(-31, -31, 62, 62, 8);
-        g.stroke();
-        tile.addChild(ring);
-        tile.addChild(createCropBubble('收获', ''));
     }
 
     tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.handleLandClick(block.id));
@@ -147,6 +137,55 @@ function getRemainingSeconds(block: LandBlock): number {
     return Math.max(0, Math.ceil(block.growthDuration - elapsed));
 }
 
+type CropVisualStage = 'seed' | 'middle' | 'mature';
+
+const STAGED_CROPS = new Set(['wheat', 'tomato', 'corn']);
+
+const CROP_STAGE_VISUAL: Record<string, Record<CropVisualStage, { size: number; y: number }>> = {
+    wheat: {
+        seed: { size: 96, y: 0 },
+        middle: { size: 90, y: 0 },
+        mature: { size: 90, y: 0 },
+    },
+    tomato: {
+        seed: { size: 96, y: 0 },
+        middle: { size: 96, y: 0 },
+        mature: { size: 96, y: 0 },
+    },
+    corn: {
+        seed: { size: 96, y: 0 },
+        middle: { size: 104, y: 0 },
+        mature: { size: 104, y: 0 },
+    },
+};
+
+const CROP_ASSET_BOTTOM_PADDING = 18;
+
+function getCropVisualId(block: LandBlock): string {
+    if (!block.cropType) return '';
+    if (!STAGED_CROPS.has(block.cropType)) return block.cropType;
+    const stageIndex = getCropVisualStage(block) === 'seed' ? 1 : getCropVisualStage(block) === 'middle' ? 2 : 3;
+    return `${block.cropType}_stage_${stageIndex}`;
+}
+
+function getCropVisualStage(block: LandBlock): CropVisualStage {
+    if (block.state === 'harvesting' || block.progress >= 100) return 'mature';
+    return block.progress < 50 ? 'seed' : 'middle';
+}
+
+function getCropVisualSize(block: LandBlock): number {
+    if (!block.cropType) return 82;
+    if (!STAGED_CROPS.has(block.cropType)) return block.state === 'harvesting' ? 92 : 82;
+    return CROP_STAGE_VISUAL[block.cropType][getCropVisualStage(block)].size;
+}
+
+function getCropIconY(ui: any, block: LandBlock, cropSize: number): number {
+    if (block.cropType && STAGED_CROPS.has(block.cropType)) {
+        return cropSize * (0.5 - CROP_ASSET_BOTTOM_PADDING / 256);
+    }
+    return (block.state === 'harvesting' ? 0 : -ui.constructor.TILE_SIZE / 2 - 3) + cropSize / 2;
+}
+
 function formatCountdown(seconds: number): string {
     const total = Math.max(0, Math.floor(seconds));
     const m = Math.floor(total / 60);
@@ -154,53 +193,44 @@ function formatCountdown(seconds: number): string {
     return `${m < 10 ? `0${m}` : m}:${s < 10 ? `0${s}` : s}`;
 }
 
-function createCropBubble(title: string, timeText: string): Node {
-    const bubble = new Node('CropBubble');
-    bubble.setPosition(22, 48);
-    bubble.addComponent(UITransform).setContentSize(66, 48);
+function createCropProgressBar(progress: number): Node {
+    const bar = new Node('CropProgressBar');
+    bar.setPosition(0, -31);
+    bar.addComponent(UITransform).setContentSize(48, 8);
+    drawCropProgressBar(bar, progress);
+    return bar;
+}
 
-    const shadow = new Node('BubbleShadow');
-    shadow.setPosition(2, -2);
-    fillRoundRect(shadow, 64, 42, 14, new Color(78, 54, 38, 58));
-    bubble.addChild(shadow);
+function drawCropProgressBar(bar: Node, progress: number) {
+    let bg = bar.getChildByName('ProgressBg');
+    if (!bg) {
+        bg = new Node('ProgressBg');
+        bar.addChild(bg);
+    }
+    fillRoundRect(bg, 48, 6, 3, new Color(88, 70, 42, 95));
 
-    const body = new Node('BubbleBody');
-    fillRoundRect(body, 64, 42, 14, new Color(255, 255, 255, 255));
-    strokeRoundRect(body, 64, 42, 14, new Color(96, 50, 32, 235), 2);
-    bubble.addChild(body);
+    const pct = Math.max(0, Math.min(100, progress)) / 100;
+    const fillW = Math.max(4, 44 * pct);
+    let fill = bar.getChildByName('ProgressFill');
+    if (!fill) {
+        fill = new Node('ProgressFill');
+        bar.addChild(fill);
+    }
+    fill.setPosition(-22 + fillW / 2, 0);
+    fillRoundRect(fill, fillW, 4, 2, new Color(252, 211, 88, 235));
+}
 
-    const tail = new Node('BubbleTail');
-    tail.setPosition(-18, -18);
-    const tg = tail.addComponent(Graphics);
-    tg.fillColor = new Color(255, 255, 255, 255);
-    tg.moveTo(0, 0);
-    tg.lineTo(-9, -16);
-    tg.lineTo(13, -5);
-    tg.close();
-    tg.fill();
-    tg.strokeColor = new Color(96, 50, 32, 235);
-    tg.lineWidth = 2;
-    tg.moveTo(0, 0);
-    tg.lineTo(-9, -16);
-    tg.lineTo(13, -5);
-    tg.stroke();
-    bubble.addChild(tail);
-
-    const text = timeText ? `${title}\n${timeText}` : title;
-    const label = new Node('BubbleLabel');
-    label.setPosition(0, 1);
-    label.addComponent(UITransform).setContentSize(58, 34);
-    const lbl = label.addComponent(Label);
-    lbl.string = text;
-    lbl.fontSize = timeText ? 15 : 18;
-    lbl.isBold = true;
-    lbl.lineHeight = timeText ? 17 : 22;
-    lbl.color = new Color(88, 45, 24);
-    lbl.horizontalAlign = Label.HorizontalAlign.CENTER;
-    lbl.verticalAlign = Label.VerticalAlign.CENTER;
-    bubble.addChild(label);
-
-    return bubble;
+function animateCropStageChange(tile: Node) {
+    const cropIcon = tile.getChildByName('CropIcon');
+    if (!cropIcon) return;
+    const finalPosition = cropIcon.position.clone();
+    cropIcon.setScale(new Vec3(0.58, 0.58, 1));
+    cropIcon.setPosition(finalPosition.x, finalPosition.y - 8, finalPosition.z);
+    tween(cropIcon)
+        .to(0.14, { position: new Vec3(finalPosition.x, finalPosition.y + 4, finalPosition.z), scale: new Vec3(1.14, 1.14, 1) }, { easing: 'quadOut' })
+        .to(0.1, { position: finalPosition, scale: new Vec3(0.96, 0.96, 1) }, { easing: 'quadInOut' })
+        .to(0.12, { position: finalPosition, scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+        .start();
 }
 
 function showSelectedLand(ui: any, blockId: number) {
@@ -237,63 +267,49 @@ function clearSelectedLand(ui: any) {
     }
 }
 
-function drawCropSoilBed(tile: Node, mature = false) {
-    const bed = new Node('CropSoilBed');
-    bed.setPosition(0, -17);
-    const g = bed.addComponent(Graphics);
-    g.fillColor = mature ? new Color(102, 70, 42, 185) : new Color(94, 66, 42, 165);
-    g.roundRect(-17, -4, 34, 9, 5);
-    g.fill();
-    g.fillColor = new Color(145, 105, 66, 105);
-    g.roundRect(-11, -1, 22, 4, 3);
-    g.fill();
-    g.fillColor = new Color(80, 55, 36, 80);
-    g.circle(-8, 0, 1.0);
-    g.circle(7, 1, 0.9);
-    g.circle(1, -2, 0.8);
-    g.fill();
-    tile.addChild(bed);
-}
-
 export function createLockedTile(ui: any, index: number): Node {
     const tile = new Node(`Locked_${index}`);
     tile.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE, ui.constructor.TILE_SIZE);
     ui.drawTileBase(tile, new Color(158, 202, 111, 225), true);
+    if (index === LandSystem.getInstance().getAllBlocks().length) {
+        tile.addChild(createExpansionBillboard(ui));
+    }
 
     tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.handleLockedLandClick(index));
     return tile;
 
 }
 
-export function drawTileBase(ui: any, tile: Node, color: Color, locked = false) {
-    const shadow = new Node('Shadow');
-    shadow.setPosition(4, -5);
-    const shadowH = locked ? ui.constructor.TILE_SIZE - 3 : ui.constructor.TILE_SIZE - 8;
-    fillRoundRect(shadow, ui.constructor.TILE_SIZE + 2, shadowH, 12, new Color(96, 134, 64, 68));
-    tile.addChild(shadow);
+function createExpansionBillboard(ui: any): Node {
+    const billboard = new Node('ExpansionBillboard');
+    billboard.addComponent(UITransform).setContentSize(72, 72);
+    billboard.setPosition(0, 3);
+    ui.applyUiIcon('billboard', billboard);
+    return billboard;
+}
 
+function refreshLockedExpansionBillboard(ui: any, index: number) {
+    if (index >= ui.landTiles.length) return;
+    const tile = ui.landTiles[index];
+    if (!tile || !tile.name.startsWith('Locked_')) return;
+    const newTile = ui.createLockedTile(index);
+    newTile.setPosition(tile.position);
+    newTile.setScale(tile.scale);
+    tile.removeFromParent();
+    tile.destroy();
+    ui.landRoot.addChild(newTile);
+    newTile.setSiblingIndex(index);
+    ui.landTiles[index] = newTile;
+}
+
+export function drawTileBase(ui: any, tile: Node, color: Color, locked = false) {
     const fieldIcon = locked ? 'greenField' : 'field';
     const field = new Node('FieldImage');
-    field.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE + 8, ui.constructor.TILE_SIZE + 8);
-    field.setPosition(0, 1);
+    const fieldSize = ui.constructor.TILE_SIZE + 22;
+    field.addComponent(UITransform).setContentSize(fieldSize, fieldSize);
+    field.setPosition(0, 0);
     ui.applyUiIcon(fieldIcon, field);
     tile.addChild(field);
-
-    if (!locked) {
-        return;
-    }
-
-    const detail = new Node('Detail');
-    detail.setPosition(0, 3);
-    const g = detail.addComponent(Graphics);
-    g.fillColor = new Color(92, 164, 74, 88);
-    for (let i = 0; i < 7; i++) {
-        const px = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3) - 0.5) * 42;
-        const py = (ui.rng(Number(tile.name.replace(/\D/g, '')) || 1, i * 3 + 1) - 0.5) * 42;
-        g.ellipse(px - 4, py - 2, 8 + ui.rng(i + 1, i + 7) * 6, 3 + ui.rng(i + 2, i + 8) * 3);
-        g.fill();
-    }
-    tile.addChild(detail);
 
 }
 
@@ -315,105 +331,6 @@ export function drawOccupiedMarker(ui: any, tile: Node) {
     g.fill();
     tile.addChild(marker);
 
-}
-
-export function createWaterProgress(ui: any, progress: number): Node {
-    const node = new Node('WaterProgress');
-    node.addComponent(UITransform).setContentSize(ui.constructor.TILE_SIZE, ui.constructor.TILE_SIZE);
-    node.setPosition(0, 3);
-    ui.drawWaterProgress(node, progress);
-    return node;
-
-}
-
-export function drawWaterProgress(ui: any, node: Node, progress: number) {
-    const g = node.getComponent(Graphics) || node.addComponent(Graphics);
-    g.clear();
-    (g as any).lineCap = 'butt';
-    (g as any).lineJoin = 'round';
-    const pct = Math.max(0, Math.min(100, progress)) / 100;
-    const radius = 29;
-    const now = Date.now() / 1000;
-
-    g.strokeColor = new Color(75, 152, 183, 38);
-    g.lineWidth = 6;
-    drawSoftArc(g, radius, 0, Math.PI * 2, false, 72);
-    g.stroke();
-
-    g.strokeColor = new Color(224, 252, 248, 48);
-    g.lineWidth = 2;
-    drawSoftArc(g, radius - 5, -0.1, Math.PI * 1.72, false, 42);
-    g.stroke();
-
-    if (pct <= 0) return;
-    const start = Math.PI / 2;
-    const end = start - Math.PI * 2 * pct;
-    g.strokeColor = new Color(72, 184, 224, 190);
-    g.lineWidth = 5.5;
-    drawSoftArc(g, radius, start, end, true, 62);
-    g.stroke();
-
-    g.strokeColor = new Color(210, 250, 250, 168);
-    g.lineWidth = 2.2;
-    drawSoftArc(g, radius - 1.5, start - 0.025, end + 0.025, true, 62);
-    g.stroke();
-
-    const particleCount = Math.min(8, Math.max(3, Math.floor(pct * 8)));
-    for (let i = 0; i < particleCount; i++) {
-        const t = (i + 0.45) / (particleCount + 0.65);
-        const angle = start - Math.PI * 2 * pct * t;
-        const drift = Math.sin(now * 2.1 + i * 1.3) * 1.8;
-        const pr = radius + (i % 2 === 0 ? 4.5 : -5.5) + drift;
-        g.fillColor = i % 2 === 0 ? new Color(128, 220, 238, 138) : new Color(228, 254, 246, 132);
-        g.ellipse(Math.cos(angle) * pr - 1.2, Math.sin(angle) * pr - 1, 2.4 + (i % 3) * 0.5, 3.2 + (i % 2) * 0.4);
-        g.fill();
-    }
-
-    const leafCount = Math.min(5, Math.max(1, Math.floor(pct * 6)));
-    g.fillColor = new Color(136, 224, 152, 120);
-    for (let i = 0; i < leafCount; i++) {
-        const angle = start - Math.PI * 2 * pct * ((i + 0.72) / (leafCount + 1));
-        const lx = Math.cos(angle) * (radius - 8);
-        const ly = Math.sin(angle) * (radius - 8);
-        const rotate = angle + Math.PI * 0.5;
-        g.ellipse(lx - Math.cos(rotate) * 2, ly - Math.sin(rotate) * 2, 7, 3.6);
-        g.fill();
-    }
-
-    const sparkleCount = Math.min(3, Math.max(1, Math.floor(pct * 4)));
-    g.fillColor = new Color(255, 255, 238, 150);
-    for (let i = 0; i < sparkleCount; i++) {
-        const angle = start - Math.PI * 2 * pct * ((i + 0.5) / (sparkleCount + 0.9)) + Math.sin(now + i) * 0.05;
-        drawTinyStar(g, Math.cos(angle) * (radius + 1), Math.sin(angle) * (radius + 1), 2.1 + i * 0.25);
-    }
-
-}
-
-function drawSoftArc(g: Graphics, radius: number, start: number, end: number, counterclockwise: boolean, segments: number) {
-    const span = counterclockwise ? start - end : end - start;
-    const total = Math.abs(span);
-    const count = Math.max(6, Math.ceil(segments * total / (Math.PI * 2)));
-    for (let i = 0; i <= count; i++) {
-        const t = i / count;
-        const angle = counterclockwise ? start - total * t : start + total * t;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
-    }
-}
-
-function drawTinyStar(g: Graphics, x: number, y: number, size: number) {
-    g.moveTo(x, y + size);
-    g.lineTo(x + size * 0.35, y + size * 0.35);
-    g.lineTo(x + size, y);
-    g.lineTo(x + size * 0.35, y - size * 0.35);
-    g.lineTo(x, y - size);
-    g.lineTo(x - size * 0.35, y - size * 0.35);
-    g.lineTo(x - size, y);
-    g.lineTo(x - size * 0.35, y + size * 0.35);
-    g.close();
-    g.fill();
 }
 
 export function updateHarvestAllButton(ui: any) {
@@ -455,134 +372,16 @@ export function animatePlanting(ui: any, blockId: number) {
             .start();
     }
 
-    const furrow = new Node('PlantFurrow');
-    furrow.setPosition(0, -10);
-    furrow.setScale(new Vec3(0.25, 0.65, 1));
-    const fg = furrow.addComponent(Graphics);
-    fg.fillColor = new Color(86, 60, 38, 148);
-    fg.roundRect(-20, -4, 40, 8, 5);
-    fg.fill();
-    tile.addChild(furrow);
-    tween(furrow)
-        .to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'quadOut' })
-        .delay(0.2)
-        .to(0.18, { scale: new Vec3(0.82, 0.55, 1) }, { easing: 'quadIn' })
-        .call(() => furrow.destroy())
-        .start();
-
-    const seed = new Node('PlantSeed');
-    seed.setPosition(-2, 22);
-    const sg = seed.addComponent(Graphics);
-    sg.fillColor = new Color(244, 202, 96, 235);
-    sg.ellipse(-3, -4, 6, 9);
-    sg.fill();
-    tile.addChild(seed);
-    tween(seed)
-        .to(0.18, { position: new Vec3(0, -8, 0), scale: new Vec3(0.72, 0.72, 1) }, { easing: 'quadIn' })
-        .call(() => seed.destroy())
-        .start();
-
     const cropIcon = tile.getChildByName('CropIcon');
     if (cropIcon) {
-        cropIcon.active = false;
         cropIcon.setScale(new Vec3(0.12, 0.12, 1));
-        cropIcon.setPosition(0, -15);
+        const finalY = cropIcon.position.y;
+        cropIcon.setPosition(0, -24);
         tween(cropIcon)
             .delay(0.18)
-            .call(() => { cropIcon.active = true; })
-            .to(0.22, { position: new Vec3(0, 3, 0), scale: new Vec3(1.08, 1.08, 1) }, { easing: 'backOut' })
-            .to(0.1, { position: new Vec3(0, 1, 0), scale: new Vec3(0.96, 0.96, 1) }, { easing: 'quadOut' })
-            .to(0.12, { position: new Vec3(0, 4, 0), scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
-            .start();
-    }
-
-    const cover = tile.getChildByName('CropSoilBed');
-    if (cover) {
-        cover.setScale(new Vec3(0.78, 0.78, 1));
-        tween(cover)
-            .to(0.16, { scale: new Vec3(1.18, 1.08, 1) }, { easing: 'quadOut' })
-            .to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
-            .start();
-    }
-
-    const sprout = new Node('SproutFlash');
-    sprout.setPosition(0, -5);
-    sprout.setScale(new Vec3(0.55, 0.55, 1));
-    const sg2 = sprout.addComponent(Graphics);
-    sg2.strokeColor = new Color(150, 235, 112, 195);
-    sg2.lineWidth = 3;
-    sg2.moveTo(0, -5);
-    sg2.lineTo(0, 10);
-    sg2.stroke();
-    sg2.fillColor = new Color(136, 224, 92, 190);
-    sg2.ellipse(-10, 2, 11, 6);
-    sg2.ellipse(0, 3, 11, 6);
-    sg2.fill();
-    tile.addChild(sprout);
-    tween(sprout)
-        .delay(0.18)
-        .to(0.18, { scale: new Vec3(1, 1, 1), position: new Vec3(0, 0, 0) }, { easing: 'backOut' })
-        .to(0.18, { scale: new Vec3(0.7, 0.7, 1) }, { easing: 'quadIn' })
-        .call(() => sprout.destroy())
-        .start();
-
-    const mist = new Node('PlantMist');
-    mist.setPosition(0, 4);
-    const mg = mist.addComponent(Graphics);
-    mg.strokeColor = new Color(174, 235, 255, 96);
-    mg.lineWidth = 2;
-    for (let i = 0; i < 4; i++) {
-        const x = -14 + i * 9;
-        mg.moveTo(x, -2);
-        mg.bezierCurveTo(x - 3, 7, x + 4, 12, x, 21);
-        mg.stroke();
-    }
-    tile.addChild(mist);
-    tween(mist)
-        .delay(0.2)
-        .to(0.34, { position: new Vec3(0, 14, 0), scale: new Vec3(1.08, 1.08, 1) }, { easing: 'quadOut' })
-        .call(() => mist.destroy())
-        .start();
-
-    const soilRipple = new Node('SoilRipple');
-    soilRipple.setPosition(0, -2);
-    soilRipple.setScale(new Vec3(0.72, 0.72, 1));
-    const rg = soilRipple.addComponent(Graphics);
-    rg.strokeColor = new Color(114, 96, 62, 95);
-    rg.lineWidth = 3;
-    rg.roundRect(-23, -12, 46, 24, 12);
-    rg.stroke();
-    tile.addChild(soilRipple);
-    tween(soilRipple)
-        .to(0.24, { scale: new Vec3(1.04, 1.04, 1) }, { easing: 'quadOut' })
-        .call(() => soilRipple.destroy())
-        .start();
-
-    for (let i = 0; i < 8; i++) {
-        const clod = new Node(`PlantSoilClod_${i}`);
-        clod.setPosition(0, -13);
-        const cg = clod.addComponent(Graphics);
-        cg.fillColor = i % 2 === 0 ? new Color(112, 76, 45, 190) : new Color(147, 102, 60, 165);
-        cg.circle(0, 0, 1.4 + (i % 3) * 0.4);
-        cg.fill();
-        tile.addChild(clod);
-        const angle = Math.PI * 0.12 + (Math.PI * 0.76 * i) / 7;
-        const distance = 12 + (i % 4) * 4;
-        tween(clod)
-            .delay(i * 0.012)
-            .to(0.24, {
-                position: new Vec3(Math.cos(angle) * distance, -10 + Math.sin(angle) * distance, 0),
-                scale: new Vec3(0.35, 0.35, 1),
-            }, { easing: 'quadOut' })
-            .call(() => clod.destroy())
-            .start();
-    }
-
-    const water = tile.getChildByName('WaterProgress');
-    if (water) {
-        water.setScale(new Vec3(0.86, 0.86, 1));
-        tween(water)
-            .to(0.24, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+            .to(0.22, { position: new Vec3(0, finalY, 0), scale: new Vec3(1.08, 1.08, 1) }, { easing: 'backOut' })
+            .to(0.1, { position: new Vec3(0, finalY, 0), scale: new Vec3(0.96, 0.96, 1) }, { easing: 'quadOut' })
+            .to(0.12, { position: new Vec3(0, finalY, 0), scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
             .start();
     }
 

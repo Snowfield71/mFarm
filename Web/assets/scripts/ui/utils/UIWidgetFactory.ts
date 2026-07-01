@@ -70,15 +70,20 @@ export function getItemFallbackColor(itemId: string): Color {
 /** 创建文本标签节点 */
 export function createLabel(text: string, fontSize: number, color: Color, bold: boolean, x: number, y: number, w: number, h: number): Node {
     const node = new Node('Label');
-    node.setPosition(x, y);
-    node.addComponent(UITransform).setContentSize(w, h);
+    node.setPosition(Math.round(x), Math.round(y));
+    node.addComponent(UITransform).setContentSize(Math.round(w), Math.round(h));
     const label = node.addComponent(Label);
     label.string = text;
     label.fontSize = fontSize;
+    label.lineHeight = Math.ceil(fontSize * 1.2);
     label.color = color;
     label.isBold = bold;
     label.horizontalAlign = Label.HorizontalAlign.CENTER;
     label.verticalAlign = Label.VerticalAlign.CENTER;
+    const labelCtor = Label as any;
+    if (labelCtor.CacheMode?.BITMAP !== undefined) {
+        (label as any).cacheMode = labelCtor.CacheMode.BITMAP;
+    }
     return node;
 }
 
