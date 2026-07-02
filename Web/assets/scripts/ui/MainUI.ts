@@ -144,7 +144,7 @@ export class MainUI extends Component {
     private makeLabel(text: string, fontSize: number, color: Color, bold: boolean, x: number, y: number, w: number, h: number): Node {
         return createLabel(text, fontSize, color, bold, x, y, w, h);
     }
-    private createItemIcon(itemId: string, size: number): Node { return createItemIcon(itemId, size); }
+    private createItemIcon(itemId: string, size: number, trimTransparent = false): Node { return createItemIcon(itemId, size, trimTransparent); }
     private applyUiIcon(name: string, node: Node) { applyUiIcon(name, node); }
     private itemName(itemId: string): string { return getItemDisplayName(itemId); }
     private recipeName(recipe: RecipeDef | undefined): string { return getRecipeDisplayName(recipe); }

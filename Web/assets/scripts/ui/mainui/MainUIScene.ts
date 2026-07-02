@@ -371,6 +371,7 @@ export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelNa
 
     const label = ui.makeLabel(value, 18, color, true, 0, 0, pillW, 24);
     label.name = labelName;
+    label.setPosition(8, 0);
     pill.addChild(label);
 
 }
@@ -612,7 +613,8 @@ export function createPanels(ui: any) {
     ui.panels.inventory = ui.createPanel('背包仓库', 318, 398);
     ui.panels.craft = ui.createPanel('合成工坊', 318, 398);
     ui.panels.shop = ui.createPanel('集市商店', 318, 398);
-    ui.panels.quest = ui.createPanel('图鉴', 318, 398);
+    ui.panels.quest = ui.createPanel('图鉴', Design.WIDTH, 540);
+    ui.panels.quest.setPosition(0, -35);
     ui.panels.task = ui.createPanel('今日任务', 318, 398);
     for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task]) {
         if (!panel) continue;

@@ -1,4 +1,4 @@
-import { Button, Color, EditBox, Graphics, Label, Mask, Node, ScrollView, UITransform, Vec3, tween, view } from 'cc';
+import { Button, Color, EditBox, Graphics, Label, Mask, Node, ScrollView, UIOpacity, UITransform, Vec3, tween, view } from 'cc';
 import { Design, GameValues } from '../../config/GameConfig';
 import { GameManager } from '../../core/GameManager';
 import { EventManager } from '../../core/EventManager';
@@ -9,6 +9,7 @@ import { getItem, getPlantableCrops, ITEM_DB, ItemCategory, ItemDef } from '../.
 import { getRecipe, getRecipesByLevel, RecipeDef } from '../../config/RecipeConfig';
 import { fillRect, fillRoundRect, strokeRoundRect } from '../utils/UIDraw';
 import type { PanelName } from './MainUITypes';
+import { ImageCache } from '../../utils/ImageCache';
 
 export function showPanel(ui: any, name: PanelName) {
     ui.closeSeedBubble();
@@ -26,7 +27,10 @@ export function showPanel(ui: any, name: PanelName) {
     if (name === 'inventory') ui.renderInventoryPanel();
     if (name === 'craft') ui.renderCraftPanel();
     if (name === 'shop') ui.renderShopPanel();
-    if (name === 'quest') ui.renderQuestPanel();
+    if (name === 'quest') {
+        ImageCache.getInstance().preloadUiIcons(['catalogBgRight', 'catalogBgLeft']);
+        ui.renderQuestPanel();
+    }
     if (name === 'task') ui.renderTaskPanel();
 
 }
@@ -390,6 +394,181 @@ export function renderCraftPanel(ui: any) {
 }
 
 export function renderQuestPanel(ui: any) {
+    const panel = ui.panels.quest!;
+    const body = ui.clearPanelBody(panel);
+    const gm = GameManager.getInstance();
+    clearCatalogPanelChrome(panel);
+    body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+    body.setPosition(0, 0);
+    const close = panel.getChildByName('Close');
+    if (close) close.active = false;
+
+    const items: ItemDef[] = [];
+    for (const id in ITEM_DB) {
+        if (Object.prototype.hasOwnProperty.call(ITEM_DB, id)) items.push(ITEM_DB[id]);
+    }
+    items.sort((a, b) => {
+        const levelA = ui.catalogLevel(a);
+        const levelB = ui.catalogLevel(b);
+        if (levelA !== levelB) return levelA - levelB;
+        if (a.rarity !== b.rarity) return a.rarity - b.rarity;
+        return a.category - b.category;
+    });
+
+    const progress = gm.getCatalogProgress();
+    const pageSize = 9;
+    const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+    ui.catalogPage = Math.max(0, Math.min(pageCount - 1, ui.catalogPage || 0));
+
+    drawCatalogBackground(ui, body, ui.catalogPage === 0);
+
+    const pageItems = items.slice(ui.catalogPage * pageSize, ui.catalogPage * pageSize + pageSize);
+    pageItems.forEach((item, index) => {
+        const col = index % 3;
+        const row = Math.floor(index / 3);
+        const card = createCatalogCard(ui, gm, item, row, col);
+        card.setPosition(-95 + col * 98 - (col > 0 ? 5 : 0) - (col === 0 ? 3 : 0), 94 - row * 126 - row * 5 - (row === 2 ? 5 : 0));
+        body.addChild(card);
+    });
+
+    drawCatalogProgress(ui, body, progress.unlocked, progress.total, ui.catalogPage + 1, pageCount);
+    createCatalogCloseHitArea(ui, panel, body);
+    createCatalogPageTurnHitArea(ui, body, ui.catalogPage, pageCount);
+}
+
+function clearCatalogPanelChrome(panel: Node) {
+    const graphics = panel.getComponents(Graphics);
+    graphics.forEach(g => g.clear());
+}
+
+function drawCatalogBackground(ui: any, body: Node, firstPage: boolean) {
+    const bg = new Node('CatalogImageBackground');
+    bg.addComponent(UITransform).setContentSize(Design.WIDTH + 10, 540);
+    bg.setPosition(-17, 0);
+    ui.applyUiIcon(firstPage ? 'catalogBgRight' : 'catalogBgLeft', bg);
+    body.addChild(bg);
+}
+
+function createCatalogCard(ui: any, gm: GameManager, item: ItemDef, row = 0, col = 0): Node {
+    const discovered = gm.hasDiscoveredItem(item.id);
+    const displayUnlockLevel = ui.catalogLevel(item);
+    const levelUnlocked = displayUnlockLevel <= gm.playerLevel;
+    const card = new Node(`CatalogCard_${item.id}`);
+    card.addComponent(UITransform).setContentSize(96, 116);
+
+    const icon = ui.createItemIcon(item.id, item.id === 'pasta' ? 64 : 70, true);
+    icon.setPosition(item.id === 'pasta' ? 3 : 0, 28);
+    if (!discovered) {
+        const opacity = icon.addComponent(UIOpacity);
+        opacity.opacity = levelUnlocked ? 120 : 72;
+    }
+    card.addChild(icon);
+
+    const name = ui.makeLabel(ui.itemName(item.id), 14, new Color(88, 45, 24), true, 0, -30, 92, 18);
+    name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.CENTER;
+    card.addChild(name);
+
+    if (!discovered || !levelUnlocked) {
+        const lockH = row === 0 ? 123 : row === 1 ? 124 : 125;
+        const lockY = row === 0 ? 16 : row === 1 ? 17 : 21;
+        const lockX = -3 - (col > 0 ? 2 : 0) + (col > 0 ? 5 : 0);
+        const lock = new Node('LockShade');
+        lock.addComponent(UITransform).setContentSize(85, lockH);
+        lock.setPosition(lockX, lockY);
+        fillRoundRect(lock, 85, lockH, 9, new Color(80, 68, 54, 38));
+        if (!levelUnlocked) {
+            lock.addChild(ui.makeLabel(`Lv.${displayUnlockLevel}`, 11, new Color(255, 248, 218), true, 0, 0, 46, 16));
+        }
+        card.addChild(lock);
+    }
+
+    return card;
+}
+
+function drawCatalogProgress(ui: any, body: Node, unlocked: number, total: number, page: number, pageCount: number) {
+    const ratio = total > 0 ? Math.max(0, Math.min(1, unlocked / total)) : 0;
+    const trackW = 148;
+    const track = new Node('CatalogProgressTrack');
+    track.setPosition(-6, -237);
+    fillRoundRect(track, trackW, 13, 7, new Color(154, 104, 80, 230));
+    body.addChild(track);
+
+    const fill = new Node('CatalogProgressFill');
+    fill.setPosition(-trackW / 2 + (trackW * ratio) / 2, 0);
+    fillRoundRect(fill, trackW * ratio, 9, 5, new Color(255, 203, 79, 255));
+    track.addChild(fill);
+
+    const knob = new Node('CatalogProgressKnob');
+    knob.setPosition(-trackW / 2 + trackW * ratio, 0);
+    const kg = knob.addComponent(Graphics);
+    kg.fillColor = new Color(255, 247, 226, 255);
+    kg.circle(0, 0, 9);
+    kg.fill();
+    kg.strokeColor = new Color(126, 78, 48, 225);
+    kg.lineWidth = 1.6;
+    kg.circle(0, 0, 9);
+    kg.stroke();
+    track.addChild(knob);
+
+    body.addChild(ui.makeLabel(`${unlocked}/${total}`, 18, new Color(88, 45, 24), true, 98, -237, 70, 24));
+}
+
+function createCatalogCloseHitArea(ui: any, panel: Node, body: Node) {
+    const close = new Node('CatalogCloseHitArea');
+    close.addComponent(UITransform).setContentSize(54, 54);
+    close.setPosition(131, 212);
+    const g = close.addComponent(Graphics);
+    g.strokeColor = new Color(132, 72, 32, 255);
+    g.lineWidth = 4;
+    g.moveTo(-7.5, 7.5);
+    g.lineTo(7.5, -7.5);
+    g.moveTo(7.5, 7.5);
+    g.lineTo(-7.5, -7.5);
+    g.stroke();
+    close.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        panel.active = false;
+        clearBottomNavState(ui);
+    });
+    body.addChild(close);
+}
+
+function createCatalogPageTurnHitArea(ui: any, body: Node, pageIndex: number, pageCount: number) {
+    if (pageIndex > 0) {
+        const prev = new Node('CatalogPrevPageHitArea');
+        prev.addComponent(UITransform).setContentSize(74, 64);
+        prev.setPosition(-102, -228);
+        prev.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+            event?.stopPropagation?.();
+            ui.catalogPage = Math.max(0, pageIndex - 1);
+            ui.renderQuestPanel();
+        });
+        body.addChild(prev);
+    }
+
+    if (pageCount > 1 && pageIndex < pageCount - 1) {
+        const next = new Node('CatalogNextPageHitArea');
+        next.addComponent(UITransform).setContentSize(74, 64);
+        next.setPosition(151, -228);
+        next.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+            event?.stopPropagation?.();
+            if (pageIndex >= pageCount - 1) return;
+            ui.catalogPage = Math.min(pageCount - 1, pageIndex + 1);
+            ui.renderQuestPanel();
+        });
+        body.addChild(next);
+    } else if (pageCount > 1) {
+        const nextBlocker = new Node('CatalogNextPageBlocker');
+        nextBlocker.addComponent(UITransform).setContentSize(74, 64);
+        nextBlocker.setPosition(151, -228);
+        nextBlocker.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+            event?.stopPropagation?.();
+        });
+        body.addChild(nextBlocker);
+    }
+}
+
+function renderQuestPanelLegacy(ui: any) {
     const panel = ui.panels.quest!;
     const body = ui.clearPanelBody(panel);
     const gm = GameManager.getInstance();

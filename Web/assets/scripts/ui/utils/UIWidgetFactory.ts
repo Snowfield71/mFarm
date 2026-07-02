@@ -88,7 +88,7 @@ export function createLabel(text: string, fontSize: number, color: Color, bold: 
 }
 
 /** 创建物品图标节点（异步加载后端图片，加载前显示 fallback 色块） */
-export function createItemIcon(itemId: string, size: number): Node {
+export function createItemIcon(itemId: string, size: number, trimTransparent = false): Node {
     const node = new Node(`Icon_${itemId}`);
     node.addComponent(UITransform).setContentSize(size, size);
     const fallback = createFallbackIcon(itemId, size);
@@ -98,7 +98,7 @@ export function createItemIcon(itemId: string, size: number): Node {
         fallback.active = false;
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-        sprite.trim = false;
+        sprite.trim = trimTransparent;
         sprite.spriteFrame = sf;
     });
     return node;

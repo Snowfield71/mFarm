@@ -387,7 +387,7 @@ export function animatePlanting(ui: any, blockId: number) {
 
 }
 
-export function animateHarvest(ui: any, blockId: number, cropId: string, count: number, onComplete?: () => void) {
+export function animateHarvest(ui: any, blockId: number, cropId: string, count: number, onComplete?: () => void, lightweight = false) {
     const tile = ui.landTiles.find(tile => tile.name === `Land_${blockId}`);
     if (!tile) {
         onComplete?.();
@@ -404,6 +404,14 @@ export function animateHarvest(ui: any, blockId: number, cropId: string, count: 
             .to(0.18, { position: new Vec3(0, 34, 0), scale: new Vec3(0.72, 0.72, 1) }, { easing: 'quadIn' })
             .call(() => { if (cropIcon.isValid) cropIcon.active = false; })
             .start();
+    }
+
+    if (lightweight) {
+        tween(tile)
+            .delay(0.24)
+            .call(() => onComplete?.())
+            .start();
+        return;
     }
 
     const rewardIcon = ui.createItemIcon(cropId, 30);
@@ -608,12 +616,12 @@ export function harvestAllMatureCrops(ui: any) {
         InventorySystem.getInstance().addItem(cropId, item.count);
         GameManager.getInstance().addExperience(5);
         animateHarvest(ui, item.blockId, cropId, item.count, () => {
-            ui.refreshLandBlock(item.blockId);
             remainingAnimations--;
             if (remainingAnimations <= 0) {
+                ui.refreshLand();
                 ui.toast(`一键收取 ${harvestedKinds} 块 x${totalCount}`);
             }
-        });
+        }, true);
     }
 
     ui.refreshTopBar();
@@ -678,7 +686,7 @@ export function plantCrop(ui: any, blockId: number, cropId: string) {
     }
     inv.removeItem(cropId, 1);
     ui.selectedSeedId = null;
-    ui.closeSeedBubble();
+    ui.bubbleRoot.removeAllChildren();
     ui.toast('种植成功');
     ui.refreshLandBlock(blockId);
     ui.animatePlanting(blockId);
@@ -701,14 +709,20 @@ export function openSeedBubble(ui: any, blockId: number) {
         return;
     }
 
-    ui.closeSeedBubble();
+    ui.bubbleRoot.removeAllChildren();
     ui.activeBubbleLandId = blockId;
     showSelectedLand(ui, blockId);
 
     const mask = new Node('BubbleMask');
     mask.addComponent(UITransform).setContentSize(Design.WIDTH, view.getVisibleSize().height);
     fillRect(mask, Design.WIDTH, view.getVisibleSize().height, new Color(0, 0, 0, 0));
-    mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.scheduleOnce(() => ui.closeSeedBubble(), 0));
+    mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        const targetBlockId = getTouchedLandBlockId(ui, event);
+        ui.scheduleOnce(() => {
+            if (targetBlockId >= 0) ui.handleLandClick(targetBlockId);
+            else ui.closeSeedBubble();
+        }, 0);
+    });
     ui.bubbleRoot.addChild(mask);
 
     const itemSize = 54;
@@ -721,7 +735,7 @@ export function openSeedBubble(ui: any, blockId: number) {
 
     const bubble = new Node('SeedBubble');
     bubble.addComponent(UITransform).setContentSize(w, h);
-    bubble.setPosition(Design.WIDTH / 2 - w / 2 - 12, ui.landRoot.position.y + landPos.y * ui.landRoot.scale.y);
+    bubble.setPosition(getSeedBubblePosition(ui, landPos));
     fillRoundRect(bubble, w, h, 12, new Color(255, 250, 231, 250));
     strokeRoundRect(bubble, w, h, 12, new Color(118, 184, 96, 170), 2);
     bubble.on(Node.EventType.TOUCH_END, (event: any) => event?.stopPropagation?.());
@@ -753,6 +767,45 @@ export function openSeedBubble(ui: any, blockId: number) {
     bubble.scale = new Vec3(0.7, 0.7, 1);
     tween(bubble).to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
 
+}
+
+function getSeedBubblePosition(ui: any, landPos: { x: number; y: number }): Vec3 {
+    const currentRowY = ui.landRoot.position.y + landPos.y * ui.landRoot.scale.y;
+    const previousRowOffset = (ui.constructor.TILE_SIZE + ui.constructor.TILE_GAP) * ui.landRoot.scale.y;
+    return new Vec3(
+        ui.landRoot.position.x,
+        currentRowY + previousRowOffset,
+        0,
+    );
+}
+
+function getTouchedLandBlockId(ui: any, event: any): number {
+    const location = event?.getUILocation?.();
+    if (!location || !ui.landRoot) return -1;
+
+    const landTransform = ui.landRoot.getComponent(UITransform);
+    let localX = 0;
+    let localY = 0;
+    if (landTransform?.convertToNodeSpaceAR) {
+        const local = landTransform.convertToNodeSpaceAR(new Vec3(location.x, location.y, 0));
+        localX = local.x;
+        localY = local.y;
+    } else {
+        const vs = view.getVisibleSize();
+        const rootX = location.x - vs.width / 2;
+        const rootY = location.y - vs.height / 2;
+        localX = (rootX - ui.landRoot.position.x) / ui.landRoot.scale.x;
+        localY = (rootY - ui.landRoot.position.y) / ui.landRoot.scale.y;
+    }
+    const halfSize = ui.constructor.TILE_SIZE / 2 + 8;
+
+    for (const block of LandSystem.getInstance().getAllBlocks()) {
+        const pos = ui.getLandPosition(block.id);
+        if (Math.abs(localX - pos.x) <= halfSize && Math.abs(localY - pos.y) <= halfSize) {
+            return block.id;
+        }
+    }
+    return -1;
 }
 
 export function closeSeedBubble(ui: any) {

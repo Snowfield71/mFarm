@@ -70,7 +70,6 @@ export class GameManager extends Component {
         (window as any).gameManager = this;
 
         // 1. 设置设计分辨率
-        view.enableRetina(true);
         view.resizeWithBrowserSize(true);
         view.setDesignResolutionSize(Design.WIDTH, Design.HEIGHT, ResolutionPolicy.FIXED_WIDTH);
 
@@ -89,6 +88,7 @@ export class GameManager extends Component {
             this.hasLoaded = true;
             Logger.info(TAG, '✅ 萌田农场启动完成');
             // 后台预加载物品图片
+            ImageCache.getInstance().preloadUiIcons(['catalogBgRight', 'catalogBgLeft']);
             this.preloadItemImages();
         }, 0.15);
     }

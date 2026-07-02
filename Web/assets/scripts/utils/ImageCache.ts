@@ -64,6 +64,8 @@ const UI_ICON_MAP: Record<string, string> = {
     cropBubble: 'crop_action_bubble',
     avatarFarmgirl: '../avatar/avatar_farmgirl',
     bgFarmSkyHills: 'bg_farm_sky_hills',
+    catalogBgRight: 'catalog_bg_page_right',
+    catalogBgLeft: 'catalog_bg_page_left',
 };
 
 /** 后端当前应存在的物品图片数量 */
@@ -120,6 +122,11 @@ export class ImageCache {
     }
 
     /** 异步加载物品图片，带缓存和并发去重 */
+    async preloadUiIcons(iconNames: string[]): Promise<number> {
+        const results = await Promise.all(iconNames.map(name => this.loadUiIcon(name)));
+        return results.filter(Boolean).length;
+    }
+
     async load(itemId: string, timeout = 8000): Promise<SpriteFrame | null> {
         // 内存缓存
         const cached = this.cache.get(itemId);
