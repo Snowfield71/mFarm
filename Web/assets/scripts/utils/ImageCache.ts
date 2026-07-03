@@ -64,8 +64,7 @@ const UI_ICON_MAP: Record<string, string> = {
     cropBubble: 'crop_action_bubble',
     avatarFarmgirl: '../avatar/avatar_farmgirl',
     bgFarmSkyHills: 'bg_farm_sky_hills',
-    catalogBgRight: 'catalog_bg_page_right',
-    catalogBgLeft: 'catalog_bg_page_left',
+    catalogBg: 'catalog_bg',
 };
 
 /** 后端当前应存在的物品图片数量 */

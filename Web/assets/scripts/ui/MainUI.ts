@@ -121,7 +121,7 @@ export class MainUI extends Component {
     private renderShopPanel() { return MainUIPanels.renderShopPanel(this); }
     private renderShopPanelScrollable() { return MainUIPanels.renderShopPanelScrollable(this); }
     private renderCraftPanel() { return MainUIPanels.renderCraftPanel(this); }
-    private renderQuestPanel() { return MainUIPanels.renderQuestPanel(this); }
+    private renderQuestPanel(enterDirection = 0) { return MainUIPanels.renderQuestPanel(this, enterDirection); }
     private renderTaskPanel() { return MainUIPanels.renderTaskPanel(this); }
     private buySeed(crop: ItemDef) { return MainUIPanels.buySeed(this, crop); }
     private getSeedBuyPrice(crop: ItemDef): number { return MainUIPanels.getSeedBuyPrice(this, crop); }

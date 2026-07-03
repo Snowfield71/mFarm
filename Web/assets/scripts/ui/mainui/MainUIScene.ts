@@ -280,7 +280,7 @@ export function createTopBar(ui: any) {
     ui.topBar.addChild(avatar);
 
     const title = ui.makeLabel('萌田农场', 24, new Color(88, 45, 24), true, 0, 20, 150, 34);
-    title.setPosition(-3, 32);
+    title.setPosition(-3, 22);
     title.getComponent(UITransform)?.setContentSize(160, 34);
     title.getComponent(Label)!.fontSize = 28;
     title.getComponent(Label)!.isBold = true;

@@ -88,7 +88,7 @@ export class GameManager extends Component {
             this.hasLoaded = true;
             Logger.info(TAG, '✅ 萌田农场启动完成');
             // 后台预加载物品图片
-            ImageCache.getInstance().preloadUiIcons(['catalogBgRight', 'catalogBgLeft']);
+            ImageCache.getInstance().preloadUiIcons(['catalogBg']);
             this.preloadItemImages();
         }, 0.15);
     }
