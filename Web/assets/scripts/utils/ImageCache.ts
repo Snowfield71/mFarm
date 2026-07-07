@@ -65,6 +65,22 @@ const UI_ICON_MAP: Record<string, string> = {
     avatarFarmgirl: '../avatar/avatar_farmgirl',
     bgFarmSkyHills: 'bg_farm_sky_hills',
     catalogBg: 'catalog_bg',
+    taskLog: 'task_log',
+    taskMain: 'icon_task_main',
+    taskDaily: 'icon_task_daily',
+    taskBranch: 'icon_task_branch',
+    taskSpecial: 'icon_task_special',
+    task1: 'icon_task_1',
+    task2: 'icon_task_2',
+    task3: 'icon_task_3',
+    task4: 'icon_task_4',
+    task5: 'icon_task_5',
+    task6: 'icon_task_6',
+    task7: 'icon_task_7',
+    task8: 'icon_task_8',
+    task9: 'icon_task_9',
+    rewardGold: 'icon_reward_gold',
+    rewardSeed: 'icon_reward_seed',
 };
 
 /** 后端当前应存在的物品图片数量 */

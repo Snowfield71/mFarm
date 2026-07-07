@@ -4,6 +4,7 @@ import {
   EditBox,
   Graphics,
   Label,
+  LabelOutline,
   Mask,
   Node,
   ScrollView,
@@ -55,7 +56,21 @@ export function showPanel(ui: any, name: PanelName) {
     ImageCache.getInstance().preloadUiIcons(["catalogBg"]);
     ui.renderQuestPanel();
   }
-  if (name === "task") ui.renderTaskPanel();
+  if (name === "task") {
+    ImageCache.getInstance().preloadUiIcons([
+      "taskLog",
+      "taskMain",
+      "taskDaily",
+      "taskBranch",
+      "taskSpecial",
+      "task1",
+      "task2",
+      "task3",
+      "rewardGold",
+      "rewardSeed",
+    ]);
+    ui.renderTaskPanel();
+  }
 }
 
 function closeActivePanel(ui: any, name: PanelName) {
@@ -670,6 +685,7 @@ export function renderQuestPanel(ui: any, enterDirection = 0) {
   ui.catalogPage = Math.max(0, Math.min(pageCount - 1, ui.catalogPage || 0));
 
   drawCatalogBackground(ui, body, ui.catalogPage);
+  drawRibbonTitle(ui, body, "物品图鉴");
 
   const pageItems = items.slice(
     ui.catalogPage * pageSize,
@@ -709,12 +725,69 @@ function clearCatalogPanelChrome(panel: Node) {
 }
 
 function drawCatalogBackground(ui: any, body: Node, pageIndex: number) {
-  const bg = new Node("CatalogImageBackground");
+  drawPanelImageBackground(ui, body, "catalogBg", "CatalogImageBackground");
+  if (pageIndex > 0) drawCatalogPrevArrow(body);
+}
+
+function drawTaskLogBackground(ui: any, body: Node) {
+  drawPanelImageBackground(ui, body, "taskLog", "TaskLogImageBackground");
+}
+
+function drawPanelImageBackground(ui: any, body: Node, iconName: string, nodeName: string) {
+  const bg = new Node(nodeName);
   bg.addComponent(UITransform).setContentSize(Design.WIDTH + 10, 540);
   bg.setPosition(0, 0);
-  ui.applyUiIcon("catalogBg", bg);
+  ui.applyUiIcon(iconName, bg);
   body.addChild(bg);
-  if (pageIndex > 0) drawCatalogPrevArrow(body);
+}
+
+export function drawRibbonTitle(
+  ui: any,
+  parent: Node,
+  title: string,
+  x = 0,
+  y = 228,
+  width = 210,
+  height = 48,
+) {
+  const root = new Node("RibbonTitle");
+  root.setPosition(x, y);
+  root.addComponent(UITransform).setContentSize(width, height);
+
+  const shadow = ui.makeLabel(
+    title,
+    30,
+    new Color(86, 40, 24, 150),
+    true,
+    2,
+    -3,
+    width,
+    height,
+  );
+  shadow.getComponent(Label)!.lineHeight = 36;
+  root.addChild(shadow);
+
+  const label = ui.makeLabel(
+    title,
+    30,
+    new Color(88, 45, 24),
+    true,
+    0,
+    0,
+    width,
+    height,
+  );
+  const labelComp = label.getComponent(Label)!;
+  labelComp.horizontalAlign = Label.HorizontalAlign.CENTER;
+  labelComp.verticalAlign = Label.VerticalAlign.CENTER;
+  labelComp.lineHeight = 36;
+  const outline = label.addComponent(LabelOutline);
+  outline.color = new Color(255, 246, 225, 255);
+  outline.width = 4;
+  root.addChild(label);
+
+  parent.addChild(root);
+  return root;
 }
 
 const CATALOG_PREV_ARROW_X = -104;
@@ -766,7 +839,12 @@ function createCatalogCard(
 
   const icon = ui.createItemIcon(item.id, item.id === "pasta" ? 64 : 70, true);
   const firstColumnIconOffsetX = col === 0 ? -2 - (row > 0 ? 2 : 0) : 0;
-  const iconOffsetX = (item.id === "pasta" ? 3 : 0) - 3 + firstColumnIconOffsetX + (item.id === "palmTree" ? 5 : 0) + (item.id === "fence" ? 5 : 0);
+  const iconOffsetX =
+    (item.id === "pasta" ? 3 : 0) -
+    3 +
+    firstColumnIconOffsetX +
+    (item.id === "palmTree" ? 5 : 0) +
+    (item.id === "fence" ? 5 : 0);
   icon.setPosition(iconOffsetX, 28 - (row > 0 ? 11 : 0));
   if (!discovered) {
     const opacity = icon.addComponent(UIOpacity);
@@ -774,15 +852,26 @@ function createCatalogCard(
   }
   card.addChild(icon);
 
-  const itemNameOffsetX = item.id === "tomato" ? -4 : item.id === "carrot" ? 3 : 0;
+  const itemNameOffsetX =
+    item.id === "tomato" ? -4 : item.id === "carrot" ? 3 : 0;
   const cellNameOffsetX =
-    row === 0 && col === 1 ? -4 :
-    row === 0 && col === 2 ? -3 :
-    row === 1 && col === 1 ? 0 :
-    row === 1 && col === 2 ? 1 :
-    row === 2 && col === 0 ? 1 :
-    0;
-  const nameOffsetX = (row === 0 ? 0 : -4) - (col === 0 ? 5 : 0) + (row > 0 && col === 0 ? 3 : 0) + itemNameOffsetX + cellNameOffsetX;
+    row === 0 && col === 1
+      ? -4
+      : row === 0 && col === 2
+        ? -3
+        : row === 1 && col === 1
+          ? 0
+          : row === 1 && col === 2
+            ? 1
+            : row === 2 && col === 0
+              ? 1
+              : 0;
+  const nameOffsetX =
+    (row === 0 ? 0 : -4) -
+    (col === 0 ? 5 : 0) +
+    (row > 0 && col === 0 ? 3 : 0) +
+    itemNameOffsetX +
+    cellNameOffsetX;
   const nameOffsetY = row === 0 ? 4 : row === 1 ? -2 : -4;
   const name = ui.makeLabel(
     ui.itemName(item.id),
@@ -838,7 +927,7 @@ function getCatalogLockFrame(row: number, col: number) {
   const rightGrow = col === 1 ? 2 : 0;
   const columnShift = col === 1 ? 1 : 0;
   const topGrow = row === 0 ? 5 : 0;
-    const bottomGrow = row === 0 ? 5 : row === 1 ? 9 : 5;
+  const bottomGrow = row === 0 ? 5 : row === 1 ? 9 : 5;
   const downOffset = row === 1 ? 5 : row === 2 ? 15 : 0;
 
   return {
@@ -967,11 +1056,15 @@ function createCatalogPageTurnHitArea(
 function bindCatalogPressFeedback(hitArea: Node, visual: Node = hitArea) {
   hitArea.on(Node.EventType.TOUCH_START, () => {
     tween(visual).stop();
-    tween(visual).to(0.06, { scale: new Vec3(0.9, 0.9, 1) }, { easing: "quadOut" }).start();
+    tween(visual)
+      .to(0.06, { scale: new Vec3(0.9, 0.9, 1) }, { easing: "quadOut" })
+      .start();
   });
   const restore = () => {
     tween(visual).stop();
-    tween(visual).to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" }).start();
+    tween(visual)
+      .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" })
+      .start();
   };
   hitArea.on(Node.EventType.TOUCH_END, restore);
   hitArea.on(Node.EventType.TOUCH_CANCEL, restore);
@@ -1135,138 +1228,193 @@ export function renderTaskPanel(ui: any) {
   const body = ui.clearPanelBody(panel);
   const gm = GameManager.getInstance();
   const quests = gm.getDailyQuests();
-  const done = quests.filter((q) => q.claimed || q.progress >= q.target).length;
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const close = panel.getChildByName("Close");
+  if (close) close.active = false;
 
-  const summary = ui.makeLabel(
-    `今日进度 ${done}/${quests.length}`,
-    13,
-    new Color(92, 104, 82),
-    false,
-    -92,
-    152,
-    190,
-    20,
-  );
-  summary.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-  body.addChild(summary);
+  drawTaskLogBackground(ui, body);
+  drawRibbonTitle(ui, body, "\u4efb\u52a1");
+  createCatalogCloseHitArea(ui, panel, body);
+  drawTaskCategoryTabs(ui, body);
 
-  const rowH = 48;
-  const gap = 8;
-  quests.forEach((quest, index) => {
-    const y = 116 - index * (rowH + gap);
-    const complete = quest.progress >= quest.target;
-    const row = new Node(`Task_${quest.id}`);
-    row.addComponent(UITransform).setContentSize(276, rowH);
-    row.setPosition(0, y);
-    fillRoundRect(
-      row,
-      276,
-      rowH,
-      9,
-      complete ? new Color(248, 252, 238, 248) : new Color(238, 244, 226, 238),
-    );
-    strokeRoundRect(
-      row,
-      276,
-      rowH,
-      9,
-      complete ? new Color(116, 190, 96, 150) : new Color(154, 196, 138, 100),
-      1.2,
-    );
+  const cards = createTaskCardData(quests);
+  cards.slice(0, 3).forEach((task, index) => drawTaskCard(ui, gm, body, task, index));
+}
 
-    const title = ui.makeLabel(
-      quest.title,
-      13,
-      new Color(54, 72, 46),
-      true,
-      -58,
-      12,
-      138,
-      16,
-    );
-    title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(title);
+type TaskCardData = {
+  id: string;
+  no: number;
+  type: "main" | "daily" | "branch" | "special";
+  typeLabel: string;
+  title: string;
+  desc: string;
+  progress: number;
+  target: number;
+  rewardGold?: number;
+  rewardSeed?: number;
+  claimed?: boolean;
+  realQuestId?: string;
+};
 
-    const progressW = 116;
-    const progressBg = new Node("TaskProgressBg");
-    progressBg.setPosition(-58, -10);
-    fillRoundRect(progressBg, progressW, 8, 4, new Color(184, 210, 172, 170));
-    row.addChild(progressBg);
-    const fillW = Math.max(
-      4,
-      (progressW * Math.min(quest.progress, quest.target)) / quest.target,
-    );
-    const progressFill = new Node("TaskProgressFill");
-    progressFill.setPosition(-progressW / 2 + fillW / 2, 0);
-    fillRoundRect(
-      progressFill,
-      fillW,
-      8,
-      4,
-      complete ? new Color(76, 188, 83, 245) : new Color(255, 218, 72, 245),
-    );
-    progressBg.addChild(progressFill);
+function createTaskCardData(quests: any[]): TaskCardData[] {
+  const daily = quests[0];
+  const branch = quests[2] || quests[1];
+  return [
+    {
+      id: "main_plant_wheat",
+      no: 1,
+      type: "main",
+      typeLabel: "\u4e3b\u7ebf",
+      title: "\u79cd\u690d\u5c0f\u9ea6",
+      desc: "\u5728\u4f60\u7684\u519c\u573a\u79cd\u690d10\u682a\u5c0f\u9ea6",
+      progress: Math.min(daily?.progress || 0, 10),
+      target: 10,
+      rewardGold: 100,
+      rewardSeed: 5,
+    },
+    {
+      id: daily?.id || "daily_feed_chicken",
+      no: 2,
+      type: "daily",
+      typeLabel: "\u6bcf\u65e5",
+      title: daily?.title || "\u5582\u517b\u5c0f\u9e21",
+      desc: "\u4eca\u5929\u5582\u517b5\u53ea\u5c0f\u9e21",
+      progress: daily?.progress || 0,
+      target: daily?.target || 5,
+      rewardGold: daily?.rewardGold,
+      claimed: daily?.claimed,
+      realQuestId: daily?.id,
+    },
+    {
+      id: branch?.id || "branch_make_jam",
+      no: 3,
+      type: "branch",
+      typeLabel: "\u652f\u7ebf",
+      title: branch?.title || "\u5236\u4f5c\u679c\u9171",
+      desc: "\u5728\u5236\u4f5c\u53f0\u5236\u4f5c2\u74f6\u8349\u8393\u679c\u9171",
+      progress: branch?.progress || 0,
+      target: branch?.target || 2,
+      rewardGold: branch?.rewardGold,
+      claimed: branch?.claimed,
+      realQuestId: branch?.id,
+    },
+  ];
+}
 
-    const progressText = ui.makeLabel(
-      `${quest.progress}/${quest.target}`,
-      10,
-      new Color(92, 104, 82),
-      true,
-      10,
-      -10,
-      56,
-      14,
-    );
-    row.addChild(progressText);
-
-    const rewardText = `${quest.rewardGold ? `+${quest.rewardGold}金` : ""}${quest.rewardDiamond ? `+${quest.rewardDiamond}钻` : ""}`;
-    const reward = ui.makeLabel(
-      rewardText,
-      11,
-      new Color(194, 132, 20),
-      true,
-      48,
-      12,
-      62,
-      16,
-    );
-    row.addChild(reward);
-
-    const button = new Node("TaskButton");
-    button.addComponent(UITransform).setContentSize(54, 28);
-    button.setPosition(105, 0);
-    const buttonColor = quest.claimed
-      ? new Color(178, 188, 174)
-      : complete
-        ? new Color(76, 188, 83)
-        : new Color(190, 198, 184);
-    fillRoundRect(button, 54, 28, 9, buttonColor);
-    button.addChild(
-      ui.makeLabel(
-        quest.claimed ? "已领" : complete ? "领取" : "未完",
-        12,
-        new Color(255, 255, 255),
-        true,
-        0,
-        0,
-        50,
-        20,
-      ),
-    );
-    if (complete && !quest.claimed) {
-      button
-        .addComponent(Button)
-        .node.on(Node.EventType.TOUCH_END, (event: any) => {
-          event?.stopPropagation?.();
-          if (gm.claimDailyQuest(quest.id)) {
-            ui.toast("任务奖励已领取");
-            ui.renderTaskPanel();
-          }
-        });
-    }
-    row.addChild(button);
-    body.addChild(row);
+function drawTaskCategoryTabs(ui: any, body: Node) {
+  const tabs = [
+    { text: "\u4e3b\u7ebf\u4efb\u52a1", icon: "taskMain" },
+    { text: "\u6bcf\u65e5\u4efb\u52a1", icon: "taskDaily" },
+    { text: "\u652f\u7ebf\u4efb\u52a1", icon: "taskBranch" },
+    { text: "\u7279\u6b8a\u4efb\u52a1", icon: "taskSpecial" },
+  ];
+  tabs.forEach((tab, index) => {
+    const node = new Node(`TaskTab_${index}`);
+    node.addComponent(UITransform).setContentSize(78, 36);
+    node.setPosition(-117 + index * 78, 143);
+    fillRoundRect(node, 77, 35, 8, new Color(255, 239, 204, 250));
+    strokeRoundRect(node, 77, 35, 8, new Color(161, 105, 58, 210), 1.8);
+    const icon = new Node("Icon");
+    icon.addComponent(UITransform).setContentSize(24, 24);
+    icon.setPosition(-26, 0);
+    ui.applyUiIcon(tab.icon, icon);
+    node.addChild(icon);
+    node.addChild(ui.makeLabel(tab.text, 14, new Color(88, 45, 24), true, 8, 0, 56, 20));
+    body.addChild(node);
   });
+}
+
+function drawTaskCard(ui: any, gm: GameManager, body: Node, task: TaskCardData, index: number) {
+  const isFirst = index === 0;
+  const w = 312;
+  const h = isFirst ? 132 : 92;
+  const y = isFirst ? 55 : -62 - (index - 1) * 106;
+  const card = new Node(`TaskCard_${task.id}`);
+  card.addComponent(UITransform).setContentSize(w, h);
+  card.setPosition(0, y);
+  fillRoundRect(card, w, h, 14, new Color(255, 252, 239, 248));
+  strokeRoundRect(card, w, h, 14, new Color(134, 82, 45, 220), 2.4);
+
+  const icon = new Node("TaskNoIcon");
+  icon.addComponent(UITransform).setContentSize(56, 56);
+  icon.setPosition(-126, isFirst ? 28 : 9);
+  ui.applyUiIcon(`task${task.no}`, icon);
+  card.addChild(icon);
+
+  const title = ui.makeLabel(`[${task.typeLabel}] ${task.title}`, 20, new Color(48, 25, 16), true, -38, isFirst ? 39 : 22, 190, 26);
+  title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  card.addChild(title);
+  const desc = ui.makeLabel(task.desc, 14, new Color(48, 25, 16), true, -36, isFirst ? 16 : -1, 198, 20);
+  desc.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  card.addChild(desc);
+
+  drawTaskProgress(ui, card, task, isFirst ? -8 : -27);
+  drawTaskActionButton(ui, gm, card, task, isFirst ? 29 : 4);
+  if (isFirst) drawTaskRewardPanel(ui, card, task);
+
+  body.addChild(card);
+}
+
+function drawTaskProgress(ui: any, parent: Node, task: TaskCardData, y: number) {
+  const progressW = 162;
+  const ratio = task.target > 0 ? Math.min(1, Math.max(0, task.progress / task.target)) : 0;
+  const bar = new Node("TaskProgress");
+  bar.setPosition(-11, y);
+  fillRoundRect(bar, progressW, 15, 8, new Color(219, 188, 151, 245));
+  strokeRoundRect(bar, progressW, 15, 8, new Color(134, 82, 45, 185), 1.6);
+  const fill = new Node("TaskProgressFill");
+  const fillW = Math.max(8, progressW * ratio);
+  fill.setPosition(-progressW / 2 + fillW / 2, 0);
+  fillRoundRect(fill, fillW, 13, 7, new Color(145, 207, 112, 235));
+  bar.addChild(fill);
+  bar.addChild(ui.makeLabel(`\u8fdb\u5ea6\uff1a${task.progress}/${task.target}`, 13, new Color(55, 30, 20), true, 0, 0, progressW, 18));
+  parent.addChild(bar);
+}
+
+function drawTaskActionButton(ui: any, gm: GameManager, parent: Node, task: TaskCardData, y: number) {
+  const complete = task.progress >= task.target;
+  const button = new Node("TaskGoButton");
+  button.addComponent(UITransform).setContentSize(72, 36);
+  button.setPosition(113, y);
+  fillRoundRect(button, 72, 36, 15, task.claimed ? new Color(198, 188, 174, 255) : new Color(250, 148, 166, 255));
+  strokeRoundRect(button, 72, 36, 15, new Color(134, 72, 58, 235), 2.2);
+  const text = task.claimed ? "\u5df2\u9886" : complete && task.realQuestId ? "\u9886\u53d6" : "\u524d\u5f80";
+  button.addChild(ui.makeLabel(text, 20, new Color(88, 45, 24), true, 0, 1, 64, 26));
+  bindCatalogPressFeedback(button);
+  button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    if (complete && task.realQuestId && !task.claimed) {
+      if (gm.claimDailyQuest(task.realQuestId)) {
+        ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
+        ui.renderTaskPanel();
+      }
+      return;
+    }
+    ui.toast("\u4efb\u52a1\u8fdb\u884c\u4e2d");
+  });
+  parent.addChild(button);
+}
+
+function drawTaskRewardPanel(ui: any, parent: Node, task: TaskCardData) {
+  const panel = new Node("TaskRewardPanel");
+  panel.addComponent(UITransform).setContentSize(276, 52);
+  panel.setPosition(16, -53);
+  fillRoundRect(panel, 276, 52, 9, new Color(255, 234, 176, 245));
+  panel.addChild(ui.makeLabel("\u5956\u52b1\uff1a", 16, new Color(55, 30, 20), true, -112, 5, 62, 22));
+  if (task.rewardGold) drawTaskRewardIcon(ui, panel, "rewardGold", `x${task.rewardGold}`, -45);
+  if (task.rewardSeed) drawTaskRewardIcon(ui, panel, "rewardSeed", `x${task.rewardSeed}`, 26);
+  parent.addChild(panel);
+}
+
+function drawTaskRewardIcon(ui: any, parent: Node, iconName: string, count: string, x: number) {
+  const icon = new Node("RewardIcon");
+  icon.addComponent(UITransform).setContentSize(34, 34);
+  icon.setPosition(x, 8);
+  ui.applyUiIcon(iconName, icon);
+  parent.addChild(icon);
+  parent.addChild(ui.makeLabel(count, 11, new Color(55, 30, 20), true, x + 20, -2, 34, 16));
 }
 
 export function buySeed(ui: any, crop: ItemDef) {
