@@ -369,9 +369,14 @@ export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelNa
     pill.addChild(iconNode);
     ui.applyUiIcon(icon, iconNode);
 
-    const label = ui.makeLabel(value, 18, color, true, 0, 0, pillW, 24);
+    const textW = Math.max(36, pillW - 30);
+    const textX = pillW / 2 - 4 - textW / 2;
+    const label = ui.makeLabel(value, 18, color, true, textX, 0, textW, 24);
     label.name = labelName;
-    label.setPosition(8, 0);
+    const labelComponent = label.getComponent(Label)!;
+    labelComponent.fontSize = 22;
+    labelComponent.overflow = Label.Overflow.CLAMP;
+    labelComponent.enableWrapText = false;
     pill.addChild(label);
 
 }
@@ -502,10 +507,11 @@ export function getLandGridSize(ui: any): { width: number; height: number } {
 
 export function createBottomNav(ui: any) {
     const vs = view.getVisibleSize();
+    const navW = Design.WIDTH;
+    const navH = 82;
     const nav = new Node('BottomNav');
-    nav.setPosition(0, -vs.height / 2 + 42);
-    fillRoundRect(nav, Design.WIDTH + 18, 84, 18, new Color(232, 164, 88, 250));
-    strokeRoundRect(nav, Design.WIDTH + 18, 84, 18, new Color(128, 78, 46, 220), 2.4);
+    nav.setPosition(0, -vs.height / 2 + navH / 2);
+    drawBottomNavBackground(nav, navW, navH);
     ui.node.addChild(nav);
 
     const buttons: Array<{ name: string; icon: string; panel: PanelName }> = [
@@ -517,13 +523,13 @@ export function createBottomNav(ui: any) {
 
     buttons[1] = { name: '合成', icon: 'gear', panel: 'craft' };
 
-    const slotW = Design.WIDTH / buttons.length;
+    const slotW = navW / buttons.length;
     buttons.forEach((item, index) => {
         const btn = new Node(`Nav_${item.panel}`);
         const iconSize = item.panel === 'inventory' ? 49 : (item.panel === 'craft' ? 54 : 49);
         const iconY = item.panel === 'quest' ? 16 : 18;
         btn.addComponent(UITransform).setContentSize(76, 58);
-        btn.setPosition(-Design.WIDTH / 2 + slotW * index + slotW / 2, 1);
+        btn.setPosition(-navW / 2 + slotW * index + slotW / 2, 1);
         fillRoundRect(btn, 76, 58, 13, new Color(255, 247, 210, 255));
         strokeRoundRect(btn, 76, 58, 13, new Color(126, 78, 48, 225), 2.2);
 
@@ -536,12 +542,6 @@ export function createBottomNav(ui: any) {
         const label = ui.makeLabel(item.name, 14, new Color(88, 45, 24), true, 0, -12, 68, 26);
         label.name = 'Label';
         btn.addChild(label);
-
-        const indicator = new Node('Indicator');
-        indicator.setPosition(0, -27);
-        indicator.active = false;
-        fillRoundRect(indicator, 34, 5, 2, new Color(126, 78, 48, 180));
-        btn.addChild(indicator);
 
         btn.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
             tween(btn)
@@ -614,14 +614,57 @@ export function createPanels(ui: any) {
     ui.panels.craft = ui.createPanel('合成工坊', 318, 398);
     ui.panels.shop = ui.createPanel('集市商店', 318, 398);
     ui.panels.quest = ui.createPanel('图鉴', Design.WIDTH, 540);
-    ui.panels.quest.setPosition(0, -35);
-    ui.panels.task = ui.createPanel('今日任务', 318, 398);
+    ui.panels.task = ui.createPanel('\u4eca\u65e5\u4efb\u52a1', Design.WIDTH, 540);
+    layoutResponsiveFeaturePanels(ui);
     for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task]) {
         if (!panel) continue;
         panel.active = false;
         ui.node.addChild(panel);
     }
 
+}
+
+function drawBottomNavBackground(node: Node, w: number, h: number) {
+    const graphics = node.getComponent(Graphics) || node.addComponent(Graphics);
+    const left = -w / 2;
+    const right = w / 2;
+    const bottom = -h / 2;
+    const top = h / 2;
+    const radius = 18;
+    const path = () => {
+        graphics.moveTo(left, bottom);
+        graphics.lineTo(left, top - radius);
+        graphics.quadraticCurveTo(left, top, left + radius, top);
+        graphics.lineTo(right - radius, top);
+        graphics.quadraticCurveTo(right, top, right, top - radius);
+        graphics.lineTo(right, bottom);
+        graphics.close();
+    };
+
+    graphics.clear();
+    graphics.fillColor = new Color(232, 164, 88, 250);
+    path();
+    graphics.fill();
+    graphics.strokeColor = new Color(128, 78, 46, 220);
+    graphics.lineWidth = 2.4;
+    path();
+    graphics.stroke();
+}
+
+export function layoutResponsiveFeaturePanels(ui: any) {
+    const vs = view.getVisibleSize();
+    const layoutKey = `${vs.width}x${vs.height}`;
+    if (ui.featurePanelLayoutKey === layoutKey) return;
+    ui.featurePanelLayoutKey = layoutKey;
+    const panelH = 540;
+    const bottomNavH = 82;
+    const scale = vs.width / Design.WIDTH;
+    const centerY = -vs.height / 2 + bottomNavH + (panelH * scale) / 2;
+    for (const panel of [ui.panels.quest, ui.panels.task]) {
+        if (!panel) continue;
+        panel.setPosition(0, centerY);
+        panel.setScale(scale, scale, 1);
+    }
 }
 
 export function createTaskEntry(ui: any) {
@@ -699,14 +742,26 @@ export function createPanel(ui: any, title: string, w: number, h: number): Node 
 
 }
 
-function closePanelWithAnimation(ui: any, panel: Node) {
+export function closePanelWithAnimation(ui: any, panel: Node) {
+    if ((panel as any).closing) return;
+    (panel as any).closing = true;
     const originalScale = panel.scale.clone();
+    const originalPosition = panel.position.clone();
+    const opacity = panel.getComponent(UIOpacity) || panel.addComponent(UIOpacity);
+    opacity.opacity = 255;
+    tween(opacity).to(0.18, { opacity: 0 }, { easing: 'quadIn' }).start();
     tween(panel)
-        .to(0.08, { scale: new Vec3(originalScale.x * 1.025, originalScale.y * 1.025, 1) }, { easing: 'quadOut' })
-        .to(0.16, { scale: new Vec3(0.86, 0.86, 1) }, { easing: 'quadIn' })
+        .to(0.07, { scale: new Vec3(originalScale.x * 1.02, originalScale.y * 1.02, 1) }, { easing: 'quadOut' })
+        .to(0.17, {
+            position: new Vec3(originalPosition.x, originalPosition.y - 10, originalPosition.z),
+            scale: new Vec3(originalScale.x * 0.88, originalScale.y * 0.88, 1),
+        }, { easing: 'quadIn' })
         .call(() => {
             panel.active = false;
+            panel.setPosition(originalPosition);
             panel.setScale(originalScale);
+            opacity.opacity = 255;
+            (panel as any).closing = false;
             clearBottomNavState(ui);
         })
         .start();
@@ -726,8 +781,6 @@ function clearBottomNavState(ui: any) {
             icon.setScale(new Vec3(1, 1, 1));
             icon.setPosition(0, 18);
         }
-        const indicator = btn.getChildByName('Indicator');
-        if (indicator) indicator.active = false;
     }
 }
 

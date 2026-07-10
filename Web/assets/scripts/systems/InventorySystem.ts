@@ -60,6 +60,31 @@ export class InventorySystem extends Component {
         };
     }
 
+    canAddItems(items: Array<{ itemId: string; count: number }>): boolean {
+        const slots = this.slots.map(slot => ({ ...slot }));
+        for (const reward of items) {
+            if (!getItem(reward.itemId) || reward.count <= 0) return false;
+            let remaining = reward.count;
+            for (const slot of slots) {
+                if (slot.itemId !== reward.itemId || slot.count >= GameValues.MAX_STACK) continue;
+                const added = Math.min(remaining, GameValues.MAX_STACK - slot.count);
+                slot.count += added;
+                remaining -= added;
+                if (remaining === 0) break;
+            }
+            for (const slot of slots) {
+                if (remaining === 0) break;
+                if (slot.itemId !== '') continue;
+                const added = Math.min(remaining, GameValues.MAX_STACK);
+                slot.itemId = reward.itemId;
+                slot.count = added;
+                remaining -= added;
+            }
+            if (remaining > 0) return false;
+        }
+        return true;
+    }
+
     /** 添加物品 */
     addItem(itemId: string, count: number = 1): boolean {
         let remaining = count;

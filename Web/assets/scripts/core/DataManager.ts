@@ -20,6 +20,8 @@ export interface SaveData {
     dailyQuestProgress?: Record<string, number>;
     claimedDailyQuests?: string[];
     lastQuestDate?: string;
+    taskProgress?: Record<string, number>;
+    claimedTasks?: string[];
     totalCraftCount?: number;
     achievements: string[];
     adState?: any;

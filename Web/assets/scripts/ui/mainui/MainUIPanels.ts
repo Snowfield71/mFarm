@@ -10,6 +10,7 @@ import {
   ScrollView,
   UIOpacity,
   UITransform,
+  Vec2,
   Vec3,
   tween,
   view,
@@ -32,9 +33,13 @@ import {
   getRecipesByLevel,
   RecipeDef,
 } from "../../config/RecipeConfig";
-import { fillRect, fillRoundRect, strokeRoundRect } from "../utils/UIDraw";
+import { fillRoundRect, strokeRoundRect } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
 import { ImageCache } from "../../utils/ImageCache";
+import {
+  getTaskCategoryLabel,
+  TaskAction,
+} from "../../config/TaskConfig";
 
 export function showPanel(ui: any, name: PanelName) {
   ui.closeSeedBubble();
@@ -58,11 +63,19 @@ export function showPanel(ui: any, name: PanelName) {
   }
   if (name === "task") {
     ImageCache.getInstance().preloadUiIcons([
-      "taskLog",
+      "panelBg",
       "taskMain",
       "taskDaily",
       "taskBranch",
       "taskSpecial",
+      "taskTabsMain",
+      "taskTabsDaily",
+      "taskTabsBranch",
+      "taskTabsSpecial",
+      "btnGo",
+      "btnDetail",
+      "btnClaim",
+      "btnClaimed",
       "task1",
       "task2",
       "task3",
@@ -75,8 +88,7 @@ export function showPanel(ui: any, name: PanelName) {
 
 function closeActivePanel(ui: any, name: PanelName) {
   const panel = ui.panels[name];
-  if (panel) panel.active = false;
-  clearBottomNavState(ui);
+  if (panel) ui.closePanelWithAnimation(panel);
 }
 
 function updateBottomNavState(ui: any, active: PanelName) {
@@ -138,8 +150,6 @@ function updateBottomNavState(ui: any, active: PanelName) {
         )
         .start();
     }
-    const indicator = btn.getChildByName("Indicator");
-    if (indicator) indicator.active = isActive;
   }
 }
 
@@ -159,8 +169,6 @@ function clearBottomNavState(ui: any) {
       icon.setScale(new Vec3(1, 1, 1));
       icon.setPosition(0, panel === "quest" ? 16 : 18);
     }
-    const indicator = btn.getChildByName("Indicator");
-    if (indicator) indicator.active = false;
   }
 }
 
@@ -729,14 +737,27 @@ function drawCatalogBackground(ui: any, body: Node, pageIndex: number) {
   if (pageIndex > 0) drawCatalogPrevArrow(body);
 }
 
-function drawTaskLogBackground(ui: any, body: Node) {
-  drawPanelImageBackground(ui, body, "taskLog", "TaskLogImageBackground");
+function drawCommonPanelBackground(ui: any, body: Node) {
+  drawPanelImageBackground(ui, body, "panelBg", "CommonPanelImageBackground");
 }
 
-function drawPanelImageBackground(ui: any, body: Node, iconName: string, nodeName: string) {
+const CATALOG_BACKGROUND_IMAGE_WIDTH = Design.WIDTH + 10;
+const CATALOG_BACKGROUND_IMAGE_HEIGHT = 540;
+const CATALOG_BACKGROUND_IMAGE_X = 0;
+const CATALOG_BACKGROUND_IMAGE_Y = 0;
+
+function drawPanelImageBackground(
+  ui: any,
+  body: Node,
+  iconName: string,
+  nodeName: string,
+) {
   const bg = new Node(nodeName);
-  bg.addComponent(UITransform).setContentSize(Design.WIDTH + 10, 540);
-  bg.setPosition(0, 0);
+  bg.addComponent(UITransform).setContentSize(
+    CATALOG_BACKGROUND_IMAGE_WIDTH,
+    CATALOG_BACKGROUND_IMAGE_HEIGHT,
+  );
+  bg.setPosition(CATALOG_BACKGROUND_IMAGE_X, CATALOG_BACKGROUND_IMAGE_Y);
   ui.applyUiIcon(iconName, bg);
   body.addChild(bg);
 }
@@ -923,8 +944,22 @@ function getCatalogLockFrame(row: number, col: number) {
   const leftAdjust = col === 0 ? 0 : col === 2 ? -2 : 0;
   const rowCellLeftAdjust =
     row === 2 && col === 1 ? 2 : row === 2 && col === 2 ? 1 : 0;
-  const leftGrow = Math.max(0, baseLeftGrow + leftAdjust + rowCellLeftAdjust);
-  const rightGrow = col === 1 ? 2 : 0;
+  const columnLeftGrow = col === 0 ? 3 : 0;
+  const cellLeftDelta =
+    row === 2 && col === 1
+      ? 1
+      : (row === 0 && col === 2) || (row === 1 && col === 2)
+        ? -1
+        : 0;
+  const leftGrow = Math.max(
+    0,
+    baseLeftGrow +
+      leftAdjust +
+      rowCellLeftAdjust +
+      columnLeftGrow +
+      cellLeftDelta,
+  );
+  const rightGrow = col === 1 ? 3 : col === 2 ? 2 : 0;
   const columnShift = col === 1 ? 1 : 0;
   const topGrow = row === 0 ? 5 : 0;
   const bottomGrow = row === 0 ? 5 : row === 1 ? 9 : 5;
@@ -999,8 +1034,7 @@ function createCatalogCloseHitArea(ui: any, panel: Node, body: Node) {
   bindCatalogPressFeedback(close);
   close.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
     event?.stopPropagation?.();
-    panel.active = false;
-    clearBottomNavState(ui);
+    ui.closePanelWithAnimation(panel);
   });
   body.addChild(close);
 }
@@ -1227,20 +1261,25 @@ export function renderTaskPanel(ui: any) {
   const panel = ui.panels.task!;
   const body = ui.clearPanelBody(panel);
   const gm = GameManager.getInstance();
-  const quests = gm.getDailyQuests();
+  const quests = gm.getTasks(ui.taskCategory || "main");
   clearCatalogPanelChrome(panel);
   body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
   body.setPosition(0, 0);
   const close = panel.getChildByName("Close");
   if (close) close.active = false;
 
-  drawTaskLogBackground(ui, body);
+  drawCommonPanelBackground(ui, body);
   drawRibbonTitle(ui, body, "\u4efb\u52a1");
   createCatalogCloseHitArea(ui, panel, body);
   drawTaskCategoryTabs(ui, body);
 
+  if (!ui.taskCategory) ui.taskCategory = "main";
   const cards = createTaskCardData(quests);
-  cards.slice(0, 3).forEach((task, index) => drawTaskCard(ui, gm, body, task, index));
+  if (ui.taskDetailId === undefined) ui.taskDetailId = "";
+  if (!cards.some((task) => task.id === ui.taskDetailId)) {
+    ui.taskDetailId = "";
+  }
+  drawTaskListScroll(ui, gm, body, cards);
 }
 
 type TaskCardData = {
@@ -1252,169 +1291,579 @@ type TaskCardData = {
   desc: string;
   progress: number;
   target: number;
-  rewardGold?: number;
-  rewardSeed?: number;
+  rewards?: TaskRewardData[];
   claimed?: boolean;
   realQuestId?: string;
+  action?: TaskAction;
 };
 
-function createTaskCardData(quests: any[]): TaskCardData[] {
-  const daily = quests[0];
-  const branch = quests[2] || quests[1];
-  return [
-    {
-      id: "main_plant_wheat",
-      no: 1,
-      type: "main",
-      typeLabel: "\u4e3b\u7ebf",
-      title: "\u79cd\u690d\u5c0f\u9ea6",
-      desc: "\u5728\u4f60\u7684\u519c\u573a\u79cd\u690d10\u682a\u5c0f\u9ea6",
-      progress: Math.min(daily?.progress || 0, 10),
-      target: 10,
-      rewardGold: 100,
-      rewardSeed: 5,
-    },
-    {
-      id: daily?.id || "daily_feed_chicken",
-      no: 2,
-      type: "daily",
-      typeLabel: "\u6bcf\u65e5",
-      title: daily?.title || "\u5582\u517b\u5c0f\u9e21",
-      desc: "\u4eca\u5929\u5582\u517b5\u53ea\u5c0f\u9e21",
-      progress: daily?.progress || 0,
-      target: daily?.target || 5,
-      rewardGold: daily?.rewardGold,
-      claimed: daily?.claimed,
-      realQuestId: daily?.id,
-    },
-    {
-      id: branch?.id || "branch_make_jam",
-      no: 3,
-      type: "branch",
-      typeLabel: "\u652f\u7ebf",
-      title: branch?.title || "\u5236\u4f5c\u679c\u9171",
-      desc: "\u5728\u5236\u4f5c\u53f0\u5236\u4f5c2\u74f6\u8349\u8393\u679c\u9171",
-      progress: branch?.progress || 0,
-      target: branch?.target || 2,
-      rewardGold: branch?.rewardGold,
-      claimed: branch?.claimed,
-      realQuestId: branch?.id,
-    },
-  ];
+type TaskRewardData = {
+  icon: string;
+  iconType?: "ui" | "item";
+  count: number;
+  label: string;
+};
+
+const TASK_CARD_COLLAPSED_HEIGHT = 84;
+const TASK_REWARD_COLUMNS = 4;
+const TASK_REWARD_PANEL_BASE_HEIGHT = 65;
+const TASK_REWARD_ROW_STEP = 60;
+const TASK_REWARD_TOP_OFFSET = 83.5;
+const TASK_REWARD_BOTTOM_PADDING = 4.5;
+
+function getTaskRewardLayout(task: TaskCardData) {
+  const rewards = task.rewards || [];
+  const rows = Math.max(1, Math.ceil(rewards.length / TASK_REWARD_COLUMNS));
+  const panelHeight =
+    TASK_REWARD_PANEL_BASE_HEIGHT + (rows - 1) * TASK_REWARD_ROW_STEP;
+  return {
+    rewards,
+    panelHeight,
+    cardHeight:
+      TASK_REWARD_TOP_OFFSET + panelHeight + TASK_REWARD_BOTTOM_PADDING,
+  };
+}
+
+function createTaskCardData(tasks: any[]): TaskCardData[] {
+  return tasks.map((task) => ({
+    id: task.id,
+    no: task.no,
+    type: task.category,
+    typeLabel: getTaskCategoryLabel(task.category),
+    title: task.title,
+    desc: task.description,
+    progress: task.progress,
+    target: task.target,
+    rewards: task.rewards,
+    claimed: task.claimed,
+    realQuestId: task.id,
+    action: task.action,
+  }));
 }
 
 function drawTaskCategoryTabs(ui: any, body: Node) {
   const tabs = [
-    { text: "\u4e3b\u7ebf\u4efb\u52a1", icon: "taskMain" },
-    { text: "\u6bcf\u65e5\u4efb\u52a1", icon: "taskDaily" },
-    { text: "\u652f\u7ebf\u4efb\u52a1", icon: "taskBranch" },
-    { text: "\u7279\u6b8a\u4efb\u52a1", icon: "taskSpecial" },
+    {
+      type: "main",
+      width: 84,
+      image: "taskTabsMain",
+      icon: "taskMain",
+      iconSize: 31,
+      iconOffsetX: 0,
+      text: "\u4e3b\u7ebf\u4efb\u52a1",
+      visualX: -121,
+    },
+    {
+      type: "daily",
+      width: 88,
+      image: "taskTabsDaily",
+      icon: "taskDaily",
+      iconSize: 27,
+      iconOffsetX: 1,
+      text: "\u6bcf\u65e5\u4efb\u52a1",
+      visualX: -36,
+    },
+    {
+      type: "branch",
+      width: 84,
+      image: "taskTabsBranch",
+      icon: "taskBranch",
+      iconSize: 34,
+      iconOffsetX: 1,
+      text: "\u652f\u7ebf\u4efb\u52a1",
+      visualX: 47,
+    },
+    {
+      type: "special",
+      width: 88,
+      image: "taskTabsSpecial",
+      icon: "taskSpecial",
+      iconSize: 25,
+      iconOffsetX: 3,
+      text: "\u7279\u6b8a\u4efb\u52a1",
+      visualX: 128,
+    },
   ];
+  if (!ui.taskCategory) ui.taskCategory = "main";
+
+  const baselineY = 126;
+  const imageW = 360;
+  const imageH = 60;
+  const hitH = 60;
+  const tabGap = 5;
+  const totalW =
+    tabs.reduce((sum, tab) => sum + tab.width, 0) +
+    tabGap * (tabs.length - 1);
+  let cursorX = -totalW / 2;
+  const selected = tabs.find((tab) => tab.type === ui.taskCategory) || tabs[0];
+  const image = new Node("TaskCategoryTabsImage");
+  image.addComponent(UITransform).setContentSize(imageW, imageH);
+  image.setPosition(0, baselineY + imageH / 2 - 1);
+  ui.applyUiIcon(selected.image, image);
+
   tabs.forEach((tab, index) => {
-    const node = new Node(`TaskTab_${index}`);
-    node.addComponent(UITransform).setContentSize(78, 36);
-    node.setPosition(-117 + index * 78, 143);
-    fillRoundRect(node, 77, 35, 8, new Color(255, 239, 204, 250));
-    strokeRoundRect(node, 77, 35, 8, new Color(161, 105, 58, 210), 1.8);
-    const icon = new Node("Icon");
-    icon.addComponent(UITransform).setContentSize(24, 24);
-    icon.setPosition(-26, 0);
+    const icon = new Node(`TaskTabIcon_${index}`);
+    icon
+      .addComponent(UITransform)
+      .setContentSize(tab.iconSize, tab.iconSize);
+    icon.setPosition(tab.visualX - 28 + tab.iconOffsetX, 0);
     ui.applyUiIcon(tab.icon, icon);
-    node.addChild(icon);
-    node.addChild(ui.makeLabel(tab.text, 14, new Color(88, 45, 24), true, 8, 0, 56, 20));
+    image.addChild(icon);
+
+    const label = ui.makeLabel(
+      tab.text,
+      12,
+      new Color(67, 30, 14, 255),
+      true,
+      tab.visualX + 10,
+      0,
+      52,
+      22,
+    );
+    label.name = `TaskTabLabel_${index}`;
+    label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    image.addChild(label);
+  });
+  body.addChild(image);
+
+  tabs.forEach((tab, index) => {
+    const w = tab.width;
+    const node = new Node(`TaskTabHit_${index}`);
+    const centerX = cursorX + w / 2;
+    cursorX += w + tabGap;
+    node.addComponent(UITransform).setContentSize(w, hitH);
+    node.setPosition(centerX, baselineY + hitH / 2);
+
+    node
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (ui.taskCategory === tab.type) return;
+        ui.taskCategory = tab.type;
+        ui.taskDetailId = "";
+        ui.taskScrollOffset = 0;
+        ui.renderTaskPanel();
+      });
     body.addChild(node);
   });
 }
 
-function drawTaskCard(ui: any, gm: GameManager, body: Node, task: TaskCardData, index: number) {
-  const isFirst = index === 0;
-  const w = 312;
-  const h = isFirst ? 132 : 92;
-  const y = isFirst ? 55 : -62 - (index - 1) * 106;
+function drawTaskListScroll(
+  ui: any,
+  gm: GameManager,
+  body: Node,
+  cards: TaskCardData[],
+) {
+  const viewportW = 326;
+  const viewportH = 358;
+  const viewport = new Node("TaskListViewport");
+  viewport.addComponent(UITransform).setContentSize(viewportW, viewportH);
+  viewport.setPosition(0, -62);
+
+  viewport.addComponent(Mask);
+  body.addChild(viewport);
+
+  const gap = 9;
+  const topPadding = 13;
+  const bottomPadding = 6;
+  const heights = cards.map((task) =>
+    ui.taskDetailId === task.id
+      ? getTaskRewardLayout(task).cardHeight
+      : TASK_CARD_COLLAPSED_HEIGHT,
+  );
+  const contentH = Math.max(
+    viewportH,
+    heights.reduce((sum, h) => sum + h, 0) +
+      gap * Math.max(0, cards.length - 1) +
+      topPadding +
+      bottomPadding,
+  );
+  const content = new Node("TaskListContent");
+  content.addComponent(UITransform).setContentSize(viewportW, contentH);
+  viewport.addChild(content);
+
+  let y = contentH / 2 - topPadding;
+  cards.forEach((task, index) => {
+    const h = heights[index];
+    y -= h / 2;
+    drawTaskCard(ui, gm, content, task, index, y);
+    y -= h / 2 + gap;
+  });
+
+  const scrollView = viewport.addComponent(ScrollView);
+  scrollView.horizontal = false;
+  scrollView.vertical = true;
+  scrollView.inertia = true;
+  (scrollView as any).elastic = false;
+  scrollView.content = content;
+  const rememberScroll = () => {
+    ui.taskScrollOffset = scrollView.getScrollOffset().y;
+  };
+  scrollView.node.on(ScrollView.EventType.SCROLLING, rememberScroll);
+  scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, rememberScroll);
+
+  ui.scheduleOnce(() => {
+    if (!viewport.isValid || !content.isValid) return;
+    const maxOffset = Math.max(0, scrollView.getMaxScrollOffset().y);
+    const offset = Math.max(0, Math.min(ui.taskScrollOffset || 0, maxOffset));
+    scrollView.scrollToOffset(new Vec2(0, offset), 0);
+  }, 0);
+}
+
+function drawTaskCard(
+  ui: any,
+  gm: GameManager,
+  body: Node,
+  task: TaskCardData,
+  index: number,
+  yOverride?: number,
+) {
+  const expanded = ui.taskDetailId === task.id;
+  const collapsedH = TASK_CARD_COLLAPSED_HEIGHT;
+  const w = 300;
+  const rewardLayout = getTaskRewardLayout(task);
+  const h = expanded ? rewardLayout.cardHeight : collapsedH;
+  const y = yOverride ?? (index === 0 ? 13 : -128 - (index - 1) * 106);
+  const shadow = new Node(`TaskCardShadow_${task.id}`);
+  shadow.addComponent(UITransform).setContentSize(w, h);
+  shadow.setPosition(0, y - 4);
+  fillRoundRect(shadow, w, h, 13, new Color(111, 68, 38, 35));
+  body.addChild(shadow);
+
   const card = new Node(`TaskCard_${task.id}`);
   card.addComponent(UITransform).setContentSize(w, h);
   card.setPosition(0, y);
-  fillRoundRect(card, w, h, 14, new Color(255, 252, 239, 248));
-  strokeRoundRect(card, w, h, 14, new Color(134, 82, 45, 220), 2.4);
+  fillRoundRect(card, w, h, 15, new Color(255, 253, 242, 252));
+  strokeRoundRect(card, w, h, 15, new Color(129, 76, 42, 230), 2.2);
+
+  const contentOffsetY = expanded ? (h - collapsedH) / 2 : 0;
+  const topWash = new Node("TaskCardWarmTop");
+  topWash.setPosition(0, 25 + contentOffsetY);
+  fillRoundRect(topWash, w - 16, 26, 12, new Color(255, 244, 218, 115));
+  card.addChild(topWash);
 
   const icon = new Node("TaskNoIcon");
-  icon.addComponent(UITransform).setContentSize(56, 56);
-  icon.setPosition(-126, isFirst ? 28 : 9);
+  icon.addComponent(UITransform).setContentSize(47, 47);
+  icon.setPosition(-122, 13 + contentOffsetY);
   ui.applyUiIcon(`task${task.no}`, icon);
   card.addChild(icon);
 
-  const title = ui.makeLabel(`[${task.typeLabel}] ${task.title}`, 20, new Color(48, 25, 16), true, -38, isFirst ? 39 : 22, 190, 26);
+  const title = ui.makeLabel(
+    `[${task.typeLabel}] ${task.title}`,
+    17,
+    new Color(48, 25, 16),
+    true,
+    -27,
+    23 + contentOffsetY,
+    178,
+    24,
+  );
   title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
   card.addChild(title);
-  const desc = ui.makeLabel(task.desc, 14, new Color(48, 25, 16), true, -36, isFirst ? 16 : -1, 198, 20);
+  const desc = ui.makeLabel(
+    task.desc,
+    11,
+    new Color(62, 36, 24),
+    true,
+    -27,
+    4 + contentOffsetY,
+    190,
+    17,
+  );
   desc.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
   card.addChild(desc);
 
-  drawTaskProgress(ui, card, task, isFirst ? -8 : -27);
-  drawTaskActionButton(ui, gm, card, task, isFirst ? 29 : 4);
-  if (isFirst) drawTaskRewardPanel(ui, card, task);
+  const progressY = -18 + contentOffsetY;
+  drawTaskProgress(ui, card, task, progressY, false);
+  drawTaskActionButton(ui, gm, card, task, 8 + contentOffsetY, false);
+  if (expanded) drawTaskRewardPanel(ui, card, rewardLayout);
+  drawTaskDetailButton(ui, card, task, progressY);
+  drawTaskCardFlower(card, w / 2 - 1, h / 2 - 4);
 
   body.addChild(card);
 }
 
-function drawTaskProgress(ui: any, parent: Node, task: TaskCardData, y: number) {
-  const progressW = 162;
-  const ratio = task.target > 0 ? Math.min(1, Math.max(0, task.progress / task.target)) : 0;
+function drawTaskProgress(
+  ui: any,
+  parent: Node,
+  task: TaskCardData,
+  y: number,
+  wide = false,
+) {
+  const progressW = wide ? 176 : 170;
+  const ratio =
+    task.target > 0 ? Math.min(1, Math.max(0, task.progress / task.target)) : 0;
   const bar = new Node("TaskProgress");
-  bar.setPosition(-11, y);
-  fillRoundRect(bar, progressW, 15, 8, new Color(219, 188, 151, 245));
-  strokeRoundRect(bar, progressW, 15, 8, new Color(134, 82, 45, 185), 1.6);
+  bar.setPosition(wide ? -7 : -6, y);
+  fillRoundRect(bar, progressW, 16, 8, new Color(220, 190, 153, 245));
+  strokeRoundRect(bar, progressW, 16, 8, new Color(134, 82, 45, 185), 1.5);
   const fill = new Node("TaskProgressFill");
-  const fillW = Math.max(8, progressW * ratio);
+  const fillW = Math.max(9, progressW * ratio);
   fill.setPosition(-progressW / 2 + fillW / 2, 0);
-  fillRoundRect(fill, fillW, 13, 7, new Color(145, 207, 112, 235));
+  fillRoundRect(fill, fillW, 13, 7, new Color(148, 210, 112, 235));
   bar.addChild(fill);
-  bar.addChild(ui.makeLabel(`\u8fdb\u5ea6\uff1a${task.progress}/${task.target}`, 13, new Color(55, 30, 20), true, 0, 0, progressW, 18));
+  bar.addChild(
+    ui.makeLabel(
+      `\u8fdb\u5ea6\uff1a${task.progress}/${task.target}`,
+      12,
+      new Color(55, 30, 20),
+      true,
+      0,
+      0,
+      progressW,
+      18,
+    ),
+  );
   parent.addChild(bar);
 }
 
-function drawTaskActionButton(ui: any, gm: GameManager, parent: Node, task: TaskCardData, y: number) {
+function drawTaskActionButton(
+  ui: any,
+  gm: GameManager,
+  parent: Node,
+  task: TaskCardData,
+  y: number,
+  compact = false,
+) {
   const complete = task.progress >= task.target;
   const button = new Node("TaskGoButton");
-  button.addComponent(UITransform).setContentSize(72, 36);
-  button.setPosition(113, y);
-  fillRoundRect(button, 72, 36, 15, task.claimed ? new Color(198, 188, 174, 255) : new Color(250, 148, 166, 255));
-  strokeRoundRect(button, 72, 36, 15, new Color(134, 72, 58, 235), 2.2);
-  const text = task.claimed ? "\u5df2\u9886" : complete && task.realQuestId ? "\u9886\u53d6" : "\u524d\u5f80";
-  button.addChild(ui.makeLabel(text, 20, new Color(88, 45, 24), true, 0, 1, 64, 26));
-  bindCatalogPressFeedback(button);
-  button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-    event?.stopPropagation?.();
-    if (complete && task.realQuestId && !task.claimed) {
-      if (gm.claimDailyQuest(task.realQuestId)) {
+  button.addComponent(UITransform).setContentSize(compact ? 56 : 52, compact ? 26 : 22);
+  button.setPosition(112, y);
+  const visual = new Node("TaskGoButtonVisual");
+  visual
+    .addComponent(UITransform)
+    .setContentSize(compact ? 72 : 62, compact ? 72 : 62);
+  button.addChild(visual);
+  if (task.claimed) {
+    ui.applyUiIcon("btnClaimed", visual);
+  } else if (complete) {
+    ui.applyUiIcon("btnClaim", visual);
+  } else {
+    ui.applyUiIcon("btnGo", visual);
+  }
+  bindCatalogPressFeedback(button, visual);
+  button
+    .addComponent(Button)
+    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (task.claimed) {
         ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
-        ui.renderTaskPanel();
+        return;
       }
-      return;
-    }
-    ui.toast("\u4efb\u52a1\u8fdb\u884c\u4e2d");
-  });
+      if (complete && task.realQuestId) {
+        if (gm.claimTask(task.realQuestId)) {
+          ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
+          ui.renderTaskPanel();
+        } else {
+          ui.toast("\u80cc\u5305\u7a7a\u95f4\u4e0d\u8db3");
+        }
+        return;
+      }
+      navigateToTaskAction(ui, task.action || "farm");
+    });
   parent.addChild(button);
 }
 
-function drawTaskRewardPanel(ui: any, parent: Node, task: TaskCardData) {
+function navigateToTaskAction(ui: any, action: TaskAction) {
+  if (action === "farm") {
+    ui.showPanel("task");
+    return;
+  }
+  ui.showPanel(action);
+}
+
+function drawTaskDetailButton(
+  ui: any,
+  parent: Node,
+  task: TaskCardData,
+  y = -3,
+) {
+  const button = new Node("TaskDetailButton");
+  button.addComponent(UITransform).setContentSize(52, 18);
+  button.setPosition(112, y);
+  const visual = new Node("TaskDetailButtonVisual");
+  visual.addComponent(UITransform).setContentSize(64, 64);
+  ui.applyUiIcon("btnDetail", visual);
+  button.addChild(visual);
+  bindCatalogPressFeedback(button, visual);
+  button
+    .addComponent(Button)
+    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      ui.taskDetailId = ui.taskDetailId === task.id ? "" : task.id;
+      ui.renderTaskPanel();
+    });
+  parent.addChild(button);
+}
+
+function drawTaskRewardPanel(
+  ui: any,
+  parent: Node,
+  layout: ReturnType<typeof getTaskRewardLayout>,
+) {
+  const bubbleColor = new Color(255, 235, 176, 248);
+  const bubbleBorderColor = new Color(231, 206, 164, 255);
   const panel = new Node("TaskRewardPanel");
-  panel.addComponent(UITransform).setContentSize(276, 52);
-  panel.setPosition(16, -53);
-  fillRoundRect(panel, 276, 52, 9, new Color(255, 234, 176, 245));
-  panel.addChild(ui.makeLabel("\u5956\u52b1\uff1a", 16, new Color(55, 30, 20), true, -112, 5, 62, 22));
-  if (task.rewardGold) drawTaskRewardIcon(ui, panel, "rewardGold", `x${task.rewardGold}`, -45);
-  if (task.rewardSeed) drawTaskRewardIcon(ui, panel, "rewardSeed", `x${task.rewardSeed}`, 26);
+  panel.addComponent(UITransform).setContentSize(284, layout.panelHeight);
+  panel.setPosition(
+    0,
+    layout.cardHeight / 2 - TASK_REWARD_TOP_OFFSET - layout.panelHeight / 2,
+  );
+  fillRoundRect(
+    panel,
+    284,
+    layout.panelHeight,
+    8,
+    bubbleColor,
+  );
+  strokeRoundRect(
+    panel,
+    284,
+    layout.panelHeight,
+    8,
+    bubbleBorderColor,
+    1.2,
+  );
+
+  const tail = new Node("TaskRewardBubbleTail");
+  tail.setPosition(112, layout.panelHeight / 2 + 3);
+  const tailGraphics = tail.addComponent(Graphics);
+  tailGraphics.fillColor = bubbleColor;
+  tailGraphics.moveTo(-18, -4);
+  tailGraphics.lineTo(-14, -4);
+  tailGraphics.bezierCurveTo(-10, -4, -6, 4, -3, 7);
+  tailGraphics.bezierCurveTo(-1.5, 9, 1.5, 9, 3, 7);
+  tailGraphics.bezierCurveTo(6, 4, 10, -4, 14, -4);
+  tailGraphics.lineTo(18, -4);
+  tailGraphics.close();
+  tailGraphics.fill();
+  tailGraphics.strokeColor = bubbleBorderColor;
+  tailGraphics.lineWidth = 1.2;
+  tailGraphics.moveTo(-15, -3.5);
+  tailGraphics.bezierCurveTo(-10, -4, -6, 4, -3, 7);
+  tailGraphics.bezierCurveTo(-1.5, 9, 1.5, 9, 3, 7);
+  tailGraphics.bezierCurveTo(6, 4, 10, -4, 15, -3.5);
+  tailGraphics.stroke();
+  panel.addChild(tail);
+  panel.addChild(
+    ui.makeLabel(
+      "\u5956\u52b1\uff1a",
+      15,
+      new Color(55, 30, 20),
+      true,
+      -113,
+      layout.panelHeight / 2 - 25,
+      46,
+      20,
+    ),
+  );
+  layout.rewards.forEach((reward, index) => {
+    const col = index % TASK_REWARD_COLUMNS;
+    const row = Math.floor(index / TASK_REWARD_COLUMNS);
+    drawTaskRewardIcon(
+      ui,
+      panel,
+      reward.icon,
+      reward.iconType || "ui",
+      `x${reward.count}`,
+      reward.label,
+      -62 + col * 55,
+      layout.panelHeight / 2 - 25 - row * TASK_REWARD_ROW_STEP,
+    );
+  });
   parent.addChild(panel);
 }
 
-function drawTaskRewardIcon(ui: any, parent: Node, iconName: string, count: string, x: number) {
-  const icon = new Node("RewardIcon");
-  icon.addComponent(UITransform).setContentSize(34, 34);
-  icon.setPosition(x, 8);
-  ui.applyUiIcon(iconName, icon);
-  parent.addChild(icon);
-  parent.addChild(ui.makeLabel(count, 11, new Color(55, 30, 20), true, x + 20, -2, 34, 16));
+function drawTaskCardFlower(parent: Node, x: number, y: number) {
+  const flower = new Node("TaskCardFlower");
+  flower.addComponent(UITransform).setContentSize(29, 29);
+  flower.setPosition(x, y);
+  const graphics = flower.addComponent(Graphics);
+  const petalColor = new Color(91, 177, 86, 255);
+  const petalOutline = new Color(46, 126, 64, 255);
+
+  for (let i = 0; i < 5; i++) {
+    const angle = Math.PI / 2 + (i * Math.PI * 2) / 5;
+    const petalX = Math.cos(angle) * 6.5;
+    const petalY = Math.sin(angle) * 6.5;
+    graphics.fillColor = petalColor;
+    graphics.strokeColor = petalOutline;
+    graphics.lineWidth = 1.3;
+    graphics.circle(petalX, petalY, 6.2);
+    graphics.fill();
+    graphics.stroke();
+  }
+
+  graphics.fillColor = new Color(246, 194, 54, 255);
+  graphics.strokeColor = new Color(188, 139, 38, 255);
+  graphics.lineWidth = 1.2;
+  graphics.circle(0, 0, 5.1);
+  graphics.fill();
+  graphics.stroke();
+  parent.addChild(flower);
+}
+
+function drawTaskRewardIcon(
+  ui: any,
+  parent: Node,
+  iconName: string,
+  iconType: "ui" | "item",
+  count: string,
+  labelText: string,
+  x: number,
+  y: number,
+) {
+  const item = new Node("TaskRewardItem");
+  item.addComponent(UITransform).setContentSize(54, TASK_REWARD_ROW_STEP);
+  item.setPosition(x, y);
+  parent.addChild(item);
+
+  const plateW = 44;
+  const plateH = 40;
+  const plate = new Node("RewardIconPlate");
+  plate.addComponent(UITransform).setContentSize(plateW, plateH);
+  fillRoundRect(plate, plateW, plateH, 7, new Color(234, 197, 148, 255));
+  item.addChild(plate);
+
+  const iconSize = iconType === "item" ? 31 : 32;
+  const icon =
+    iconType === "item"
+      ? ui.createItemIcon(iconName, iconSize, true)
+      : new Node("RewardIcon");
+  icon.name = "RewardIcon";
+  if (iconType === "ui") {
+    icon.addComponent(UITransform).setContentSize(iconSize, iconSize);
+    ui.applyUiIcon(iconName, icon);
+  }
+  icon.setPosition(0, iconName === "rewardGold" ? 3 : 4);
+  item.addChild(icon);
+
+  const countW = Math.max(14, count.length * 6);
+  const countX = plateW / 2 - 3 - countW / 2;
+  item.addChild(
+    ui.makeLabel(
+      count,
+      10,
+      new Color(55, 30, 20),
+      true,
+      countX,
+      -12,
+      countW,
+      14,
+    ),
+  );
+  item.addChild(
+    ui.makeLabel(
+      labelText,
+      10,
+      new Color(55, 30, 20),
+      true,
+      0,
+      -28,
+      54,
+      14,
+    ),
+  );
 }
 
 export function buySeed(ui: any, crop: ItemDef) {

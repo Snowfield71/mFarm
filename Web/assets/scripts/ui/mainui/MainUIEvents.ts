@@ -34,7 +34,7 @@ export function bindEvents(ui: any) {
     evt.on('achievementUnlocked', () => {
         if (ui.panels.quest?.active) ui.renderQuestPanel();
     });
-    evt.on('dailyQuestChanged', () => {
+    evt.on('taskChanged', () => {
         if (ui.panels.task?.active) ui.renderTaskPanel();
         updateTaskEntryState(ui);
     });
@@ -72,13 +72,23 @@ export function refreshTopBar(ui: any) {
     if (gold) {
         const label = gold.getComponent(Label)!;
         label.string = formatCurrency(gm.gold);
-        label.fontSize = label.string.length > 4 ? 18 : 20;
     }
     const diamond = findNode(currencyArea, 'DiamondDisplay');
     if (diamond) {
         const label = diamond.getComponent(Label)!;
         label.string = formatCurrency(gm.diamond);
-        label.fontSize = label.string.length > 4 ? 18 : 20;
+    }
+    const currencyLabels = [gold, diamond]
+        .filter((node): node is Node => !!node)
+        .map(node => ({ node, label: node.getComponent(Label)! }));
+    if (currencyLabels.length > 0) {
+        const sharedFontSize = Math.min(
+            ...currencyLabels.map(({ node, label }) => currencyFontSize(node, label)),
+        );
+        currencyLabels.forEach(({ label }) => {
+            label.fontSize = sharedFontSize;
+            label.lineHeight = 24;
+        });
     }
     const expText = ui.topBar.getChildByName('ExpBg')?.getChildByName('ExpText');
     if (expText) expText.getComponent(Label)!.string = `${gm.experience}/${gm.nextLevelExp}`;
@@ -125,23 +135,29 @@ function findNode(root: Node | null | undefined, name: string): Node | null {
     return null;
 }
 
+function currencyFontSize(node: Node, label: Label) {
+    const width = node.getComponent(UITransform)?.width || 50;
+    const units = Array.from(label.string).reduce((sum, char) => {
+        if (/[\u4e00-\u9fff]/.test(char)) return sum + 1;
+        if (char === '.') return sum + 0.32;
+        return sum + 0.62;
+    }, 0);
+    return Math.max(10, Math.min(22, Math.floor(width / Math.max(1, units))));
+}
+
 function formatCurrency(value: number): string {
     const n = Math.max(0, Math.floor(value || 0));
     if (n < 1000) return `${n}`;
     if (n < 10000) return `${formatCompactNumber(n / 1000)}\u5343`;
     if (n < 100000000) return `${formatCompactNumber(n / 10000)}\u4e07`;
-    return `${formatCompactNumber(n / 100000000)}\u4ebf`;
-    if (n < 10000) return `${n}`;
-    if (n < 100000000) {
-        const v = n / 10000;
-        return `${v >= 10 ? Math.floor(v) : Math.floor(v * 10) / 10}万`;
-    }
-    const v = n / 100000000;
-    return `${v >= 10 ? Math.floor(v) : Math.floor(v * 10) / 10}亿`;
+    if (n < 1000000000000) return `${formatCompactNumber(n / 100000000)}\u4ebf`;
+    if (n < 10000000000000000)
+        return `${formatCompactNumber(n / 1000000000000)}\u4e07\u4ebf`;
+    return `${formatCompactNumber(n / 10000000000000000)}\u4eac`;
 }
 
 function formatCompactNumber(value: number): string {
-    const compact = value >= 10 ? Math.floor(value) : Math.floor(value * 10) / 10;
+    const compact = Math.floor(value * 10) / 10;
     return `${compact}`.replace(/\.0$/, '');
 }
 
@@ -149,7 +165,7 @@ function updateTaskEntryState(ui: any) {
     const entry = ui.node.getChildByName('TaskEntry');
     const badge = entry?.getChildByName('Badge');
     if (!badge) return;
-    const quests = GameManager.getInstance().getDailyQuests();
+    const quests = GameManager.getInstance().getTasks();
     badge.active = quests.some(q => q.progress >= q.target && !q.claimed);
 }
 

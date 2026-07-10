@@ -34,6 +34,8 @@ export class MainUI extends Component {
     private activeBubbleLandId = -1;
     private progressRefreshTimer = 0;
     private suppressNextLandExpandedRefresh = false;
+    private taskDetailId?: string;
+    private taskCategory: "main" | "daily" | "branch" | "special" = "main";
 
     private static readonly LAND_COLS = 3;
     private static readonly LAND_ROWS = 5;
@@ -68,6 +70,7 @@ export class MainUI extends Component {
         if (this.panels.craft?.active && CraftSystem.getInstance().getActiveCraftCount() > 0) {
             this.updateCraftProgressViews();
         }
+        this.layoutResponsiveFeaturePanels();
     }
 
     private createBackground() { return MainUIScene.createBackground(this); }
@@ -89,8 +92,10 @@ export class MainUI extends Component {
     private getLandGridSize(): { width: number; height: number } { return MainUIScene.getLandGridSize(this); }
     private createBottomNav() { return MainUIScene.createBottomNav(this); }
     private createPanels() { return MainUIScene.createPanels(this); }
+    private layoutResponsiveFeaturePanels() { return MainUIScene.layoutResponsiveFeaturePanels(this); }
     private createTaskEntry() { return MainUIScene.createTaskEntry(this); }
     private createPanel(title: string, w: number, h: number): Node { return MainUIScene.createPanel(this, title, w, h); }
+    private closePanelWithAnimation(panel: Node) { return MainUIScene.closePanelWithAnimation(this, panel); }
     private createDialogRoot() { return MainUIScene.createDialogRoot(this); }
     private createBubbleRoot() { return MainUIScene.createBubbleRoot(this); }
 

@@ -726,23 +726,35 @@ export function openSeedBubble(ui: any, blockId: number) {
     ui.bubbleRoot.addChild(mask);
 
     const itemSize = 54;
-    const cols = Math.min(3, crops.length);
+    const cols = Math.min(4, crops.length);
     const rows = Math.ceil(crops.length / cols);
+    const visibleRows = Math.min(2, rows);
     const gap = 6;
     const w = cols * itemSize + (cols - 1) * gap + 18;
-    const h = rows * itemSize + (rows - 1) * gap + 20;
+    const viewportH = visibleRows * itemSize + (visibleRows - 1) * gap;
+    const contentH = rows * itemSize + (rows - 1) * gap;
+    const h = viewportH + 20;
     const landPos = ui.getLandPosition(blockId);
 
     const bubble = new Node('SeedBubble');
     bubble.addComponent(UITransform).setContentSize(w, h);
-    bubble.setPosition(getSeedBubblePosition(ui, landPos));
+    bubble.setPosition(getSeedBubblePosition(ui, landPos, w, h));
     fillRoundRect(bubble, w, h, 12, new Color(255, 250, 231, 250));
     strokeRoundRect(bubble, w, h, 12, new Color(118, 184, 96, 170), 2);
     bubble.on(Node.EventType.TOUCH_END, (event: any) => event?.stopPropagation?.());
     ui.bubbleRoot.addChild(bubble);
 
-    const startX = -w / 2 + itemSize / 2 + 9;
-    const startY = h / 2 - itemSize / 2 - 10;
+    const viewport = new Node('SeedViewport');
+    viewport.addComponent(UITransform).setContentSize(w - 12, viewportH);
+    viewport.addComponent(Mask);
+    bubble.addChild(viewport);
+
+    const content = new Node('SeedContent');
+    content.addComponent(UITransform).setContentSize(w - 12, contentH);
+    viewport.addChild(content);
+
+    const startX = -(w - 18) / 2 + itemSize / 2;
+    const startY = contentH / 2 - itemSize / 2;
     crops.forEach((crop, index) => {
         const cell = new Node(`Seed_${crop.id}`);
         cell.addComponent(UITransform).setContentSize(itemSize, itemSize);
@@ -761,20 +773,41 @@ export function openSeedBubble(ui: any, blockId: number) {
                 if (target >= 0) ui.plantCrop(target, crop.id);
             }, 0);
         });
-        bubble.addChild(cell);
+        content.addChild(cell);
     });
+
+    if (rows > visibleRows) {
+        const scrollView = viewport.addComponent(ScrollView);
+        scrollView.horizontal = false;
+        scrollView.vertical = true;
+        scrollView.inertia = true;
+        (scrollView as any).elastic = false;
+        scrollView.content = content;
+        ui.scheduleOnce(() => {
+            if (viewport.isValid && content.isValid) scrollView.scrollToTop(0);
+        }, 0);
+    }
 
     bubble.scale = new Vec3(0.7, 0.7, 1);
     tween(bubble).to(0.16, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
 
 }
 
-function getSeedBubblePosition(ui: any, landPos: { x: number; y: number }): Vec3 {
+function getSeedBubblePosition(
+    ui: any,
+    landPos: { x: number; y: number },
+    bubbleW: number,
+    bubbleH: number,
+): Vec3 {
     const currentRowY = ui.landRoot.position.y + landPos.y * ui.landRoot.scale.y;
     const previousRowOffset = (ui.constructor.TILE_SIZE + ui.constructor.TILE_GAP) * ui.landRoot.scale.y;
+    const vs = view.getVisibleSize();
+    const margin = 8;
+    const targetX = ui.landRoot.position.x;
+    const targetY = currentRowY + previousRowOffset;
     return new Vec3(
-        ui.landRoot.position.x,
-        currentRowY + previousRowOffset,
+        Math.max(-vs.width / 2 + bubbleW / 2 + margin, Math.min(vs.width / 2 - bubbleW / 2 - margin, targetX)),
+        Math.max(-vs.height / 2 + bubbleH / 2 + 88, Math.min(vs.height / 2 - bubbleH / 2 - 148, targetY)),
         0,
     );
 }
