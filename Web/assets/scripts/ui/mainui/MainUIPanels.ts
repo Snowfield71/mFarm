@@ -137,7 +137,13 @@ export function showPanel(ui: any, name: PanelName) {
     ui.renderDailySignInPanel();
   }
   if (name === "achievement") {
-    ImageCache.getInstance().preloadUiIcons(["panelBg", "gold", "diamond"]);
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "gold",
+      "diamond",
+      ...ACHIEVEMENTS.map(item => item.icon),
+      ...ACHIEVEMENTS.map(item => item.lockedIcon).filter((icon): icon is string => !!icon),
+    ]);
     ui.renderAchievementPanel();
   }
 }
@@ -159,14 +165,14 @@ function updateBottomNavState(ui: any, active: PanelName) {
     fillRoundRect(
       btn,
       76,
-      58,
+      59,
       13,
       isActive ? new Color(255, 238, 174, 255) : new Color(255, 247, 210, 255),
     );
     strokeRoundRect(
       btn,
       76,
-      58,
+      59,
       13,
       isActive ? new Color(102, 55, 34, 235) : new Color(126, 78, 48, 225),
       isActive ? 2.6 : 2.2,
@@ -196,7 +202,7 @@ function updateBottomNavState(ui: any, active: PanelName) {
     }
     const icon = btn.getChildByName("Icon");
     if (icon) {
-      const baseIconY = 18;
+      const baseIconY = (icon as any).__bottomNavBaseY ?? icon.position.y;
       icon.setPosition(0, isActive ? baseIconY + 2 : baseIconY);
       tween(icon)
         .to(
@@ -217,13 +223,13 @@ function clearBottomNavState(ui: any) {
   for (const panel of panels) {
     const btn = nav.getChildByName(`Nav_${panel}`);
     if (!btn) continue;
-    fillRoundRect(btn, 76, 58, 13, new Color(255, 247, 210, 255));
-    strokeRoundRect(btn, 76, 58, 13, new Color(126, 78, 48, 225), 2.2);
+    fillRoundRect(btn, 76, 59, 13, new Color(255, 247, 210, 255));
+    strokeRoundRect(btn, 76, 59, 13, new Color(126, 78, 48, 225), 2.2);
 
     const icon = btn.getChildByName("Icon");
     if (icon) {
       icon.setScale(new Vec3(1, 1, 1));
-      icon.setPosition(0, 18);
+      icon.setPosition(0, (icon as any).__bottomNavBaseY ?? icon.position.y);
     }
   }
 }
@@ -292,6 +298,7 @@ function drawInventoryCategoryTabs(ui: any, body: Node) {
   image.addComponent(UITransform).setContentSize(360, imageH);
   image.setPosition(0, baselineY + imageH / 2 - 1);
   ui.applyUiIcon(selected.image, image);
+  const tabVisuals: Array<{ icon: Node; label: Node }> = [];
 
   tabs.forEach((tab, index) => {
     const icon = new Node(`InventoryTabIcon_${index}`);
@@ -311,6 +318,8 @@ function drawInventoryCategoryTabs(ui: any, body: Node) {
     );
     label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
     image.addChild(label);
+    setupCategoryTabVisual(icon, label, tab.id === ui.inventoryCategory);
+    tabVisuals.push({ icon, label });
   });
   body.addChild(image);
 
@@ -321,6 +330,12 @@ function drawInventoryCategoryTabs(ui: any, body: Node) {
     node.addComponent(UITransform).setContentSize(tab.width, imageH);
     node.setPosition(cursorX + tab.width / 2, baselineY + imageH / 2);
     cursorX += tab.width + tabGap;
+    bindCategoryTabPressFeedback(
+      node,
+      tabVisuals[index].icon,
+      tabVisuals[index].label,
+      tab.id === ui.inventoryCategory,
+    );
     node.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       if (ui.inventoryCategory === tab.id) return;
@@ -642,6 +657,7 @@ function drawMarketplaceTabs(ui: any, body: Node) {
   image.addComponent(UITransform).setContentSize(360, imageH);
   image.setPosition(0, baselineY + imageH / 2 - 1);
   ui.applyUiIcon(selected.image, image);
+  const tabVisuals: Array<{ icon: Node; label: Node }> = [];
 
   tabs.forEach((tab, index) => {
     const icon = new Node(`MarketplaceTabIcon_${index}`);
@@ -661,6 +677,8 @@ function drawMarketplaceTabs(ui: any, body: Node) {
     );
     label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
     image.addChild(label);
+    setupCategoryTabVisual(icon, label, tab.id === ui.shopCategory);
+    tabVisuals.push({ icon, label });
   });
   body.addChild(image);
 
@@ -668,6 +686,12 @@ function drawMarketplaceTabs(ui: any, body: Node) {
     const hit = new Node(`MarketplaceTabHit_${index}`);
     hit.addComponent(UITransform).setContentSize(110, imageH);
     hit.setPosition(tab.x, baselineY + imageH / 2);
+    bindCategoryTabPressFeedback(
+      hit,
+      tabVisuals[index].icon,
+      tabVisuals[index].label,
+      tab.id === ui.shopCategory,
+    );
     hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       if (ui.shopCategory === tab.id) return;
@@ -796,12 +820,14 @@ function drawMarketplaceGrid(
       visual.addComponent(UITransform).setContentSize(80, 80);
       ui.applyUiIcon("btnBuy", visual);
       buy.addChild(visual);
+      bindCatalogPressFeedback(buy, visual);
     } else {
       fillRoundRect(buy, 72, 24, 9, new Color(178, 170, 158, 235));
       strokeRoundRect(buy, 72, 24, 9, new Color(126, 106, 91, 190), 1.5);
       buy.addChild(
         ui.makeLabel("\u672a\u89e3\u9501", 12, new Color(78, 36, 28), true, 0, 0, 66, 20),
       );
+      bindCatalogPressFeedback(buy);
     }
     buy.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.buySeed(item));
     card.addChild(buy);
@@ -1406,6 +1432,7 @@ function drawCraftProgressSection(
     );
     ticketLabel.name = "CraftSpeedTicketCount";
     speedButton.addChild(ticketLabel);
+    bindCatalogPressFeedback(speedButton);
     speedButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       if (!CraftSystem.getInstance().useSpeedTicket(process.craftId)) {
@@ -1532,6 +1559,7 @@ function drawCraftOperationsSection(
       ),
     );
     if (!unlocked) cell.addComponent(UIOpacity).opacity = 145;
+    bindCatalogPressFeedback(cell);
     cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       if (!unlocked) {
@@ -1599,6 +1627,7 @@ function drawCraftOperationsSection(
     18,
   ));
   if (!atMax) {
+    bindCatalogPressFeedback(tableButton);
     tableButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       if (!craft.upgradeMaxTables()) {
@@ -2004,6 +2033,55 @@ function bindCatalogPressFeedback(hitArea: Node, visual: Node = hitArea) {
       .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" })
       .start();
   };
+  hitArea.on(Node.EventType.TOUCH_END, restore);
+  hitArea.on(Node.EventType.TOUCH_CANCEL, restore);
+}
+
+function setupCategoryTabVisual(icon: Node, label: Node, selected: boolean) {
+  const targetScale = selected ? 1.08 : 1;
+  const targetOpacity = selected ? 255 : 205;
+  const iconOpacity = icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
+  const labelOpacity = label.getComponent(UIOpacity) || label.addComponent(UIOpacity);
+  iconOpacity.opacity = targetOpacity;
+  labelOpacity.opacity = targetOpacity;
+
+  if (!selected) {
+    icon.setScale(new Vec3(1, 1, 1));
+    label.setScale(new Vec3(1, 1, 1));
+    return;
+  }
+
+  icon.setScale(new Vec3(0.94, 0.94, 1));
+  label.setScale(new Vec3(0.94, 0.94, 1));
+  tween(icon)
+    .to(0.18, { scale: new Vec3(targetScale, targetScale, 1) }, { easing: "backOut" })
+    .start();
+  tween(label)
+    .to(0.18, { scale: new Vec3(targetScale, targetScale, 1) }, { easing: "backOut" })
+    .start();
+}
+
+function bindCategoryTabPressFeedback(
+  hitArea: Node,
+  icon: Node,
+  label: Node,
+  selected: boolean,
+) {
+  const targetScale = selected ? 1.08 : 1;
+  const pressScale = targetScale * 0.9;
+  const animateScale = (scale: number, duration: number, easing: any) => {
+    for (const visual of [icon, label]) {
+      if (!visual.isValid) continue;
+      tween(visual).stop();
+      tween(visual)
+        .to(duration, { scale: new Vec3(scale, scale, 1) }, { easing })
+        .start();
+    }
+  };
+  hitArea.on(Node.EventType.TOUCH_START, () => {
+    animateScale(pressScale, 0.06, "quadOut");
+  });
+  const restore = () => animateScale(targetScale, 0.14, "backOut");
   hitArea.on(Node.EventType.TOUCH_END, restore);
   hitArea.on(Node.EventType.TOUCH_CANCEL, restore);
 }
@@ -2641,22 +2719,13 @@ export function renderAchievementPanel(ui: any) {
     );
     strokeRoundRect(card, 300, cardH, 11, new Color(156, 101, 57, 215), 1.7);
 
-    const medal = new Node("AchievementMedal");
-    medal.setPosition(-124, 0);
-    const medalGraphics = medal.addComponent(Graphics);
-    medalGraphics.fillColor = unlocked
-      ? new Color(247, 190, 60, 255)
-      : new Color(171, 159, 140, 230);
-    medalGraphics.circle(0, 0, 16);
-    medalGraphics.fill();
-    medalGraphics.strokeColor = new Color(126, 76, 40, 225);
-    medalGraphics.lineWidth = 2;
-    medalGraphics.circle(0, 0, 16);
-    medalGraphics.stroke();
-    medalGraphics.fillColor = new Color(255, 245, 205, 235);
-    medalGraphics.circle(0, 0, 7);
-    medalGraphics.fill();
-    card.addChild(medal);
+    const achievementIcon = new Node("AchievementIcon");
+    achievementIcon.addComponent(UITransform).setContentSize(44, 44);
+    achievementIcon.setPosition(-124, 0);
+    const usesLockedArtwork = !unlocked && definition.tier === 'hidden' && !!definition.lockedIcon;
+    achievementIcon.addComponent(UIOpacity).opacity = unlocked || usesLockedArtwork ? 255 : 130;
+    ui.applyUiIcon(usesLockedArtwork ? definition.lockedIcon! : definition.icon, achievementIcon);
+    card.addChild(achievementIcon);
 
     const title = ui.makeLabel(definition.title, 14, new Color(78, 41, 24), true, -52, 12, 118, 20);
     title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
@@ -2827,6 +2896,7 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
   image.addComponent(UITransform).setContentSize(imageW, imageH);
   image.setPosition(0, baselineY + imageH / 2 - 1);
   ui.applyUiIcon(selected.image, image);
+  const tabVisuals: Array<{ icon: Node; label: Node }> = [];
 
   tabs.forEach((tab, index) => {
     const icon = new Node(`TaskTabIcon_${index}`);
@@ -2850,6 +2920,8 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
     label.name = `TaskTabLabel_${index}`;
     label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
     image.addChild(label);
+    setupCategoryTabVisual(icon, label, tab.type === ui.taskCategory);
+    tabVisuals.push({ icon, label });
 
     const hasCompletedTask = gm
       .getTasks(tab.type as TaskCategory)
@@ -2877,6 +2949,12 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
     cursorX += w + tabGap;
     node.addComponent(UITransform).setContentSize(w, hitH);
     node.setPosition(centerX, baselineY + hitH / 2);
+    bindCategoryTabPressFeedback(
+      node,
+      tabVisuals[index].icon,
+      tabVisuals[index].label,
+      tab.type === ui.taskCategory,
+    );
 
     node
       .addComponent(Button)

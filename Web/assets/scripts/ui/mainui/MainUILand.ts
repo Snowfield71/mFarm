@@ -320,7 +320,7 @@ const CROP_STAGE_VISUAL: Record<string, Record<CropVisualStage, { size: number; 
         seed: { size: 96, y: 0 }, middle: { size: 100, y: 0 }, mature: { size: 104, y: 0 },
     },
     strawberry: {
-        seed: { size: 96, y: 0 }, middle: { size: 100, y: 0 }, mature: { size: 104, y: 0 },
+        seed: { size: 96, y: 0 }, middle: { size: 96, y: 0 }, mature: { size: 96, y: 0 },
     },
     cherry: {
         seed: { size: 96, y: 0 }, middle: { size: 104, y: 0 }, mature: { size: 108, y: 0 },
@@ -334,7 +334,11 @@ const CROP_STAGE_VISUAL: Record<string, Record<CropVisualStage, { size: number; 
 };
 
 const CROP_STAGE_ASSET_SIZE = 512;
-const CROP_STAGE_ASSET_BOTTOM_PADDING = 32;
+const CROP_STAGE_ASSET_DEFAULT_BOTTOM_PADDING = 32;
+// Mature strawberry artwork ends at y=453 instead of the common y=480 baseline.
+const CROP_STAGE_ASSET_BOTTOM_PADDING: Partial<Record<string, Partial<Record<CropVisualStage, number>>>> = {
+    strawberry: { mature: 59 },
+};
 
 function getCropVisualId(block: LandBlock): string {
     if (!block.cropType) return '';
@@ -356,7 +360,10 @@ function getCropVisualSize(block: LandBlock): number {
 
 function getCropIconY(ui: any, block: LandBlock, cropSize: number): number {
     if (block.cropType && STAGED_CROPS.has(block.cropType)) {
-        return cropSize * (0.5 - CROP_STAGE_ASSET_BOTTOM_PADDING / CROP_STAGE_ASSET_SIZE);
+        const stage = getCropVisualStage(block);
+        const bottomPadding = CROP_STAGE_ASSET_BOTTOM_PADDING[block.cropType]?.[stage]
+            ?? CROP_STAGE_ASSET_DEFAULT_BOTTOM_PADDING;
+        return cropSize * (0.5 - bottomPadding / CROP_STAGE_ASSET_SIZE);
     }
     return (block.state === 'harvesting' ? 0 : -ui.constructor.TILE_SIZE / 2 - 3) + cropSize / 2;
 }
@@ -732,8 +739,7 @@ export function handleLandClick(ui: any, blockId: number) {
                 Math.floor(ui.activeBubbleLandId / ui.constructor.LAND_COLS) ===
                     Math.floor(blockId / ui.constructor.LAND_COLS)
             ) {
-                ui.activeBubbleLandId = blockId;
-                showSelectedLand(ui, blockId);
+                ui.openSeedBubble(blockId);
                 return;
             }
             ui.openSeedBubble(blockId);
@@ -891,7 +897,7 @@ export function plantCrop(ui: any, blockId: number, cropId: string) {
     }
     inv.removeItem(cropId, 1);
     ui.selectedSeedId = null;
-    ui.bubbleRoot.removeAllChildren();
+    ui.closeSeedBubble();
     ui.toast('种植成功');
     ui.refreshLandBlock(blockId);
     ui.animatePlanting(blockId);
@@ -918,7 +924,7 @@ export function plantUniversalSeed(ui: any, blockId: number) {
     }
     inventory.removeItem('universalSeed', 1);
     ui.selectedSeedId = null;
-    ui.bubbleRoot.removeAllChildren();
+    ui.closeSeedBubble();
     ui.refreshLandBlock(blockId);
     ui.animatePlanting(blockId);
     ui.toast(`万能种子随机种下 ${getItem(seed.cropId || '')?.name || seed.name}`);

@@ -175,16 +175,72 @@ no placeholder symbols, no text, no watermark.
 
 ```text
 Create one isolated growth-stage sprite for [CROP NAME], stage [1/2/3], for the Moefarm mobile game.
-Canvas 256 by 256. Match the supplied approved crop references exactly: concise cute 2D cartoon,
-smooth dark warm-brown outline, bright but controlled natural colors, simple two-step light and shade,
-very few internal detail lines, gently curved organic shapes, no realism and no mechanical symmetry.
+Canvas 512 by 512. Match the approved corn and tomato references exactly: concise cute hand-painted
+2D cartoon, smooth warm dark-brown outline with the same relative line width, bright but controlled
+natural colors, simple two-step shading, very few internal detail lines and gently curved organic shapes.
+Use one unified soft midday light from above and slightly upper-left. Highlights belong on upper-facing
+and front-left surfaces; darker values stay subtle on lower-right surfaces. Use only a compact soft
+contact shadow directly beneath the plant or fruit. Never use low-angle sunset backlight, rear-to-front
+cast shadows, long side shadows, heavy black shade or inconsistent light directions between crops.
 Design this stage from the real germination and growth structure of [CROP NAME]. Do not reuse a generic
-two-leaf seedling. The plant grows directly from one integrated irregular warm-brown soil patch.
-Use the exact same soil color, outline, highlight, texture and bottom silhouette as the other two stages.
-Center the plant at x=128 and place the lowest soil pixel on the shared y=232 baseline.
+two-leaf seedling. Keep the three stages on one shared x=256 center line and one shared bottom baseline
+near y=480. The plant and its irregular warm-brown soil/contact patch must read as one grounded unit.
+Use the same soil color, outline, highlight, texture and bottom silhouette throughout all three stages.
 Heavy produce such as pumpkin or cabbage rests naturally on the soil; root crops remain partly buried.
-Transparent background, no separate drop shadow, no text, no frame, no watermark, no magenta residue.
+Match apparent visible size by the opaque artwork bounds rather than canvas size or node size. Crops of
+similar mass, such as mature tomato and strawberry groups, must have comparable perceived scale.
+For fruit trees, preserve species-specific structure: apple uses a dense broad cohesive rounded crown;
+cherry uses lighter asymmetric tiered clusters, visible gaps and more exposed branching. Do not reuse
+the same canopy silhouette and distinguish the trees only by changing fruit.
+Transparent background with true alpha, no checkerboard, no fake transparency, no separate long shadow,
+no text, no frame, no watermark, no magenta residue, no white/gray fringe and no disconnected pixels.
 ```
+
+### 6.6.1 成就图标
+
+```text
+Create one [ACHIEVEMENT SUBJECT] icon for the Moefarm achievement list on a 256 by 256 canvas.
+Use the approved crop illustration language: compact cute hand-painted 2D cartoon, smooth warm
+dark-brown outline, controlled natural colors, simple two-step shading and soft midday light from above
+and slightly upper-left. Every achievement must be designed as a complete badge, not as a normal item
+icon and not as a pictogram inserted into one repeated medal template. Keep only the family-level art
+language consistent: outline width, two-step shading, lighting direction, canvas occupancy and low detail
+density. Give every achievement its own outer silhouette, dominant color, edge geometry, ribbon or side
+decoration, material impression and integrated semantic composition. Use simple solid color blocks and
+only two levels of light and shade; avoid realistic metal, glossy reflections, complex gradients, ornate
+carving, tiny texture, thick 3D bevel and painterly rendering. The badge must remain readable at 32 to 44
+pixels. No letters, numbers, badge text, long shadow, checkerboard, watermark or photorealism. True
+transparent background outside the badge and no white, gray or magenta fringe.
+```
+
+禁止“套娃式”复用同一外框并只替换中央图案。徽章之间必须同时具备系统归属感和独立身份：统一的是画法，不统一外框。
+
+成就按视觉权重分为三层：
+
+| 类型 | 用途 | 视觉处理 |
+| --- | --- | --- |
+| 普通成就 | 完成基础任务 | 主色降低约 20% 饱和度，使用较浅的暖棕描边，不添加闪光。 |
+| 稀有成就 | 完成难度较高的任务 | 使用一圈干净的蜂蜜金边，只在轮廓上附着一枚四角小闪光；禁止散布多个亮点。 |
+| 隐藏成就 | 特殊条件解锁 | 未解锁时使用灰蓝低饱和锁定徽章，强化神秘感；解锁后恢复该成就专属的彩色徽章。 |
+
+统一约束如下：
+
+- `256 x 256` 原图的主体外描边视觉宽度统一为约 `8–10px`，内部线条明显更细；不使用纯黑描边。
+- 光源统一来自左上方，高光仅保留一块完整色面；阴影统一为短距离右下投影，禁止长阴影与写实金属反射。
+- 徽章底色优先使用浅米色或浅金色。普通成就降低对比，稀有成就才允许金边；装饰只选小星星、小闪光或小叶子中的一种。
+- 小尺寸优先保证剪影：大齿轮最多 `8` 齿，小齿轮最多 `6` 齿；叶片最多保留一条主叶脉；书本只保留中缝，不绘制多层页线；奖杯高光不得拆成碎点。
+- 最终必须在成就列表实际显示尺寸 `44 x 44` 下检查，无法帮助识别成就语义的线条一律删除。
+
+成就语义固定如下：
+
+- `first_plant`：一株刚破土的双叶幼苗。
+- `plant_50`：三株并排生长、带小土丘的作物。
+- `gold_100`：装有金币的束口钱袋。
+- `level_10`：带星形的蜂蜜金等级徽章，不出现数字或文字。
+- `first_craft`：一枚小齿轮与一根麦穗组合。
+- `craft_50`：大齿轮与金色星芒组合，结构比初次合成更完整。
+- `recipes_all`：打开的奶油色配方书，书页带小叶片图形但没有文字。
+- `catalog_all`：棕红色收藏册与金色星形书签组合，不出现文字。
 
 ### 6.7 建筑物图标
 
