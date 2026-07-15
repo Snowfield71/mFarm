@@ -137,12 +137,15 @@ export function openSellDialog(ui: any, slotIndex: number) {
     sell.addChild(ui.makeLabel('出售', 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
     sell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
         const finalCount = Math.max(1, Math.min(count, Number(amountInput.string || selected)));
-        if (!InventorySystem.getInstance().sellSlotItem(slotIndex, finalCount, gold => GameManager.getInstance().addGold(gold))) {
+        let awardedGold = 0;
+        if (!InventorySystem.getInstance().sellSlotItem(slotIndex, finalCount, gold => {
+            awardedGold = GameManager.getInstance().applySaleGold(gold);
+        })) {
             ui.toast('出售失败');
             return;
         }
         ui.dialogRoot.active = false;
-        ui.toast(`获得 ${def.sellPrice * finalCount} 金`);
+        ui.toast(`获得 ${awardedGold} 金`);
     });
     dialog.addChild(sell);
 

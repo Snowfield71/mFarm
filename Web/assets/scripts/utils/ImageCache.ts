@@ -19,32 +19,44 @@ const CATEGORY_MAP: Record<string, string> = {
     wheat_stage_1: 'Vegetables', wheat_stage_2: 'Vegetables', wheat_stage_3: 'Vegetables',
     corn_stage_1: 'Vegetables', corn_stage_2: 'Vegetables', corn_stage_3: 'Vegetables',
     tomato_stage_1: 'Vegetables', tomato_stage_2: 'Vegetables', tomato_stage_3: 'Vegetables',
+    carrot_stage_1: 'Vegetables', carrot_stage_2: 'Vegetables', carrot_stage_3: 'Vegetables',
+    lettuce_stage_1: 'Vegetables', lettuce_stage_2: 'Vegetables', lettuce_stage_3: 'Vegetables',
+    pumpkin_stage_1: 'Vegetables', pumpkin_stage_2: 'Vegetables', pumpkin_stage_3: 'Vegetables',
     carrot: 'Vegetables', pumpkin: 'Vegetables', lettuce: 'Vegetables',
+    // Seeds
+    seedWheat: 'Seeds', seedCorn: 'Seeds', seedTomato: 'Seeds',
+    seedCarrot: 'Seeds', seedLettuce: 'Seeds', seedPumpkin: 'Seeds',
+    seedBanana: 'Seeds', seedStrawberry: 'Seeds', seedApple: 'Seeds', seedCherry: 'Seeds',
     // Fruits
     strawberry: 'Fruits', cherry: 'Fruits', banana: 'Fruits', apple: 'Fruits',
+    strawberry_stage_1: 'Fruits', strawberry_stage_2: 'Fruits', strawberry_stage_3: 'Fruits',
+    cherry_stage_1: 'Fruits', cherry_stage_2: 'Fruits', cherry_stage_3: 'Fruits',
+    banana_stage_1: 'Fruits', banana_stage_2: 'Fruits', banana_stage_3: 'Fruits',
+    apple_stage_1: 'Fruits', apple_stage_2: 'Fruits', apple_stage_3: 'Fruits',
     // Processed
     flour: 'Processed', butter: 'Processed', honey: 'Processed', milk: 'Processed',
     sugar: 'Processed', oatmeal: 'Processed', bananaSauce: 'Processed',
     jam: 'Processed', carrotPuree: 'Processed', cheese: 'Processed', ketchup: 'Processed',
+    water: 'Processed',
     // Foods
     bread: 'Foods', cake: 'Foods', egg: 'Foods', croissant: 'Foods',
     cupcake: 'Foods', cookie: 'Foods', pie: 'Foods', strawberryCake: 'Foods',
     baguette: 'Foods', donut: 'Foods', chocolateCake: 'Foods', cereal: 'Foods',
-    pasta: 'Foods', butterToast: 'Foods', honeyToast: 'Foods', jamToast: 'Foods',
+    cornFlakes: 'Foods', pasta: 'Foods', butterToast: 'Foods', honeyToast: 'Foods', jamToast: 'Foods',
     // Buildings
-    craftTable: 'Buildings', chickenCoop: 'Buildings', barn: 'Buildings',
+    chickenCoop: 'Buildings', barn: 'Buildings',
     warehouse: 'Buildings', house: 'Buildings', well: 'Buildings',
     garden: 'Buildings', beehive: 'Buildings',
     // Decorations
     sunflower: 'Decorations', tulip: 'Decorations', rose: 'Decorations',
     tree: 'Decorations', palmTree: 'Decorations', stone: 'Decorations',
     log: 'Decorations', fence: 'Decorations', tent: 'Decorations',
-    pumpkinLantern: 'Decorations',
+    pumpkinLantern: 'Decorations', flower: 'Decorations',
     // Special
     mysteryBox: 'Special', luckyStar: 'Special', jade: 'Special',
     // Tools
     speedTicket: 'Tools', doubleHarvestCard: 'Tools',
-    goldBoostCard: 'Tools', universalSeed: 'Tools',
+    goldBoostCard: 'Tools', universalSeed: 'Tools', makeUpSignInCard: 'Tools',
 };
 
 /** UI 图标 -> 文件名映射 */
@@ -58,12 +70,22 @@ const UI_ICON_MAP: Record<string, string> = {
     quest: 'common/navigation/icon_quest',
     leaf: 'common/navigation/icon_leaf',
     catalog: 'catalog/icon_catalog',
+    entryShop: 'common/entries/icon_entry_shop',
+    entryHarvest: 'common/entries/icon_entry_harvest',
     billboard: 'farm/icon_billboard',
+    pastureBillboard: 'farm/icon_pasture_billboard',
     field: 'farm/icon_field',
     greenField: 'farm/icon_green_field',
-    cropBubble: 'farm/crop_action_bubble',
     avatarFarmgirl: '../avatar/avatar_farmgirl',
     bgFarmSkyHills: 'farm/bg_farm_sky_hills',
+    bgPastureFence: 'farm/bg_pasture_fence',
+    buildingPad: 'farm/icon_building_pad',
+    // Legacy aliases point at the current arrow billboards so old callers never request removed files.
+    entryPasture: 'farm/icon_entry_pasture_arrow',
+    entryFarm: 'farm/icon_entry_farm_arrow',
+    entryPastureArrow: 'farm/icon_entry_pasture_arrow',
+    entryFarmArrow: 'farm/icon_entry_farm_arrow',
+    pastureCollect: 'farm/icon_collect_pasture',
     catalogBg: 'catalog/catalog_bg',
     panelBg: 'common/panels/panel_bg',
     taskMain: 'task/icons/icon_task_main',
@@ -74,10 +96,27 @@ const UI_ICON_MAP: Record<string, string> = {
     taskTabsDaily: 'task/tabs/task_tabs_daily',
     taskTabsBranch: 'task/tabs/task_tabs_branch',
     taskTabsSpecial: 'task/tabs/task_tabs_special',
+    inventoryAll: 'inventory/icons/icon_inventory_all',
+    inventorySeeds: 'inventory/icons/icon_inventory_seeds',
+    inventoryMaterials: 'inventory/icons/icon_inventory_materials',
+    inventoryProducts: 'inventory/icons/icon_inventory_products',
+    shopTabsSeeds: 'shop/tabs/shop_tabs_seeds',
+    shopTabsTools: 'shop/tabs/shop_tabs_tools',
+    shopSeeds: 'shop/icons/icon_shop_seeds',
+    shopTools: 'shop/icons/icon_shop_tools',
+    btnBuy: 'shop/buttons/btn_buy',
     btnGo: 'task/buttons/btn_go',
     btnDetail: 'task/buttons/btn_detail',
     btnClaim: 'task/buttons/btn_claim',
     btnClaimed: 'task/buttons/btn_claimed',
+    signInClaim: 'signin/buttons/btn_signin_claim',
+    signInClaimed: 'signin/buttons/btn_signin_claimed',
+    achievementClaim: 'achievement/buttons/btn_achievement_claim',
+    achievementClaimed: 'achievement/buttons/btn_achievement_claimed',
+    achievementLocked: 'achievement/buttons/btn_achievement_locked',
+    craftChefTools: 'craft/icons/icon_chef_tools',
+    craftArrow: 'craft/icons/icon_craft_arrow',
+    btnCraft: 'craft/buttons/btn_craft',
     task1: 'task/icons/icon_task_1',
     task2: 'task/icons/icon_task_2',
     task3: 'task/icons/icon_task_3',
@@ -108,7 +147,9 @@ export class ImageCache {
     /** 获取物品图片 URL */
     getItemUrl(itemId: string): string {
         const cat = CATEGORY_MAP[itemId] || 'Vegetables';
-        return ServerConfig.getItemImageUrl(cat, itemId);
+        const url = ServerConfig.getItemImageUrl(cat, itemId);
+        if (!itemId.startsWith('seed')) return url;
+        return `${url}${url.includes('?') ? '&' : '?'}v=seed-256-v2`;
     }
 
     /** 获取 UI 图标 URL */
@@ -185,6 +226,27 @@ export class ImageCache {
         return loaded;
     }
 
+    /** 初始化阶段一次性预加载所有运行时会使用的物品与 UI 图片。 */
+    async preloadAllRequired(): Promise<{ items: number; ui: number }> {
+        const itemIds = Object.keys(CATEGORY_MAP);
+        const uiNames = Object.keys(UI_ICON_MAP).filter(
+            name => name !== 'entryFarm' && name !== 'entryPasture',
+        );
+        const [items, ui] = await Promise.all([
+            this.preload(itemIds),
+            this.preloadUiIcons(uiNames),
+        ]);
+        return { items, ui };
+    }
+
+    getCachedItem(itemId: string): SpriteFrame | null {
+        return this.cache.get(itemId) || null;
+    }
+
+    getCachedUiIcon(iconName: string): SpriteFrame | null {
+        return this.cache.get(`_ui_${iconName}`) || null;
+    }
+
     /** 将 SpriteFrame 应用到 Sprite 组件，加载失败时允许外层自行 fallback */
     static async applyToSprite(
         spriteComp: import('cc').Sprite,
@@ -226,6 +288,7 @@ export class ImageCache {
         const imageAsset = new ImageAsset(bitmap as any);
         const texture = new Texture2D();
         texture.image = imageAsset;
+        configureUiTexture(texture);
 
         const spriteFrame = new SpriteFrame();
         spriteFrame.texture = texture;
@@ -253,6 +316,7 @@ export class ImageCache {
 
                 const texture = new Texture2D();
                 texture.image = imageAsset;
+                configureUiTexture(texture);
                 const spriteFrame = new SpriteFrame();
                 spriteFrame.texture = texture;
                 resolve(spriteFrame);
@@ -285,4 +349,10 @@ export class ImageCache {
 
     /** 检查是否已缓存 */
     has(itemId: string): boolean { return this.cache.has(itemId); }
+}
+
+function configureUiTexture(texture: Texture2D) {
+    const runtimeTexture = texture as any;
+    runtimeTexture.setFilters?.(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+    runtimeTexture.setMipFilter?.(0);
 }

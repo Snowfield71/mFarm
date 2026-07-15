@@ -7,11 +7,13 @@ export interface SaveData {
     diamond: number;
     experience: number;
     landBlocks: any[];
+    buildingSlots?: any[];
+    pastureUnlockedSlots?: number[];
     plantCounts?: Record<string, number>;
     inventory: Array<{ itemId: string; count: number }>;
-    inventoryMaxSlots?: number;
     activeCrafts?: any[];
     nextCraftId?: number;
+    maxCraftTables?: number;
     unlockedRecipes: string[];
     discoveredItems?: string[];
     totalPlayTime: number;
@@ -22,8 +24,13 @@ export interface SaveData {
     lastQuestDate?: string;
     taskProgress?: Record<string, number>;
     claimedTasks?: string[];
+    dailySignInDay?: number;
+    lastDailySignInDate?: string;
+    doubleHarvestCharges?: number;
+    goldBoostCharges?: number;
     totalCraftCount?: number;
     achievements: string[];
+    claimedAchievements?: string[];
     adState?: any;
     timestamp: number;
 }
@@ -36,6 +43,11 @@ export class DataManager extends Component {
     private static instance: DataManager;
     private readonly SAVE_KEY = 'MoeFarm_SaveData';
     private readonly AUTO_SAVE_INTERVAL = 60000; // 60秒
+    private autoSaveTimer?: ReturnType<typeof setInterval>;
+    private readonly handlePageExit = () => this.flushGameSave();
+    private readonly handleVisibilityChange = () => {
+        if (typeof document !== 'undefined' && document.hidden) this.flushGameSave();
+    };
 
     static getInstance(): DataManager {
         return DataManager.instance;
@@ -43,6 +55,24 @@ export class DataManager extends Component {
 
     onLoad() {
         DataManager.instance = this;
+        if (typeof window !== 'undefined') {
+            window.addEventListener('beforeunload', this.handlePageExit);
+            window.addEventListener('pagehide', this.handlePageExit);
+        }
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', this.handleVisibilityChange);
+        }
+    }
+
+    onDestroy() {
+        if (this.autoSaveTimer) clearInterval(this.autoSaveTimer);
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('beforeunload', this.handlePageExit);
+            window.removeEventListener('pagehide', this.handlePageExit);
+        }
+        if (typeof document !== 'undefined') {
+            document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+        }
     }
 
     start() {
@@ -76,11 +106,11 @@ export class DataManager extends Component {
     }
 
     private startAutoSave() {
-        setInterval(() => {
-            const gm = (window as any).gameManager;
-            if (gm && typeof gm.saveGame === 'function') {
-                gm.saveGame();
-            }
-        }, this.AUTO_SAVE_INTERVAL);
+        this.autoSaveTimer = setInterval(() => this.flushGameSave(), this.AUTO_SAVE_INTERVAL);
+    }
+
+    private flushGameSave() {
+        const gm = typeof window !== 'undefined' ? (window as any).gameManager : undefined;
+        if (gm?.hasLoaded && typeof gm.saveGame === 'function') gm.saveGame();
     }
 }

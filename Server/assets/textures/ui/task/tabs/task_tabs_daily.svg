@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1086" height="181" viewBox="0 0 1086 181">
+  <defs>
+    <linearGradient id="tab" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3d6aa"/>
+      <stop offset="1" stop-color="#e9c18b"/>
+    </linearGradient>
+  </defs>
+  <g fill="url(#tab)">
+    <path d="M54 154V47Q54 27 74 27H283Q303 27 303 47V154Z"/>
+    <path d="M568 154V47Q568 27 588 27H792Q812 27 812 47V154Z"/>
+    <path d="M822 154V47Q822 27 842 27H1023Q1043 27 1043 47V154Z"/>
+  </g>
+  <g fill="none" stroke="#a96d2d" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M54 154V47Q54 27 74 27H283Q303 27 303 47V154"/>
+    <path d="M302 154Q312 154 312 140V47Q312 27 332 27H538Q558 27 558 47V140Q558 154 568 154"/>
+    <path d="M568 154V47Q568 27 588 27H792Q812 27 812 47V154"/>
+    <path d="M822 154V47Q822 27 842 27H1023Q1043 27 1043 47V154"/>
+    <path d="M0 154H302M568 154H1086"/>
+  </g>
+</svg>

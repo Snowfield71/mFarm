@@ -12,6 +12,7 @@ import {
   UITransform,
   Vec2,
   Vec3,
+  Tween,
   tween,
   view,
 } from "cc";
@@ -29,16 +30,24 @@ import {
   ItemDef,
 } from "../../config/ItemConfig";
 import {
+  getAllRecipes,
   getRecipe,
   getRecipesByLevel,
   RecipeDef,
 } from "../../config/RecipeConfig";
-import { fillRoundRect, strokeRoundRect } from "../utils/UIDraw";
+import {
+  drawCatalogStyleProgress,
+  fillRoundRect,
+  strokeRoundRect,
+} from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
 import { ImageCache } from "../../utils/ImageCache";
+import { DAILY_SIGN_IN_REWARDS, DailySignInReward } from "../../config/DailySignInConfig";
+import { ACHIEVEMENTS } from "../../config/AchievementConfig";
 import {
   getTaskCategoryLabel,
   TaskAction,
+  TaskCategory,
 } from "../../config/TaskConfig";
 
 export function showPanel(ui: any, name: PanelName) {
@@ -52,11 +61,44 @@ export function showPanel(ui: any, name: PanelName) {
   if (ui.panels.shop) ui.panels.shop.active = name === "shop";
   if (ui.panels.quest) ui.panels.quest.active = name === "quest";
   if (ui.panels.task) ui.panels.task.active = name === "task";
+  if (ui.panels.signIn) ui.panels.signIn.active = name === "signIn";
+  if (ui.panels.achievement) ui.panels.achievement.active = name === "achievement";
   updateBottomNavState(ui, name);
 
-  if (name === "inventory") ui.renderInventoryPanel();
-  if (name === "craft") ui.renderCraftPanel();
-  if (name === "shop") ui.renderShopPanel();
+  if (name === "inventory") {
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "taskTabsMain",
+      "taskTabsDaily",
+      "taskTabsBranch",
+      "taskTabsSpecial",
+      "inventoryAll",
+      "inventorySeeds",
+      "inventoryMaterials",
+      "inventoryProducts",
+    ]);
+    ui.renderInventoryPanel();
+  }
+  if (name === "craft") {
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "craftChefTools",
+      "craftArrow",
+      "btnCraft",
+    ]);
+    ui.renderCraftPanel();
+  }
+  if (name === "shop") {
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "shopTabsSeeds",
+      "shopTabsTools",
+      "shopSeeds",
+      "shopTools",
+      "btnBuy",
+    ]);
+    ui.renderShopPanel();
+  }
   if (name === "quest") {
     ImageCache.getInstance().preloadUiIcons(["catalogBg"]);
     ui.renderQuestPanel();
@@ -83,6 +125,20 @@ export function showPanel(ui: any, name: PanelName) {
       "rewardSeed",
     ]);
     ui.renderTaskPanel();
+  }
+  if (name === "signIn") {
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "gold",
+      "diamond",
+      "signInClaim",
+      "signInClaimed",
+    ]);
+    ui.renderDailySignInPanel();
+  }
+  if (name === "achievement") {
+    ImageCache.getInstance().preloadUiIcons(["panelBg", "gold", "diamond"]);
+    ui.renderAchievementPanel();
   }
 }
 
@@ -140,7 +196,7 @@ function updateBottomNavState(ui: any, active: PanelName) {
     }
     const icon = btn.getChildByName("Icon");
     if (icon) {
-      const baseIconY = panel === "quest" ? 16 : 18;
+      const baseIconY = 18;
       icon.setPosition(0, isActive ? baseIconY + 2 : baseIconY);
       tween(icon)
         .to(
@@ -167,7 +223,7 @@ function clearBottomNavState(ui: any) {
     const icon = btn.getChildByName("Icon");
     if (icon) {
       icon.setScale(new Vec3(1, 1, 1));
-      icon.setPosition(0, panel === "quest" ? 16 : 18);
+      icon.setPosition(0, 18);
     }
   }
 }
@@ -189,78 +245,278 @@ export function renderInventoryPanel(ui: any) {
   const panel = ui.panels.inventory!;
   const body = ui.clearPanelBody(panel);
   const inv = InventorySystem.getInstance();
-  const usage = inv.getUsage();
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const defaultClose = panel.getChildByName("Close");
+  if (defaultClose) defaultClose.active = false;
 
-  const info = ui.makeLabel(
-    `容量 ${usage.used}/${usage.max}`,
-    13,
-    new Color(92, 104, 82),
-    false,
-    -100,
-    152,
-    120,
-    20,
-  );
-  body.addChild(info);
+  drawCommonPanelBackground(ui, body);
+  drawRibbonTitle(ui, body, "\u50a8\u7269\u80cc\u5305");
+  createCatalogCloseHitArea(ui, panel, body);
 
-  const slots = inv.slots.slice(0, inv.maxSlots);
-  const cellSize = 48;
-  const cols = 5;
-  slots.forEach((slot, index) => {
-    const x = -112 + (index % cols) * 56;
-    const y = 112 - Math.floor(index / cols) * 58;
-    const cell = new Node(`Slot_${index}`);
-    cell.addComponent(UITransform).setContentSize(cellSize, cellSize);
-    cell.setPosition(x, y);
-    fillRoundRect(
-      cell,
-      cellSize,
-      cellSize,
-      8,
-      slot.itemId
-        ? new Color(246, 250, 236, 255)
-        : new Color(225, 235, 218, 220),
+  const frame = new Node("InventoryGridFrame");
+  frame.setPosition(0, -58);
+  const frameShadow = new Node("InventoryGridFrameBottomShadow");
+  frameShadow.addComponent(UITransform).setContentSize(300, 360);
+  frameShadow.setPosition(0, -62);
+  fillRoundRect(frameShadow, 300, 360, 13, new Color(111, 68, 38, 35));
+  body.addChild(frameShadow);
+  fillRoundRect(frame, 300, 360, 14, new Color(255, 253, 242, 242));
+  strokeRoundRect(frame, 300, 360, 14, new Color(139, 91, 53, 220), 2.2);
+  body.addChild(frame);
+  drawInventoryCategoryTabs(ui, body);
+
+  const entries = inv.slots
+    .map((slot, slotIndex) => ({ slot, slotIndex }))
+    .filter(({ slot }) => inventorySlotMatchesCategory(slot.itemId, ui.inventoryCategory));
+  while (entries.length < 16) {
+    entries.push({ slot: { itemId: "", count: 0 }, slotIndex: -1 });
+  }
+  drawInventoryGrid(ui, body, entries);
+}
+
+function drawInventoryCategoryTabs(ui: any, body: Node) {
+  const tabs = [
+    { id: "all", text: "\u5168\u90e8", width: 84, visualX: -121, image: "taskTabsMain", icon: "inventoryAll", iconSize: 31 },
+    { id: "seeds", text: "\u79cd\u5b50", width: 88, visualX: -36, image: "taskTabsDaily", icon: "inventorySeeds", iconSize: 29 },
+    { id: "materials", text: "\u6750\u6599", width: 84, visualX: 47, image: "taskTabsBranch", icon: "inventoryMaterials", iconSize: 31 },
+    { id: "products", text: "\u6210\u54c1", width: 88, visualX: 128, image: "taskTabsSpecial", icon: "inventoryProducts", iconSize: 27, iconOffsetX: 4 },
+  ];
+  if (!ui.inventoryCategory) ui.inventoryCategory = "all";
+  const baselineY = 126;
+  const imageH = 60;
+  const tabGap = 5;
+  const selected = tabs.find((tab) => tab.id === ui.inventoryCategory) || tabs[0];
+  const image = new Node("InventoryCategoryTabsImage");
+  image.addComponent(UITransform).setContentSize(360, imageH);
+  image.setPosition(0, baselineY + imageH / 2 - 1);
+  ui.applyUiIcon(selected.image, image);
+
+  tabs.forEach((tab, index) => {
+    const icon = new Node(`InventoryTabIcon_${index}`);
+    icon.addComponent(UITransform).setContentSize(tab.iconSize, tab.iconSize);
+    icon.setPosition(tab.visualX - 21 + (tab.iconOffsetX || 0), 0);
+    ui.applyUiIcon(tab.icon, icon);
+    image.addChild(icon);
+    const label = ui.makeLabel(
+      tab.text,
+      13,
+      new Color(67, 30, 14, 255),
+      true,
+      tab.visualX + 13,
+      0,
+      42,
+      22,
     );
-    strokeRoundRect(
-      cell,
-      cellSize,
-      cellSize,
-      8,
-      new Color(160, 190, 145, 130),
-      1,
-    );
+    label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    image.addChild(label);
+  });
+  body.addChild(image);
 
-    if (slot.itemId) {
-      const icon = ui.createItemIcon(slot.itemId, 36);
-      icon.setPosition(0, 4);
-      cell.addChild(icon);
-
-      const badge = new Node("CountBadge");
-      badge.setPosition(13, -15);
-      badge.addComponent(UITransform).setContentSize(28, 15);
-      fillRoundRect(badge, 28, 15, 7, new Color(54, 112, 55, 225));
-      const countLabel = ui.makeLabel(
-        `x${slot.count}`,
-        10,
-        new Color(255, 255, 255),
-        true,
-        0,
-        0,
-        26,
-        13,
-      );
-      badge.addChild(countLabel);
-      cell.addChild(badge);
-      cell
-        .addComponent(Button)
-        .node.on(Node.EventType.TOUCH_END, () => ui.openSellDialog(index));
-    }
-    body.addChild(cell);
+  const totalW = tabs.reduce((sum, tab) => sum + tab.width, 0) + tabGap * (tabs.length - 1);
+  let cursorX = -totalW / 2;
+  tabs.forEach((tab, index) => {
+    const node = new Node(`InventoryTabHit_${index}`);
+    node.addComponent(UITransform).setContentSize(tab.width, imageH);
+    node.setPosition(cursorX + tab.width / 2, baselineY + imageH / 2);
+    cursorX += tab.width + tabGap;
+    node.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (ui.inventoryCategory === tab.id) return;
+      ui.inventoryCategory = tab.id;
+      ui.inventoryScrollOffset = 0;
+      ui.renderInventoryPanel();
+    });
+    body.addChild(node);
   });
 }
 
+function inventorySlotMatchesCategory(itemId: string, category: string) {
+  if (category === "all") return true;
+  if (!itemId) return false;
+  const item = getItem(itemId);
+  if (!item) return false;
+  if (category === "seeds") return item.isCrop === true;
+  if (category === "materials") {
+    return (item.category === ItemCategory.CROP && !item.isCrop) ||
+      item.category === ItemCategory.PROCESSED || item.category === ItemCategory.TOOL;
+  }
+  return (
+    item.category === ItemCategory.FOOD ||
+    item.category === ItemCategory.BUILDING ||
+    item.category === ItemCategory.DECORATION ||
+    item.category === ItemCategory.SPECIAL ||
+    item.category === ItemCategory.AD_REWARD
+  );
+}
+
+function drawInventoryGrid(
+  ui: any,
+  body: Node,
+  entries: Array<{ slot: { itemId: string; count: number }; slotIndex: number }>,
+) {
+  const viewportW = 284;
+  const viewportH = 328;
+  const viewport = new Node("InventoryViewport");
+  viewport.addComponent(UITransform).setContentSize(viewportW, viewportH);
+  viewport.setPosition(0, -58);
+  viewport.addComponent(Mask);
+  body.addChild(viewport);
+
+  const cols = 4;
+  const cellW = 64;
+  const cellH = 72;
+  const gapX = 6;
+  const gapY = 6;
+  const rows = Math.max(1, Math.ceil(entries.length / cols));
+  const gridW = cols * cellW + (cols - 1) * gapX;
+  const gridH = rows * cellH + Math.max(0, rows - 1) * gapY;
+  const gridPaddingY = 8;
+  const contentH = Math.max(
+    viewportH,
+    gridH + gridPaddingY * 2,
+  );
+  const content = new Node("InventoryContent");
+  content.addComponent(UITransform).setContentSize(viewportW, contentH);
+  viewport.addChild(content);
+
+  const scrollView = viewport.addComponent(ScrollView);
+  scrollView.horizontal = false;
+  scrollView.vertical = true;
+  scrollView.inertia = true;
+  (scrollView as any).elastic = false;
+  scrollView.content = content;
+
+  entries.forEach(({ slot, slotIndex }, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const cell = new Node(`InventorySlot_${slotIndex}`);
+    cell.addComponent(UITransform).setContentSize(cellW, cellH);
+    cell.setScale(1, 1, 1);
+    cell.setPosition(
+      -gridW / 2 + cellW / 2 + col * (cellW + gapX),
+      contentH / 2 - gridPaddingY - cellH / 2 - row * (cellH + gapY),
+    );
+    const cellBackground = new Node("InventorySlotBackground");
+    cellBackground.addComponent(UITransform).setContentSize(cellW, cellH);
+    fillRoundRect(
+      cellBackground,
+      cellW,
+      cellH,
+      9,
+      slot.itemId
+        ? new Color(239, 207, 159, 238)
+        : new Color(239, 222, 191, 130),
+    );
+    strokeRoundRect(cellBackground, cellW, cellH, 9, new Color(202, 161, 108, 180), 1.4);
+    cell.addChild(cellBackground);
+
+    if (slot.itemId) {
+      const icon = ui.createItemIcon(slot.itemId, 43, true);
+      icon.setPosition(0, 8);
+      cell.addChild(icon);
+      cell.addChild(
+        ui.makeLabel(
+          `x${slot.count}`,
+          11,
+          new Color(63, 31, 20),
+          true,
+          17,
+          -5,
+          34,
+          16,
+        ),
+      );
+      cell.addChild(
+        ui.makeLabel(
+          ui.itemName(slot.itemId),
+          10,
+          new Color(70, 38, 23),
+          true,
+          0,
+          -26,
+          60,
+          16,
+        ),
+      );
+      cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+        ui.inventoryScrollOffset = scrollView.getScrollOffset().y;
+        const item = getItem(slot.itemId);
+        if (item?.category === ItemCategory.TOOL) ui.useInventoryTool(slotIndex);
+        else if (item?.category === ItemCategory.BUILDING) ui.openSellDialog(slotIndex);
+        else if (item?.id === "mysteryBox") ui.useSpecialItem(slotIndex);
+        else ui.openSellDialog(slotIndex);
+      });
+    }
+    content.addChild(cell);
+  });
+
+  attachPanelScrollState(
+    ui,
+    body,
+    scrollView,
+    content,
+    contentH,
+    viewportH,
+    "inventoryScrollOffset",
+    "Inventory",
+    150,
+    -58,
+    false,
+  );
+}
+
+function attachPanelScrollState(
+  ui: any,
+  body: Node,
+  scrollView: ScrollView,
+  content: Node,
+  contentH: number,
+  viewportH: number,
+  offsetKey: "inventoryScrollOffset" | "shopScrollOffset",
+  name: string,
+  trackX: number,
+  trackY: number,
+  showScrollbar = true,
+) {
+  const maxOffset = Math.max(0, contentH - viewportH);
+  const restored = Math.max(0, Math.min(ui[offsetKey] || 0, maxOffset));
+  content.setPosition(0, -maxOffset / 2 + restored);
+
+  const thumbH = Math.max(32, (viewportH * viewportH) / Math.max(viewportH, contentH));
+  let thumb: Node | null = null;
+  if (showScrollbar) {
+    const track = new Node(`${name}ScrollTrack`);
+    track.setPosition(trackX, trackY);
+    fillRoundRect(track, 4, viewportH, 2, new Color(186, 150, 105, 95));
+    body.addChild(track);
+    thumb = new Node(`${name}ScrollThumb`);
+    fillRoundRect(thumb, 4, thumbH, 2, new Color(154, 103, 57, 205));
+    track.addChild(thumb);
+  }
+
+  const sync = () => {
+    const currentMax = Math.max(0, scrollView.getMaxScrollOffset().y);
+    const offset = currentMax > 0
+      ? Math.max(0, Math.min(currentMax, scrollView.getScrollOffset().y))
+      : 0;
+    ui[offsetKey] = offset;
+    if (!thumb?.isValid) return;
+    const ratio = currentMax > 0 ? offset / currentMax : 0;
+    thumb.setPosition(0, (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH));
+  };
+  scrollView.node.on(ScrollView.EventType.SCROLLING, sync);
+  scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, sync);
+  ui.scheduleOnce(() => {
+    if (!content.isValid) return;
+    scrollView.scrollToOffset(new Vec2(0, restored), 0);
+    sync();
+  }, 0);
+}
+
 export function renderShopPanel(ui: any) {
-  ui.renderShopPanelScrollable();
+  renderMarketplacePanel(ui);
   return;
 
   const panel = ui.panels.shop!;
@@ -341,6 +597,231 @@ export function renderShopPanel(ui: any) {
     row.addChild(buy);
     body.addChild(row);
   });
+}
+
+function renderMarketplacePanel(ui: any) {
+  const panel = ui.panels.shop!;
+  const body = ui.clearPanelBody(panel);
+  const gm = GameManager.getInstance();
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const defaultClose = panel.getChildByName("Close");
+  if (defaultClose) defaultClose.active = false;
+
+  drawCommonPanelBackground(ui, body);
+  drawRibbonTitle(ui, body, "\u597d\u7269\u96c6\u5e02");
+  createCatalogCloseHitArea(ui, panel, body);
+
+  const frame = new Node("MarketplaceGridFrame");
+  frame.setPosition(0, -58);
+  const frameShadow = new Node("MarketplaceGridFrameBottomShadow");
+  frameShadow.addComponent(UITransform).setContentSize(300, 360);
+  frameShadow.setPosition(0, -62);
+  fillRoundRect(frameShadow, 300, 360, 13, new Color(111, 68, 38, 35));
+  body.addChild(frameShadow);
+  fillRoundRect(frame, 300, 360, 14, new Color(255, 253, 242, 242));
+  strokeRoundRect(frame, 300, 360, 14, new Color(139, 91, 53, 220), 2.2);
+  body.addChild(frame);
+  drawMarketplaceTabs(ui, body);
+
+  const items = getMarketplaceItems(ui.shopCategory);
+  drawMarketplaceGrid(ui, body, gm, items);
+}
+
+function drawMarketplaceTabs(ui: any, body: Node) {
+  const tabs = [
+    { id: "seeds", text: "\u79cd\u5b50", x: -57.5, image: "shopTabsSeeds", icon: "shopSeeds", iconSize: 31 },
+    { id: "tools", text: "\u5de5\u5177", x: 56.5, image: "shopTabsTools", icon: "shopTools", iconSize: 32 },
+  ];
+  if (!ui.shopCategory) ui.shopCategory = "seeds";
+  const selected = tabs.find(tab => tab.id === ui.shopCategory) || tabs[0];
+  const baselineY = 126;
+  const imageH = 60;
+  const image = new Node("MarketplaceCategoryTabsImage");
+  image.addComponent(UITransform).setContentSize(360, imageH);
+  image.setPosition(0, baselineY + imageH / 2 - 1);
+  ui.applyUiIcon(selected.image, image);
+
+  tabs.forEach((tab, index) => {
+    const icon = new Node(`MarketplaceTabIcon_${index}`);
+    icon.addComponent(UITransform).setContentSize(tab.iconSize, tab.iconSize);
+    icon.setPosition(tab.x - 24, 0);
+    ui.applyUiIcon(tab.icon, icon);
+    image.addChild(icon);
+    const label = ui.makeLabel(
+      tab.text,
+      15,
+      new Color(67, 30, 14, 255),
+      true,
+      tab.x + 17,
+      0,
+      52,
+      24,
+    );
+    label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    image.addChild(label);
+  });
+  body.addChild(image);
+
+  tabs.forEach((tab, index) => {
+    const hit = new Node(`MarketplaceTabHit_${index}`);
+    hit.addComponent(UITransform).setContentSize(110, imageH);
+    hit.setPosition(tab.x, baselineY + imageH / 2);
+    hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (ui.shopCategory === tab.id) return;
+      ui.shopCategory = tab.id;
+      ui.shopScrollOffset = 0;
+      ui.renderShopPanel();
+    });
+    body.addChild(hit);
+  });
+}
+
+function getMarketplaceItems(category: string) {
+  if (category === "seeds") {
+    return getPlantableCrops().sort((a, b) => a.unlockLevel - b.unlockLevel);
+  }
+  const items: ItemDef[] = [];
+  for (const id in ITEM_DB) {
+    if (!Object.prototype.hasOwnProperty.call(ITEM_DB, id)) continue;
+    const item = ITEM_DB[id];
+    if (
+      item.category === ItemCategory.TOOL ||
+      item.category === ItemCategory.BUILDING ||
+      item.category === ItemCategory.DECORATION
+    ) {
+      items.push(item);
+    }
+  }
+  return items.sort((a, b) => a.unlockLevel - b.unlockLevel);
+}
+
+function drawMarketplaceGrid(
+  ui: any,
+  body: Node,
+  gm: GameManager,
+  items: ItemDef[],
+) {
+  const viewportW = 284;
+  const viewportH = 329;
+  const viewport = new Node("MarketplaceViewport");
+  viewport.addComponent(UITransform).setContentSize(viewportW, viewportH);
+  viewport.setPosition(0, -58);
+  viewport.addComponent(Mask);
+  body.addChild(viewport);
+
+  const cols = 3;
+  const cellW = 86;
+  const cellH = 136;
+  const gapX = 8;
+  const gapY = 9;
+  const rows = Math.max(1, Math.ceil(items.length / cols));
+  const gridW = cols * cellW + (cols - 1) * gapX;
+  const gridH = rows * cellH + Math.max(0, rows - 1) * gapY;
+  const contentH = Math.max(
+    viewportH,
+    gridH + 16,
+  );
+  const paddingY = (contentH - gridH) / 2;
+  const content = new Node("MarketplaceContent");
+  content.addComponent(UITransform).setContentSize(viewportW, contentH);
+  viewport.addChild(content);
+
+  const scrollView = viewport.addComponent(ScrollView);
+  scrollView.horizontal = false;
+  scrollView.vertical = true;
+  scrollView.inertia = true;
+  (scrollView as any).elastic = false;
+  scrollView.content = content;
+
+  items.forEach((item, index) => {
+    const unlocked = item.unlockLevel <= gm.playerLevel;
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const card = new Node(`MarketplaceItem_${item.id}`);
+    card.addComponent(UITransform).setContentSize(cellW, cellH);
+    card.setPosition(
+      -gridW / 2 + cellW / 2 + col * (cellW + gapX),
+      contentH / 2 - paddingY - cellH / 2 - row * (cellH + gapY),
+    );
+    fillRoundRect(
+      card,
+      cellW,
+      cellH,
+      11,
+      unlocked
+        ? new Color(255, 250, 232, 248)
+        : new Color(225, 216, 198, 225),
+    );
+    strokeRoundRect(card, cellW, cellH, 11, new Color(177, 119, 66, 195), 1.8);
+
+    const iconPlate = new Node("MarketplaceIconPlate");
+    iconPlate.setPosition(0, 32);
+    fillRoundRect(iconPlate, 66, 60, 9, new Color(239, 207, 159, 215));
+    const icon = ui.createItemIcon(item.id, 50, true);
+    iconPlate.addChild(icon);
+    card.addChild(iconPlate);
+    card.addChild(
+      ui.makeLabel(
+        unlocked ? ui.itemName(item.id) : `Lv.${item.unlockLevel}`,
+        12,
+        new Color(65, 34, 21),
+        true,
+        0,
+        -7,
+        82,
+        18,
+      ),
+    );
+    const price = ui.getSeedBuyPrice(item);
+    card.addChild(
+      ui.makeLabel(
+        `${price}\u91d1`,
+        10,
+        new Color(113, 65, 26),
+        true,
+        0,
+        -22,
+        76,
+        16,
+      ),
+    );
+    const buy = new Node("MarketplaceBuy");
+    buy.addComponent(UITransform).setContentSize(78, 30);
+    buy.setPosition(0, -49);
+    if (unlocked) {
+      const visual = new Node("MarketplaceBuyImage");
+      visual.addComponent(UITransform).setContentSize(80, 80);
+      ui.applyUiIcon("btnBuy", visual);
+      buy.addChild(visual);
+    } else {
+      fillRoundRect(buy, 72, 24, 9, new Color(178, 170, 158, 235));
+      strokeRoundRect(buy, 72, 24, 9, new Color(126, 106, 91, 190), 1.5);
+      buy.addChild(
+        ui.makeLabel("\u672a\u89e3\u9501", 12, new Color(78, 36, 28), true, 0, 0, 66, 20),
+      );
+    }
+    buy.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.buySeed(item));
+    card.addChild(buy);
+    if (!unlocked) card.addComponent(UIOpacity).opacity = 160;
+    content.addChild(card);
+  });
+
+  attachPanelScrollState(
+    ui,
+    body,
+    scrollView,
+    content,
+    contentH,
+    viewportH,
+    "shopScrollOffset",
+    "Marketplace",
+    150,
+    -58,
+    false,
+  );
 }
 
 export function renderShopPanelScrollable(ui: any) {
@@ -491,178 +972,668 @@ export function renderCraftPanel(ui: any) {
   const gm = GameManager.getInstance();
   const craft = CraftSystem.getInstance();
   const inv = InventorySystem.getInstance();
-  const recipes = getRecipesByLevel(gm.playerLevel);
-  const active = craft.getAllActiveCrafts();
-
-  const status = ui.makeLabel(
-    `进行�?${active.length}/${GameValues.MAX_CRAFT_TABLES}`,
-    12,
-    new Color(92, 104, 82),
-    false,
-    -8,
-    152,
-    260,
-    20,
+  const allRecipes = getAllRecipes();
+  const unlockedRecipeIds = new Set<string>(gm.unlockedRecipes || []);
+  const unlockedRecipes = allRecipes.filter(
+    (recipe) =>
+      recipe.requiredLevel <= gm.playerLevel && unlockedRecipeIds.has(recipe.id),
   );
-  status.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-  body.addChild(status);
 
-  const visibleActiveRows = Math.min(active.length, 1);
-  active.slice(0, visibleActiveRows).forEach((process, index) => {
-    const recipe = getRecipe(process.recipeId);
-    if (!recipe) return;
-    const y = 124 - index * 34;
-    const row = new Node(`Crafting_${process.craftId}`);
-    row.addComponent(UITransform).setContentSize(276, 30);
-    row.setPosition(0, y);
-    fillRoundRect(row, 276, 30, 8, new Color(238, 248, 232, 245));
-    strokeRoundRect(row, 276, 30, 8, new Color(134, 190, 122, 125), 1);
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const defaultClose = panel.getChildByName("Close");
+  if (defaultClose) defaultClose.active = false;
 
-    const icon = ui.createItemIcon(recipe.product.itemId, 22);
-    icon.setPosition(-118, 0);
-    row.addChild(icon);
+  drawCommonPanelBackground(ui, body);
+  drawRibbonTitle(ui, body, "\u5408\u6210\u5de5\u574a");
+  createCatalogCloseHitArea(ui, panel, body);
 
-    const title = ui.makeLabel(
-      ui.recipeName(recipe),
-      10,
-      new Color(54, 72, 46),
-      true,
-      -48,
-      5,
-      120,
-      14,
-    );
-    title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(title);
+  if (
+    !ui.selectedCraftRecipeId ||
+    !unlockedRecipes.some((recipe) => recipe.id === ui.selectedCraftRecipeId)
+  ) {
+    ui.selectedCraftRecipeId = unlockedRecipes[0]?.id || "";
+  }
+  const selected = unlockedRecipes.find(
+    (recipe) => recipe.id === ui.selectedCraftRecipeId,
+  );
+  if (!selected) return;
 
-    const progress = Math.max(0, Math.min(100, process.progress));
-    const barBg = new Node("CraftProgressBg");
-    barBg.setPosition(-8, -8);
-    fillRoundRect(barBg, 124, 7, 4, new Color(184, 210, 172, 180));
-    row.addChild(barBg);
-    const barFill = new Node("CraftProgressFill");
-    const fillW = Math.max(4, (124 * progress) / 100);
-    barFill.setPosition(-62 + fillW / 2, 0);
-    fillRoundRect(barFill, fillW, 7, 4, new Color(78, 188, 214, 235));
-    barBg.addChild(barFill);
+  drawCraftRecipeSection(ui, body, selected, inv);
+  drawCraftProgressSection(ui, body, craft.getAllActiveCrafts());
+  drawCraftOperationsSection(ui, body, allRecipes, selected, gm.playerLevel);
+}
 
-    const percent = ui.makeLabel(
-      `${Math.floor(progress)}%`,
-      10,
-      new Color(76, 166, 78),
-      true,
-      106,
-      0,
-      46,
-      16,
-    );
-    percent.name = "CraftProgressText";
-    row.addChild(percent);
-    body.addChild(row);
+export function refreshCraftPanelDynamicSections(ui: any) {
+  const body = ui.panels.craft?.getChildByName("Body");
+  if (!body) return;
+
+  const removable = body.children.filter(
+    (child) =>
+      child.name === "CraftRecipeSection" ||
+      child.name === "CraftRecipeSectionBottomShadow" ||
+      child.name === "CraftingEmpty" ||
+      child.name === "CraftingEmptyBottomShadow" ||
+      child.name.startsWith("Crafting_"),
+  );
+  removable.forEach((child) => {
+    child.removeFromParent();
+    child.destroy();
   });
 
-  if (active.length > visibleActiveRows) {
-    const more = ui.makeLabel(
-      `还有 ${active.length - visibleActiveRows} 个合成中`,
-      10,
-      new Color(92, 104, 82),
-      false,
-      -8,
-      102,
-      180,
-      16,
+  const recipe = getRecipe(ui.selectedCraftRecipeId);
+  if (recipe) {
+    drawCraftRecipeSection(ui, body, recipe, InventorySystem.getInstance());
+  }
+  drawCraftProgressSection(
+    ui,
+    body,
+    CraftSystem.getInstance().getAllActiveCrafts(),
+  );
+}
+
+function drawCraftSectionFrame(
+  ui: any,
+  parent: Node,
+  name: string,
+  title: string,
+  y: number,
+  h: number,
+) {
+  const shadow = new Node(`${name}BottomShadow`);
+  shadow.addComponent(UITransform).setContentSize(300, h);
+  shadow.setPosition(0, y - 4);
+  fillRoundRect(shadow, 300, h, 13, new Color(111, 68, 38, 35));
+  parent.addChild(shadow);
+
+  const section = new Node(name);
+  section.addComponent(UITransform).setContentSize(300, h);
+  section.setPosition(0, y);
+  fillRoundRect(section, 300, h, 14, new Color(255, 253, 242, 246));
+  const headingW = Math.max(92, title.length * 21 + 18);
+  const halfW = 150;
+  const halfH = h / 2;
+  const radius = 14;
+  const gapHalf = headingW / 2 + 8;
+  const border = section.getComponent(Graphics)!;
+  border.strokeColor = new Color(139, 91, 53, 225);
+  border.lineWidth = 2.2;
+  border.moveTo(-gapHalf, halfH);
+  border.lineTo(-halfW + radius, halfH);
+  border.quadraticCurveTo(-halfW, halfH, -halfW, halfH - radius);
+  border.lineTo(-halfW, -halfH + radius);
+  border.quadraticCurveTo(-halfW, -halfH, -halfW + radius, -halfH);
+  border.lineTo(halfW - radius, -halfH);
+  border.quadraticCurveTo(halfW, -halfH, halfW, -halfH + radius);
+  border.lineTo(halfW, halfH - radius);
+  border.quadraticCurveTo(halfW, halfH, halfW - radius, halfH);
+  border.lineTo(gapHalf, halfH);
+  border.stroke();
+
+  const headingBg = new Node("SectionHeadingBackground");
+  headingBg.setPosition(0, halfH);
+  const headingGraphics = headingBg.addComponent(Graphics);
+  const headingHalfW = headingW / 2;
+  const headingHalfH = 14;
+  const headingRadius = 9;
+  headingGraphics.fillColor = new Color(255, 253, 242, 246);
+  headingGraphics.moveTo(-headingHalfW, -headingHalfH);
+  headingGraphics.lineTo(-headingHalfW, headingHalfH - headingRadius);
+  headingGraphics.quadraticCurveTo(
+    -headingHalfW,
+    headingHalfH,
+    -headingHalfW + headingRadius,
+    headingHalfH,
+  );
+  headingGraphics.lineTo(headingHalfW - headingRadius, headingHalfH);
+  headingGraphics.quadraticCurveTo(
+    headingHalfW,
+    headingHalfH,
+    headingHalfW,
+    headingHalfH - headingRadius,
+  );
+  headingGraphics.lineTo(headingHalfW, -headingHalfH);
+  headingGraphics.close();
+  headingGraphics.fill();
+  section.addChild(headingBg);
+
+  const heading = ui.makeLabel(
+    title,
+    20,
+    new Color(63, 31, 20),
+    true,
+    0,
+    halfH,
+    headingW,
+    28,
+  );
+  heading.name = "SectionHeading";
+  section.addChild(heading);
+  parent.addChild(section);
+  return section;
+}
+
+function drawCraftRecipeSection(
+  ui: any,
+  body: Node,
+  recipe: RecipeDef,
+  inv: InventorySystem,
+) {
+  const section = drawCraftSectionFrame(
+    ui,
+    body,
+    "CraftRecipeSection",
+    "\u5236\u4f5c\u914d\u65b9",
+    102,
+    120,
+  );
+  const materialCount = recipe.materials.length;
+  const materialGap = materialCount >= 3 ? 44 : 54;
+  const materialCenterX = materialCount >= 3 ? -80 : materialCount === 2 ? -94 : -100;
+  const materialStartX =
+    materialCenterX - ((materialCount - 1) * materialGap) / 2;
+  const materialCardSize = materialCount >= 3 ? 42 : materialCount === 2 ? 46 : 50;
+  const materialIconSize = 36;
+
+  recipe.materials.forEach((material, index) => {
+    const x = materialStartX + index * materialGap;
+    const owned = inv.getItemCount(material.itemId);
+    const enough = owned >= material.count;
+    const plate = new Node(`CraftMaterial_${material.itemId}`);
+    plate.setPosition(x, 14);
+    fillRoundRect(
+      plate,
+      materialCardSize,
+      materialCardSize,
+      9,
+      enough
+        ? new Color(238, 207, 161, 205)
+        : new Color(211, 205, 190, 190),
     );
-    more.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    body.addChild(more);
+    const icon = ui.createItemIcon(material.itemId, materialIconSize, true);
+    plate.addChild(icon);
+    section.addChild(plate);
+    section.addChild(
+      ui.makeLabel(
+        ui.itemName(material.itemId),
+        materialCount >= 3 ? 8 : 10,
+        enough ? new Color(65, 36, 22) : new Color(164, 72, 54),
+        true,
+        x,
+        -20,
+        materialCount >= 3 ? 42 : 52,
+        16,
+      ),
+    );
+  });
+
+  const arrow = new Node("CraftRecipeArrow");
+  const rightmostMaterialCenter =
+    materialStartX + (materialCount - 1) * materialGap;
+  const materialGroupRight = rightmostMaterialCenter + materialCardSize / 2;
+  const productGroupLeft = 105 - 58 / 2;
+  const targetArrowX = Math.round(
+    (materialGroupRight + productGroupLeft) / 2,
+  );
+  const startArrowX =
+    typeof ui.craftArrowX === "number" ? ui.craftArrowX : targetArrowX;
+  arrow.setPosition(startArrowX, 14);
+  arrow.addComponent(UITransform).setContentSize(58, 58);
+  drawAnimatedCraftArrow(
+    arrow,
+    CraftSystem.getInstance().getActiveCraftCount() > 0,
+  );
+  section.addChild(arrow);
+  if (startArrowX !== targetArrowX) {
+    tween(arrow)
+      .to(
+        0.24,
+        { position: new Vec3(targetArrowX, 14, 0) },
+        { easing: "sineOut" },
+      )
+      .start();
+  }
+  ui.craftArrowX = targetArrowX;
+
+  const productPlate = new Node("CraftProduct");
+  productPlate.setPosition(105, 14);
+  fillRoundRect(productPlate, 58, 58, 10, new Color(234, 197, 148, 210));
+  const productIcon = ui.createItemIcon(recipe.product.itemId, 44, true);
+  productPlate.addChild(productIcon);
+  section.addChild(productPlate);
+  section.addChild(
+    ui.makeLabel(
+      `${ui.itemName(recipe.product.itemId)} x${recipe.product.count}`,
+      10,
+      new Color(65, 36, 22),
+      true,
+      105,
+      -23,
+      68,
+      16,
+    ),
+  );
+
+  const requirement = recipe.materials
+    .map((material) => `${ui.itemName(material.itemId)} x${material.count}`)
+    .join("、") + (recipe.cost > 0 ? ` 和 ${recipe.cost}金币` : "");
+  const requirementPrefix = ui.makeLabel(
+    "\u9700\u8981\uff1a",
+    12,
+    new Color(68, 36, 22),
+    true,
+    -120,
+    -46,
+    48,
+    20,
+  );
+  requirementPrefix.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  section.addChild(requirementPrefix);
+
+  const requirementLabel = ui.makeLabel(
+    requirement,
+    12,
+    new Color(68, 36, 22),
+    true,
+    10,
+    -46,
+    210,
+    20,
+  );
+  requirementLabel.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  requirementLabel.getComponent(Label)!.overflow = Label.Overflow.SHRINK;
+  requirementLabel.getComponent(Label)!.enableWrapText = false;
+  section.addChild(requirementLabel);
+}
+
+function traceCraftArrow(graphics: Graphics) {
+  graphics.moveTo(-20, -11);
+  graphics.quadraticCurveTo(-25, -11, -25, -6);
+  graphics.lineTo(-25, 6);
+  graphics.quadraticCurveTo(-25, 11, -20, 11);
+  graphics.lineTo(-4, 11);
+  graphics.lineTo(-4, 20);
+  graphics.quadraticCurveTo(-4, 24, 0, 24);
+  graphics.quadraticCurveTo(2, 24, 4, 22);
+  graphics.lineTo(26, 3);
+  graphics.quadraticCurveTo(29, 0, 26, -3);
+  graphics.lineTo(4, -22);
+  graphics.quadraticCurveTo(2, -24, 0, -24);
+  graphics.quadraticCurveTo(-4, -24, -4, -20);
+  graphics.lineTo(-4, -11);
+  graphics.close();
+}
+
+function drawAnimatedCraftArrow(root: Node, active: boolean) {
+  const base = new Node("CraftArrowBase");
+  const baseGraphics = base.addComponent(Graphics);
+  baseGraphics.fillColor = new Color(255, 244, 218, 255);
+  traceCraftArrow(baseGraphics);
+  baseGraphics.fill();
+  root.addChild(base);
+
+  const maskNode = new Node("CraftArrowFillMask");
+  maskNode.addComponent(UITransform).setContentSize(58, 58);
+  const maskGraphics = maskNode.addComponent(Graphics);
+  maskGraphics.fillColor = new Color(255, 255, 255, 255);
+  traceCraftArrow(maskGraphics);
+  maskGraphics.fill();
+  const mask = maskNode.addComponent(Mask);
+  mask.type = Mask.Type.GRAPHICS_STENCIL;
+
+  const fill = new Node("CraftArrowAnimatedFill");
+  const fillTransform = fill.addComponent(UITransform);
+  fillTransform.setContentSize(58, 58);
+  fillTransform.setAnchorPoint(0, 0.5);
+  fill.setPosition(-29, 0);
+  const fillGraphics = fill.addComponent(Graphics);
+  fillGraphics.fillColor = new Color(245, 177, 74, 235);
+  fillGraphics.rect(0, -29, 58, 58);
+  fillGraphics.fill();
+  fill.setScale(new Vec3(0, 1, 1));
+  fill.active = active;
+  maskNode.addChild(fill);
+  root.addChild(maskNode);
+
+  const outline = new Node("CraftArrowOutline");
+  const outlineGraphics = outline.addComponent(Graphics);
+  outlineGraphics.strokeColor = new Color(139, 91, 53, 255);
+  outlineGraphics.lineWidth = 3;
+  outlineGraphics.lineJoin = Graphics.LineJoin.ROUND;
+  traceCraftArrow(outlineGraphics);
+  outlineGraphics.stroke();
+  root.addChild(outline);
+
+}
+
+function drawCraftProgressSection(
+  ui: any,
+  body: Node,
+  active: ReturnType<CraftSystem["getAllActiveCrafts"]>,
+) {
+  const process = active[0];
+  const recipe = process ? getRecipe(process.recipeId) : undefined;
+  const section = drawCraftSectionFrame(
+    ui,
+    body,
+    process ? `Crafting_${process.craftId}` : "CraftingEmpty",
+    "\u5236\u4f5c\u8fdb\u7a0b",
+    -20,
+    92,
+  );
+  if (!process || !recipe) {
+    section.addChild(
+      ui.makeLabel(
+        "\u5f53\u524d\u6ca1\u6709\u8fdb\u884c\u4e2d\u7684\u5408\u6210",
+        14,
+        new Color(112, 88, 68),
+        true,
+        0,
+        -4,
+        200,
+        26,
+      ),
+    );
+    drawCraftChefIcon(ui, section, 120, -4);
+    return;
   }
 
-  const recipeTop =
-    active.length > 0 ? (active.length > visibleActiveRows ? 76 : 92) : 136;
-  const recipeBottom = -154;
-  const recipeViewportH = Math.max(90, recipeTop - recipeBottom);
-  const recipeViewport = new Node("CraftRecipeViewport");
-  recipeViewport.addComponent(UITransform).setContentSize(284, recipeViewportH);
-  recipeViewport.setPosition(0, recipeBottom + recipeViewportH / 2);
-  recipeViewport.addComponent(Mask);
-  body.addChild(recipeViewport);
-
-  const rowH = 48;
-  const gap = 6;
-  const contentH = Math.max(
-    recipeViewportH,
-    recipes.length * (rowH + gap) - gap + 8,
+  const progress = Math.max(0, Math.min(100, process.progress));
+  const barW = 190;
+  const bar = new Node("CraftProgressBg");
+  bar.setPosition(-22, 7);
+  (bar as any).craftProgressWidth = barW;
+  (bar as any).craftProgressPercent = Math.floor(progress);
+  drawCatalogStyleProgress(
+    bar,
+    barW,
+    progress / 100,
+    new Color(220, 190, 153, 245),
+    new Color(148, 210, 112, 245),
+    "CraftProgressFill",
+    "CraftProgressKnob",
+    false,
   );
-  const content = new Node("CraftRecipeContent");
-  content.addComponent(UITransform).setContentSize(274, contentH);
-  recipeViewport.addChild(content);
+  section.addChild(bar);
 
-  const scrollView = recipeViewport.addComponent(ScrollView);
+  const progressText = ui.makeLabel(
+    `${Math.floor(progress)}%`,
+    11,
+    new Color(55, 30, 20),
+    true,
+    -22,
+    7,
+    barW,
+    16,
+  );
+  progressText.name = "CraftProgressText";
+  section.addChild(progressText);
+  section.addChild(
+    ui.makeLabel(
+      `\u8fdb\u884c\u4e2d\uff1a${ui.recipeName(recipe)}`,
+      11,
+      new Color(78, 54, 38),
+      true,
+      -73,
+      -24,
+      116,
+      16,
+    ),
+  );
+  drawCraftChefIcon(ui, section, 112, -2);
+
+  const inventory = InventorySystem.getInstance();
+  const speedTicketCount = inventory.getItemCount("speedTicket");
+  if (speedTicketCount > 0) {
+    const speedButton = new Node("CraftSpeedTicketButton");
+    speedButton.addComponent(UITransform).setContentSize(92, 24);
+    speedButton.setPosition(42, -24);
+    fillRoundRect(speedButton, 90, 22, 8, new Color(247, 222, 166, 250));
+    strokeRoundRect(speedButton, 90, 22, 8, new Color(153, 101, 58, 220), 1.4);
+    const ticketIcon = ui.createItemIcon("speedTicket", 20, true);
+    ticketIcon.setPosition(-32, 0);
+    speedButton.addChild(ticketIcon);
+    const ticketLabel = ui.makeLabel(
+      `加速30秒 x${speedTicketCount}`,
+      9,
+      new Color(82, 45, 28),
+      true,
+      10,
+      0,
+      66,
+      16,
+    );
+    ticketLabel.name = "CraftSpeedTicketCount";
+    speedButton.addChild(ticketLabel);
+    speedButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (!CraftSystem.getInstance().useSpeedTicket(process.craftId)) {
+        ui.toast("当前无法使用加速券");
+        return;
+      }
+      ui.toast("制作时间减少30秒");
+      if (!speedButton.isValid) return;
+      const remaining = InventorySystem.getInstance().getItemCount("speedTicket");
+      if (remaining <= 0) {
+        speedButton.active = false;
+      } else {
+        ticketLabel.getComponent(Label)!.string = `加速30秒 x${remaining}`;
+      }
+    });
+    section.addChild(speedButton);
+  }
+
+  if (active.length > 1) {
+    section.addChild(
+      ui.makeLabel(
+        `+${active.length - 1}`,
+        10,
+        new Color(92, 62, 42),
+        true,
+        124,
+        -24,
+        28,
+        16,
+      ),
+    );
+  }
+}
+
+function drawCraftChefIcon(ui: any, parent: Node, x: number, y: number) {
+  const root = new Node("CraftChefIcon");
+  root.setPosition(x, y);
+  root.addComponent(UITransform).setContentSize(58, 58);
+  ui.applyUiIcon("craftChefTools", root);
+  parent.addChild(root);
+}
+
+function drawCraftOperationsSection(
+  ui: any,
+  body: Node,
+  recipes: RecipeDef[],
+  selected: RecipeDef,
+  playerLevel: number,
+) {
+  const section = drawCraftSectionFrame(
+    ui,
+    body,
+    "CraftOperationsSection",
+    "\u53ef\u7528\u914d\u65b9\u4e0e\u64cd\u4f5c",
+    -160,
+    156,
+  );
+  const viewport = new Node("CraftRecipeGridViewport");
+  viewport.addComponent(UITransform).setContentSize(174, 112);
+  viewport.setPosition(-56, -4);
+  viewport.addComponent(Mask);
+  section.addChild(viewport);
+
+  const cellW = 52;
+  const cellH = 62;
+  const gapX = 4;
+  const gapY = 4;
+  const cols = 3;
+  const rows = Math.ceil(recipes.length / cols);
+  const contentH = Math.max(112, rows * cellH + Math.max(0, rows - 1) * gapY);
+  const content = new Node("CraftRecipeGridContent");
+  content.addComponent(UITransform).setContentSize(174, contentH);
+  const maxScrollOffset = Math.max(0, contentH - 112);
+  const restoredScrollOffset = Math.max(
+    0,
+    Math.min(ui.craftRecipeScrollOffset || 0, maxScrollOffset),
+  );
+  content.setPosition(0, -maxScrollOffset / 2 + restoredScrollOffset);
+  viewport.addChild(content);
+
+  recipes.forEach((recipe, index) => {
+    const unlocked = recipe.requiredLevel <= playerLevel;
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    const cell = new Node(`CraftRecipe_${recipe.id}`);
+    cell.addComponent(UITransform).setContentSize(cellW, cellH);
+    cell.setPosition(
+      -56 + col * (cellW + gapX),
+      contentH / 2 - cellH / 2 - row * (cellH + gapY),
+    );
+    const isSelected = recipe.id === selected.id;
+    fillRoundRect(
+      cell,
+      cellW,
+      cellH,
+      9,
+      isSelected
+        ? new Color(255, 235, 176, 255)
+        : new Color(234, 197, 148, unlocked ? 205 : 135),
+    );
+    strokeRoundRect(
+      cell,
+      cellW,
+      cellH,
+      9,
+      isSelected
+        ? new Color(173, 118, 55, 255)
+        : new Color(207, 170, 115, 150),
+      isSelected ? 2.4 : 1,
+    );
+    const icon = ui.createItemIcon(recipe.product.itemId, 34, true);
+    icon.setPosition(0, 8);
+    cell.addChild(icon);
+    cell.addChild(
+      ui.makeLabel(
+        unlocked ? ui.itemName(recipe.product.itemId) : `Lv.${recipe.requiredLevel}`,
+        9,
+        unlocked ? new Color(65, 36, 22) : new Color(115, 105, 92),
+        true,
+        0,
+        -22,
+        48,
+        14,
+      ),
+    );
+    if (!unlocked) cell.addComponent(UIOpacity).opacity = 145;
+    cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (!unlocked) {
+        ui.toast(`Lv.${recipe.requiredLevel} \u89e3\u9501`);
+        return;
+      }
+      ui.craftRecipeScrollOffset = scrollView.getScrollOffset().y;
+      ui.selectedCraftRecipeId = recipe.id;
+      ui.renderCraftPanel();
+    });
+    content.addChild(cell);
+  });
+
+  const scrollView = viewport.addComponent(ScrollView);
   scrollView.horizontal = false;
   scrollView.vertical = true;
   scrollView.inertia = true;
+  (scrollView as any).elastic = false;
   scrollView.content = content;
-
-  recipes.forEach((recipe, index) => {
-    const y = contentH / 2 - 4 - rowH / 2 - index * (rowH + gap);
-    const row = new Node(`Recipe_${recipe.id}`);
-    row.addComponent(UITransform).setContentSize(276, rowH);
-    row.setPosition(0, y);
-    fillRoundRect(row, 276, rowH, 8, new Color(248, 252, 238, 245));
-    strokeRoundRect(row, 276, rowH, 8, new Color(154, 196, 138, 120), 1);
-
-    const productIcon = ui.createItemIcon(recipe.product.itemId, 28);
-    productIcon.setPosition(-114, 0);
-    row.addChild(productIcon);
-    const name = ui.makeLabel(
-      `${ui.recipeName(recipe)} x${recipe.product.count}`,
-      12,
-      new Color(54, 72, 46),
-      true,
-      -18,
-      9,
-      128,
-      16,
-    );
-    name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(name);
-    const materialText = recipe.materials
-      .map(
-        (m) =>
-          `${ui.itemName(m.itemId)} ${inv.getItemCount(m.itemId)}/${m.count}`,
-      )
-      .join(" ");
-    const mats = ui.makeLabel(
-      materialText,
-      10,
-      new Color(108, 112, 96),
-      false,
-      -18,
-      -9,
-      128,
-      14,
-    );
-    mats.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(mats);
-
-    const start = new Node("Start");
-    start.addComponent(UITransform).setContentSize(58, 28);
-    start.setPosition(104, 0);
-    fillRoundRect(start, 58, 28, 9, new Color(76, 188, 83));
-    start.addChild(
-      ui.makeLabel("合成", 12, new Color(255, 255, 255), true, 0, 0, 54, 22),
-    );
-    start
-      .addComponent(Button)
-      .node.on(Node.EventType.TOUCH_END, () => ui.startCraft(recipe.id));
-    row.addChild(start);
-    content.addChild(row);
-  });
-
+  const rememberScroll = () => {
+    ui.craftRecipeScrollOffset = scrollView.getScrollOffset().y;
+  };
+  scrollView.node.on(ScrollView.EventType.SCROLLING, rememberScroll);
+  scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, rememberScroll);
   ui.scheduleOnce(() => {
-    if (!recipeViewport.isValid || !content.isValid) return;
-    scrollView.scrollToTop(0);
+    if (!viewport.isValid || !content.isValid) return;
+    const max = Math.max(0, scrollView.getMaxScrollOffset().y);
+    scrollView.scrollToOffset(
+      new Vec2(0, Math.max(0, Math.min(ui.craftRecipeScrollOffset || 0, max))),
+      0,
+    );
   }, 0);
+
+  const startButton = createCraftActionButton(
+    ui,
+    96,
+    -4,
+    () => ui.startCraft(selected.id),
+  );
+  section.addChild(startButton);
+
+  const craft = CraftSystem.getInstance();
+  const tableButton = new Node("CraftTableUpgradeButton");
+  tableButton.addComponent(UITransform).setContentSize(104, 24);
+  tableButton.setPosition(96, 38);
+  const atMax = craft.getMaxCraftTables() >= GameValues.MAX_CRAFT_TABLES;
+  fillRoundRect(
+    tableButton,
+    104,
+    22,
+    8,
+    atMax ? new Color(224, 211, 187, 235) : new Color(247, 222, 166, 245),
+  );
+  strokeRoundRect(tableButton, 104, 22, 8, new Color(153, 101, 58, 210), 1.4);
+  tableButton.addChild(ui.makeLabel(
+    atMax
+      ? `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}`
+      : `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}  +${craft.getCraftTableUpgradeCost()}金`,
+    10,
+    new Color(82, 45, 28),
+    true,
+    0,
+    0,
+    100,
+    18,
+  ));
+  if (!atMax) {
+    tableButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (!craft.upgradeMaxTables()) {
+        ui.toast("金币不足");
+        return;
+      }
+      ui.toast(`制作队列扩充至 ${craft.getMaxCraftTables()} 个`);
+    });
+  }
+  section.addChild(tableButton);
 }
+
+function createCraftActionButton(
+  ui: any,
+  x: number,
+  y: number,
+  action: () => void,
+) {
+  const button = new Node("CraftActionButton");
+  const buttonW = 94;
+  const buttonH = 40;
+  button.addComponent(UITransform).setContentSize(buttonW, buttonH);
+  button.setPosition(x, y);
+  const visual = new Node("CraftActionVisual");
+  visual.addComponent(UITransform).setContentSize(112, 112);
+  ui.applyUiIcon("btnCraft", visual);
+  button.addChild(visual);
+  bindCatalogPressFeedback(button, visual);
+  button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    action();
+  });
+  return button;
+}
+
 
 export function renderQuestPanel(ui: any, enterDirection = 0) {
   const panel = ui.panels.quest!;
@@ -702,16 +1673,8 @@ export function renderQuestPanel(ui: any, enterDirection = 0) {
   pageItems.forEach((item, index) => {
     const col = index % 3;
     const row = Math.floor(index / 3);
-    const card = createCatalogCard(ui, gm, item, row, col);
-    const slotCenterOffsetX = col === 0 ? -20 : col === 1 ? -10 : 0;
-    card.setPosition(
-      -78 +
-        col * 98 -
-        (col > 0 ? 5 : 0) -
-        (col === 0 ? 3 : 0) +
-        slotCenterOffsetX,
-      94 - row * 126 - row * 5 - (row === 2 ? 5 : 0),
-    );
+    const card = createCatalogCard(ui, gm, item);
+    card.setPosition(CATALOG_CARD_COLUMN_X[col], CATALOG_CARD_ROW_Y[row]);
     body.addChild(card);
   });
 
@@ -745,6 +1708,10 @@ const CATALOG_BACKGROUND_IMAGE_WIDTH = Design.WIDTH + 10;
 const CATALOG_BACKGROUND_IMAGE_HEIGHT = 540;
 const CATALOG_BACKGROUND_IMAGE_X = 0;
 const CATALOG_BACKGROUND_IMAGE_Y = 0;
+const CATALOG_CARD_COLUMN_X = [-111, -1, 109] as const;
+const CATALOG_CARD_ROW_Y = [107, -32, -171] as const;
+const CATALOG_ICON_Y = 20;
+const CATALOG_NAME_Y = -45;
 
 function drawPanelImageBackground(
   ui: any,
@@ -849,58 +1816,34 @@ function createCatalogCard(
   ui: any,
   gm: GameManager,
   item: ItemDef,
-  row = 0,
-  col = 0,
 ): Node {
   const discovered = gm.hasDiscoveredItem(item.id);
   const displayUnlockLevel = ui.catalogLevel(item);
   const levelUnlocked = displayUnlockLevel <= gm.playerLevel;
   const card = new Node(`CatalogCard_${item.id}`);
-  card.addComponent(UITransform).setContentSize(96, 116);
+  card.addComponent(UITransform).setContentSize(100, 132);
 
   const icon = ui.createItemIcon(item.id, item.id === "pasta" ? 64 : 70, true);
-  const firstColumnIconOffsetX = col === 0 ? -2 - (row > 0 ? 2 : 0) : 0;
   const iconOffsetX =
-    (item.id === "pasta" ? 3 : 0) -
-    3 +
-    firstColumnIconOffsetX +
-    (item.id === "palmTree" ? 5 : 0) +
-    (item.id === "fence" ? 5 : 0);
-  icon.setPosition(iconOffsetX, 28 - (row > 0 ? 11 : 0));
+    item.id === "pasta"
+      ? 3
+      : item.id === "palmTree" || item.id === "fence"
+        ? 3
+        : 0;
+  icon.setPosition(iconOffsetX, CATALOG_ICON_Y);
   if (!discovered) {
     const opacity = icon.addComponent(UIOpacity);
     opacity.opacity = levelUnlocked ? 120 : 72;
   }
   card.addChild(icon);
 
-  const itemNameOffsetX =
-    item.id === "tomato" ? -4 : item.id === "carrot" ? 3 : 0;
-  const cellNameOffsetX =
-    row === 0 && col === 1
-      ? -4
-      : row === 0 && col === 2
-        ? -3
-        : row === 1 && col === 1
-          ? 0
-          : row === 1 && col === 2
-            ? 1
-            : row === 2 && col === 0
-              ? 1
-              : 0;
-  const nameOffsetX =
-    (row === 0 ? 0 : -4) -
-    (col === 0 ? 5 : 0) +
-    (row > 0 && col === 0 ? 3 : 0) +
-    itemNameOffsetX +
-    cellNameOffsetX;
-  const nameOffsetY = row === 0 ? 4 : row === 1 ? -2 : -4;
   const name = ui.makeLabel(
     ui.itemName(item.id),
-    14,
+    15,
     new Color(88, 45, 24),
     true,
-    nameOffsetX,
-    -39 + nameOffsetY,
+    0,
+    CATALOG_NAME_Y,
     96,
     24,
   );
@@ -911,7 +1854,7 @@ function createCatalogCard(
   card.addChild(name);
 
   if (!discovered || !levelUnlocked) {
-    const lockFrame = getCatalogLockFrame(row, col);
+    const lockFrame = getCatalogLockFrame();
     const lock = new Node("LockShade");
     lock.addComponent(UITransform).setContentSize(lockFrame.w, lockFrame.h);
     lock.setPosition(lockFrame.x, lockFrame.y);
@@ -936,40 +1879,12 @@ function createCatalogCard(
   return card;
 }
 
-function getCatalogLockFrame(row: number, col: number) {
-  const baseW = 85;
-  const baseH = row === 0 ? 123 : row === 1 ? 124 : 125;
-  const baseY = row === 0 ? 16 : row === 1 ? 17 : 21;
-  const baseLeftGrow = row === 2 ? (col === 0 ? 10 : 5) : 10;
-  const leftAdjust = col === 0 ? 0 : col === 2 ? -2 : 0;
-  const rowCellLeftAdjust =
-    row === 2 && col === 1 ? 2 : row === 2 && col === 2 ? 1 : 0;
-  const columnLeftGrow = col === 0 ? 3 : 0;
-  const cellLeftDelta =
-    row === 2 && col === 1
-      ? 1
-      : (row === 0 && col === 2) || (row === 1 && col === 2)
-        ? -1
-        : 0;
-  const leftGrow = Math.max(
-    0,
-    baseLeftGrow +
-      leftAdjust +
-      rowCellLeftAdjust +
-      columnLeftGrow +
-      cellLeftDelta,
-  );
-  const rightGrow = col === 1 ? 3 : col === 2 ? 2 : 0;
-  const columnShift = col === 1 ? 1 : 0;
-  const topGrow = row === 0 ? 5 : 0;
-  const bottomGrow = row === 0 ? 5 : row === 1 ? 9 : 5;
-  const downOffset = row === 1 ? 5 : row === 2 ? 15 : 0;
-
+function getCatalogLockFrame() {
   return {
-    w: baseW + leftGrow + rightGrow,
-    h: baseH + topGrow + bottomGrow,
-    x: (rightGrow - leftGrow) / 2 + columnShift,
-    y: baseY - downOffset + (topGrow - bottomGrow) / 2,
+    w: 96,
+    h: 128,
+    x: 0,
+    y: 0,
   };
 }
 
@@ -985,25 +1900,14 @@ function drawCatalogProgress(
   const trackW = 148;
   const track = new Node("CatalogProgressTrack");
   track.setPosition(CATALOG_PROGRESS_X, CATALOG_PREV_ARROW_Y);
-  fillRoundRect(track, trackW, 13, 7, new Color(154, 104, 80, 230));
+  drawCatalogStyleProgress(
+    track,
+    trackW,
+    ratio,
+    new Color(154, 104, 80, 230),
+    new Color(255, 203, 79, 255),
+  );
   body.addChild(track);
-
-  const fill = new Node("CatalogProgressFill");
-  fill.setPosition(-trackW / 2 + (trackW * ratio) / 2, 0);
-  fillRoundRect(fill, trackW * ratio, 9, 5, new Color(255, 203, 79, 255));
-  track.addChild(fill);
-
-  const knob = new Node("CatalogProgressKnob");
-  knob.setPosition(-trackW / 2 + trackW * ratio, 0);
-  const kg = knob.addComponent(Graphics);
-  kg.fillColor = new Color(255, 247, 226, 255);
-  kg.circle(0, 0, 9);
-  kg.fill();
-  kg.strokeColor = new Color(126, 78, 48, 225);
-  kg.lineWidth = 1.6;
-  kg.circle(0, 0, 9);
-  kg.stroke();
-  track.addChild(knob);
 
   body.addChild(
     ui.makeLabel(
@@ -1260,8 +2164,6 @@ function renderQuestPanelLegacy(ui: any) {
 export function renderTaskPanel(ui: any) {
   const panel = ui.panels.task!;
   const body = ui.clearPanelBody(panel);
-  const gm = GameManager.getInstance();
-  const quests = gm.getTasks(ui.taskCategory || "main");
   clearCatalogPanelChrome(panel);
   body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
   body.setPosition(0, 0);
@@ -1269,17 +2171,541 @@ export function renderTaskPanel(ui: any) {
   if (close) close.active = false;
 
   drawCommonPanelBackground(ui, body);
-  drawRibbonTitle(ui, body, "\u4efb\u52a1");
+  drawRibbonTitle(ui, body, "\u4efb\u52a1\u4e2d\u5fc3");
   createCatalogCloseHitArea(ui, panel, body);
-  drawTaskCategoryTabs(ui, body);
+  refreshTaskCategoryContent(ui, body);
+}
+
+function refreshTaskCategoryContent(ui: any, body: Node) {
+  const removable = body.children.filter(child =>
+    child.name === "TaskCategoryTabsImage" ||
+    child.name === "TaskListViewport" ||
+    child.name.startsWith("TaskTabHit_"),
+  );
+  removable.forEach(child => {
+    child.removeFromParent();
+    child.destroy();
+  });
 
   if (!ui.taskCategory) ui.taskCategory = "main";
-  const cards = createTaskCardData(quests);
+  const gm = GameManager.getInstance();
+  const cards = createTaskCardData(gm.getTasks(ui.taskCategory));
   if (ui.taskDetailId === undefined) ui.taskDetailId = "";
-  if (!cards.some((task) => task.id === ui.taskDetailId)) {
-    ui.taskDetailId = "";
-  }
+  if (!cards.some(task => task.id === ui.taskDetailId)) ui.taskDetailId = "";
+  drawTaskCategoryTabs(ui, body);
   drawTaskListScroll(ui, gm, body, cards);
+}
+
+export function renderDailySignInPanel(ui: any) {
+  const panel = ui.panels.signIn!;
+  const body = ui.clearPanelBody(panel);
+  const gm = GameManager.getInstance();
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const close = panel.getChildByName("Close");
+  if (close) close.active = false;
+
+  drawCommonPanelBackground(ui, body);
+  const signInTint = new Node("SignInPaperTint");
+  signInTint.addComponent(UITransform).setContentSize(Design.WIDTH, 540);
+  const tintGraphics = signInTint.addComponent(Graphics);
+  tintGraphics.fillColor = new Color(224, 244, 211, 46);
+  tintGraphics.rect(-Design.WIDTH / 2, -270, Design.WIDTH, 540);
+  tintGraphics.fill();
+  body.addChild(signInTint);
+  drawRibbonTitle(ui, body, "每日签到");
+  createCatalogCloseHitArea(ui, panel, body);
+
+  const summary = new Node("SignInSummary");
+  summary.setPosition(0, 152);
+  fillRoundRect(summary, 306, 52, 12, new Color(255, 242, 205, 245));
+  strokeRoundRect(summary, 306, 52, 12, new Color(218, 171, 100, 205), 1.8);
+  const missedDay = gm.getMissedDailySignInDay();
+  const summaryTextX = missedDay ? -34 : 0;
+  const summaryTextW = missedDay ? 208 : 280;
+  const summaryValue = ui.makeLabel(
+    `本轮已签到 ${gm.dailySignInDay}/7 天`,
+    17,
+    new Color(103, 55, 29),
+    true,
+    summaryTextX,
+    9,
+    summaryTextW,
+    24,
+  );
+  summaryValue.name = "SignInSummaryValue";
+  summary.addChild(summaryValue);
+  summary.addChild(ui.makeLabel(
+    "每天登录农场，好礼不间断",
+    12,
+    new Color(154, 100, 58),
+    false,
+    summaryTextX,
+    -12,
+    summaryTextW,
+    20,
+  ));
+  body.addChild(summary);
+  if (missedDay) addDailySignInMakeUpAction(ui, body, summary, missedDay);
+
+  const claimable = gm.isDailySignInClaimable();
+  const displayDay = gm.getDailySignInDisplayDay();
+  DAILY_SIGN_IN_REWARDS.forEach((reward, index) => {
+    const row = index < 4 ? 0 : 1;
+    const count = row === 0 ? 4 : 3;
+    const rowWidth = count * 72 + (count - 1) * 8;
+    const col = row === 0 ? index : index - 4;
+    const x = -rowWidth / 2 + 36 + col * 80;
+    const y = row === 0 ? 58 : -69;
+    const claimed = claimable
+      ? reward.day < (missedDay || displayDay)
+      : reward.day <= gm.dailySignInDay;
+    const current = reward.day === (missedDay || displayDay);
+    body.addChild(createDailySignInCard(
+      ui,
+      reward,
+      x,
+      y,
+      claimed,
+      current,
+      claimable && current,
+    ));
+  });
+
+  const button = new Node("DailySignInClaimButton");
+  button.setPosition(0, -178);
+  button.addComponent(UITransform).setContentSize(154, 62);
+  const buttonVisual = new Node("DailySignInButtonVisual");
+  buttonVisual.addComponent(UITransform).setContentSize(168, 168);
+  ui.applyUiIcon(claimable ? "signInClaim" : "signInClaimed", buttonVisual);
+  button.addChild(buttonVisual);
+  if (claimable) {
+    button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      const reward = gm.claimDailySignIn();
+      if (!reward) return;
+      tween(button)
+        .to(0.08, { scale: new Vec3(0.94, 0.94, 1) }, { easing: "quadOut" })
+        .to(0.16, { scale: new Vec3(1.06, 1.06, 1) }, { easing: "backOut" })
+        .call(() => {
+          ui.toast(`签到成功：${reward.label} x${reward.count}`);
+          updateDailySignInClaimedState(ui, body, reward.day, button);
+        })
+        .start();
+    });
+  }
+  body.addChild(button);
+
+  const footer = new Node("SignInFooterHint");
+  footer.setPosition(0, -226);
+  const footerLineLeft = new Node("FooterLineLeft");
+  footerLineLeft.setPosition(-111, 0);
+  fillRoundRect(footerLineLeft, 58, 2, 1, new Color(215, 170, 105, 145));
+  footer.addChild(footerLineLeft);
+  const footerLineRight = new Node("FooterLineRight");
+  footerLineRight.setPosition(111, 0);
+  fillRoundRect(footerLineRight, 58, 2, 1, new Color(215, 170, 105, 145));
+  footer.addChild(footerLineRight);
+  footer.addChild(ui.makeLabel(
+    "第7天随机获得双倍收获卡或加速券",
+    12,
+    new Color(151, 96, 55),
+    false,
+    0,
+    0,
+    170,
+    20,
+  ));
+  body.addChild(footer);
+}
+
+function createDailySignInCard(
+  ui: any,
+  reward: DailySignInReward,
+  x: number,
+  y: number,
+  claimed: boolean,
+  current: boolean,
+  animateCurrent: boolean,
+): Node {
+  const card = new Node(`SignInDay_${reward.day}`);
+  card.setPosition(x, y);
+  (card as any).restingX = x;
+  (card as any).restingY = y;
+  card.addComponent(UITransform).setContentSize(72, 116);
+  const fill = claimed
+    ? new Color(225, 240, 191, 250)
+    : current
+      ? new Color(255, 225, 153, 255)
+      : new Color(247, 218, 169, 245);
+  const border = current
+    ? new Color(205, 126, 48, 255)
+    : new Color(201, 151, 83, 220);
+  fillRoundRect(card, 72, 112, 9, fill);
+  strokeRoundRect(card, 72, 112, 9, border, current ? 2.6 : 1.8);
+
+  card.addChild(ui.makeLabel(
+    `第${reward.day}天`,
+    13,
+    new Color(102, 55, 30),
+    true,
+    0,
+    42,
+    66,
+    20,
+  ));
+
+  const iconFrame = new Node("RewardFrame");
+  iconFrame.setPosition(0, 4);
+  fillRoundRect(iconFrame, 50, 50, 9, new Color(255, 247, 215, 225));
+  card.addChild(iconFrame);
+  const icon = reward.itemId
+    ? ui.createItemIcon(reward.itemId, 42, true)
+    : new Node("CurrencyIcon");
+  icon.name = "RewardIcon";
+  if (!reward.itemId) {
+    icon.addComponent(UITransform).setContentSize(38, 38);
+    ui.applyUiIcon(reward.type, icon);
+  }
+  iconFrame.addChild(icon);
+
+  card.addChild(ui.makeLabel(
+    `${reward.label} x${reward.count}`,
+    12,
+    new Color(91, 49, 29),
+    true,
+    0,
+    -40,
+    68,
+    22,
+  ));
+
+  if (claimed) {
+    const mark = new Node("ClaimedMark");
+    mark.setPosition(23, 36);
+    const g = mark.addComponent(Graphics);
+    g.fillColor = new Color(105, 180, 79, 255);
+    g.circle(0, 0, 9);
+    g.fill();
+    g.strokeColor = new Color(255, 250, 225, 255);
+    g.lineWidth = 2;
+    g.moveTo(-4, 0);
+    g.lineTo(-1, -3);
+    g.lineTo(5, 4);
+    g.stroke();
+    card.addChild(mark);
+  }
+  if (current) {
+    const glow = new Node("CurrentDayGlow");
+    const glowGraphics = glow.addComponent(Graphics);
+    glowGraphics.strokeColor = new Color(255, 196, 71, 175);
+    glowGraphics.lineWidth = 4;
+    glowGraphics.roundRect(-38, -58, 76, 116, 11);
+    glowGraphics.stroke();
+    card.addChild(glow);
+    if (animateCurrent) {
+      tween(card)
+        .repeatForever(
+          tween()
+            .to(0.9, { position: new Vec3(x, y + 4, 0) }, { easing: "quadInOut" })
+            .to(0.9, { position: new Vec3(x, y, 0) }, { easing: "quadInOut" }),
+        )
+        .start();
+      tween(glow)
+        .repeatForever(
+          tween()
+            .to(0.9, { scale: new Vec3(1.04, 1.04, 1) }, { easing: "quadInOut" })
+            .to(0.9, { scale: new Vec3(0.98, 0.98, 1) }, { easing: "quadInOut" }),
+        )
+        .start();
+    }
+  }
+  return card;
+}
+
+function addDailySignInMakeUpAction(
+  ui: any,
+  body: Node,
+  summary: Node,
+  missedDay: number,
+) {
+  const action = new Node("DailySignInMakeUpAction");
+  action.setPosition(108, 0);
+  action.addComponent(UITransform).setContentSize(82, 38);
+  fillRoundRect(action, 82, 38, 10, new Color(242, 190, 132, 255));
+  strokeRoundRect(action, 82, 38, 10, new Color(159, 91, 47, 235), 1.8);
+  const icon = ui.createItemIcon("makeUpSignInCard", 29, true);
+  icon.setPosition(-23, 0);
+  action.addChild(icon);
+  const count = InventorySystem.getInstance().getItemCount("makeUpSignInCard");
+  action.addChild(ui.makeLabel(
+    `补签\nx${count}`,
+    11,
+    new Color(91, 46, 27),
+    true,
+    14,
+    0,
+    43,
+    31,
+  ));
+  action.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    const gm = GameManager.getInstance();
+    if (InventorySystem.getInstance().getItemCount("makeUpSignInCard") <= 0) {
+      ui.toast("补签卡不足，可在好物集市的工具分类购买");
+      return;
+    }
+    const reward = gm.claimMissedDailySignIn();
+    if (!reward) return;
+    ui.toast(`补签成功：${reward.label} x${reward.count}`);
+    updateDailySignInAfterMakeUp(ui, body, summary, missedDay);
+  });
+  summary.addChild(action);
+}
+
+function replaceDailySignInCardState(
+  ui: any,
+  body: Node,
+  day: number,
+  claimed: boolean,
+  current: boolean,
+  animateCurrent: boolean,
+) {
+  const oldCard = body.getChildByName(`SignInDay_${day}`);
+  const reward = DAILY_SIGN_IN_REWARDS[day - 1];
+  if (!oldCard || !reward) return;
+  Tween.stopAllByTarget(oldCard);
+  const oldGlow = oldCard.getChildByName("CurrentDayGlow");
+  if (oldGlow) Tween.stopAllByTarget(oldGlow);
+  const x = (oldCard as any).restingX ?? oldCard.position.x;
+  const y = (oldCard as any).restingY ?? oldCard.position.y;
+  const replacement = createDailySignInCard(
+    ui,
+    reward,
+    x,
+    y,
+    claimed,
+    current,
+    animateCurrent,
+  );
+  const index = oldCard.getSiblingIndex();
+  oldCard.removeFromParent();
+  oldCard.destroy();
+  body.addChild(replacement);
+  replacement.setSiblingIndex(index);
+}
+
+function updateDailySignInAfterMakeUp(
+  ui: any,
+  body: Node,
+  summary: Node,
+  missedDay: number,
+) {
+  replaceDailySignInCardState(ui, body, missedDay, true, false, false);
+  const nextDay = GameManager.getInstance().getDailySignInDisplayDay();
+  if (nextDay !== missedDay) {
+    replaceDailySignInCardState(ui, body, nextDay, false, true, true);
+  }
+  const action = summary.getChildByName("DailySignInMakeUpAction");
+  if (action) {
+    action.removeFromParent();
+    action.destroy();
+  }
+  const summaryValue = summary.getChildByName("SignInSummaryValue");
+  if (summaryValue) {
+    summaryValue.setPosition(0, 9);
+    summaryValue.getComponent(UITransform)!.setContentSize(280, 24);
+    summaryValue.getComponent(Label)!.string = `本轮已签到 ${GameManager.getInstance().dailySignInDay}/7 天`;
+  }
+  const subtitle = summary.children.find(child => child !== summaryValue);
+  if (subtitle) {
+    subtitle.setPosition(0, -12);
+    subtitle.getComponent(UITransform)?.setContentSize(280, 20);
+  }
+}
+
+function updateDailySignInClaimedState(
+  ui: any,
+  body: Node,
+  day: number,
+  button: Node,
+) {
+  const gm = GameManager.getInstance();
+  const oldCard = body.getChildByName(`SignInDay_${day}`);
+  if (oldCard) {
+    Tween.stopAllByTarget(oldCard);
+    const oldGlow = oldCard.getChildByName("CurrentDayGlow");
+    if (oldGlow) Tween.stopAllByTarget(oldGlow);
+    const x = (oldCard as any).restingX ?? oldCard.position.x;
+    const y = (oldCard as any).restingY ?? oldCard.position.y;
+    const reward = DAILY_SIGN_IN_REWARDS[day - 1];
+    const replacement = createDailySignInCard(
+      ui,
+      reward,
+      x,
+      y,
+      true,
+      true,
+      false,
+    );
+    const index = oldCard.getSiblingIndex();
+    oldCard.removeFromParent();
+    oldCard.destroy();
+    body.addChild(replacement);
+    replacement.setSiblingIndex(index);
+  }
+
+  const summary = body
+    .getChildByName("SignInSummary")
+    ?.children.find(child => child.name === "SignInSummaryValue");
+  if (summary) {
+    summary.getComponent(Label)!.string = `本轮已签到 ${gm.dailySignInDay}/7 天`;
+  }
+
+  const oldVisual = button.getChildByName("DailySignInButtonVisual");
+  if (oldVisual) {
+    oldVisual.removeFromParent();
+    oldVisual.destroy();
+  }
+  const claimedVisual = new Node("DailySignInButtonVisual");
+  claimedVisual.addComponent(UITransform).setContentSize(168, 168);
+  ui.applyUiIcon("signInClaimed", claimedVisual);
+  button.addChild(claimedVisual);
+  const buttonComponent = button.getComponent(Button);
+  if (buttonComponent) buttonComponent.interactable = false;
+  button.setScale(new Vec3(1, 1, 1));
+}
+
+export function renderAchievementPanel(ui: any) {
+  const panel = ui.panels.achievement!;
+  const body = ui.clearPanelBody(panel);
+  const gm = GameManager.getInstance();
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const close = panel.getChildByName("Close");
+  if (close) close.active = false;
+
+  drawCommonPanelBackground(ui, body);
+  drawRibbonTitle(ui, body, "成就手册");
+  createCatalogCloseHitArea(ui, panel, body);
+
+  const unlockedCount = ACHIEVEMENTS.filter(item => gm.achievements.indexOf(item.id) >= 0).length;
+  const summary = new Node("AchievementSummary");
+  summary.setPosition(0, 151);
+  fillRoundRect(summary, 300, 46, 12, new Color(255, 239, 194, 245));
+  strokeRoundRect(summary, 300, 46, 12, new Color(205, 154, 83, 210), 1.8);
+  summary.addChild(ui.makeLabel(
+    `成就进度 ${unlockedCount}/${ACHIEVEMENTS.length}   已领取 ${gm.claimedAchievements.length}`,
+    15,
+    new Color(91, 49, 27),
+    true,
+    0,
+    0,
+    280,
+    26,
+  ));
+  body.addChild(summary);
+
+  const viewportH = 350;
+  const viewport = new Node("AchievementViewport");
+  viewport.addComponent(UITransform).setContentSize(310, viewportH);
+  viewport.setPosition(0, -55);
+  viewport.addComponent(Mask);
+  body.addChild(viewport);
+
+  const cardH = 64;
+  const gap = 8;
+  const contentH = Math.max(viewportH, ACHIEVEMENTS.length * cardH + (ACHIEVEMENTS.length - 1) * gap + 16);
+  const content = new Node("AchievementContent");
+  content.addComponent(UITransform).setContentSize(310, contentH);
+  viewport.addChild(content);
+
+  ACHIEVEMENTS.forEach((definition, index) => {
+    const unlocked = gm.achievements.indexOf(definition.id) >= 0;
+    const claimed = gm.claimedAchievements.indexOf(definition.id) >= 0;
+    const card = new Node(`Achievement_${definition.id}`);
+    card.addComponent(UITransform).setContentSize(300, cardH);
+    card.setPosition(0, contentH / 2 - 8 - cardH / 2 - index * (cardH + gap));
+    fillRoundRect(
+      card,
+      300,
+      cardH,
+      11,
+      claimed
+        ? new Color(226, 240, 196, 248)
+        : unlocked
+          ? new Color(255, 236, 184, 250)
+          : new Color(229, 217, 193, 235),
+    );
+    strokeRoundRect(card, 300, cardH, 11, new Color(156, 101, 57, 215), 1.7);
+
+    const medal = new Node("AchievementMedal");
+    medal.setPosition(-124, 0);
+    const medalGraphics = medal.addComponent(Graphics);
+    medalGraphics.fillColor = unlocked
+      ? new Color(247, 190, 60, 255)
+      : new Color(171, 159, 140, 230);
+    medalGraphics.circle(0, 0, 16);
+    medalGraphics.fill();
+    medalGraphics.strokeColor = new Color(126, 76, 40, 225);
+    medalGraphics.lineWidth = 2;
+    medalGraphics.circle(0, 0, 16);
+    medalGraphics.stroke();
+    medalGraphics.fillColor = new Color(255, 245, 205, 235);
+    medalGraphics.circle(0, 0, 7);
+    medalGraphics.fill();
+    card.addChild(medal);
+
+    const title = ui.makeLabel(definition.title, 14, new Color(78, 41, 24), true, -52, 12, 118, 20);
+    title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    card.addChild(title);
+    const description = ui.makeLabel(definition.description, 11, new Color(133, 88, 52), false, -52, -11, 118, 18);
+    description.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    card.addChild(description);
+
+    const rewardIcon = new Node("AchievementRewardIcon");
+    rewardIcon.addComponent(UITransform).setContentSize(27, 27);
+    rewardIcon.setPosition(40, 5);
+    ui.applyUiIcon(definition.reward.type, rewardIcon);
+    card.addChild(rewardIcon);
+    card.addChild(ui.makeLabel(`x${definition.reward.count}`, 11, new Color(80, 43, 25), true, 42, -17, 42, 16));
+
+    const action = new Node("AchievementAction");
+    action.addComponent(UITransform).setContentSize(66, 30);
+    action.setPosition(112, 0);
+    const actionVisual = new Node("AchievementActionVisual");
+    actionVisual.addComponent(UITransform).setContentSize(78, 78);
+    ui.applyUiIcon(
+      claimed
+        ? "achievementClaimed"
+        : unlocked
+          ? "achievementClaim"
+          : "achievementLocked",
+      actionVisual,
+    );
+    action.addChild(actionVisual);
+    if (unlocked && !claimed) {
+      action.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (!gm.claimAchievement(definition.id)) return;
+        ui.toast(`领取成就奖励 x${definition.reward.count}`);
+        ui.renderAchievementPanel();
+      });
+    }
+    card.addChild(action);
+    content.addChild(card);
+  });
+
+  const scrollView = viewport.addComponent(ScrollView);
+  scrollView.horizontal = false;
+  scrollView.vertical = true;
+  scrollView.inertia = true;
+  (scrollView as any).elastic = false;
+  scrollView.content = content;
+  const maxOffset = Math.max(0, contentH - viewportH);
+  content.setPosition(0, -maxOffset / 2);
 }
 
 type TaskCardData = {
@@ -1342,6 +2768,7 @@ function createTaskCardData(tasks: any[]): TaskCardData[] {
 }
 
 function drawTaskCategoryTabs(ui: any, body: Node) {
+  const gm = GameManager.getInstance();
   const tabs = [
     {
       type: "main",
@@ -1423,6 +2850,23 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
     label.name = `TaskTabLabel_${index}`;
     label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
     image.addChild(label);
+
+    const hasCompletedTask = gm
+      .getTasks(tab.type as TaskCategory)
+      .some((task) => task.progress >= task.target && !task.claimed);
+    if (hasCompletedTask) {
+      const badge = new Node(`TaskTabBadge_${index}`);
+      badge.setPosition(tab.visualX + tab.width / 2 - 8, 19);
+      const badgeGraphics = badge.addComponent(Graphics);
+      badgeGraphics.fillColor = new Color(247, 70, 66, 255);
+      badgeGraphics.circle(0, 0, 5);
+      badgeGraphics.fill();
+      badgeGraphics.strokeColor = new Color(255, 242, 211, 255);
+      badgeGraphics.lineWidth = 1.4;
+      badgeGraphics.circle(0, 0, 5);
+      badgeGraphics.stroke();
+      image.addChild(badge);
+    }
   });
   body.addChild(image);
 
@@ -1442,7 +2886,7 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
         ui.taskCategory = tab.type;
         ui.taskDetailId = "";
         ui.taskScrollOffset = 0;
-        ui.renderTaskPanel();
+        refreshTaskCategoryContent(ui, body);
       });
     body.addChild(node);
   });
@@ -1463,21 +2907,22 @@ function drawTaskListScroll(
   viewport.addComponent(Mask);
   body.addChild(viewport);
 
-  const gap = 9;
+  const baseGap = 9;
   const topPadding = 13;
-  const bottomPadding = 6;
+  const bottomPadding = 3;
   const heights = cards.map((task) =>
     ui.taskDetailId === task.id
       ? getTaskRewardLayout(task).cardHeight
       : TASK_CARD_COLLAPSED_HEIGHT,
   );
-  const contentH = Math.max(
-    viewportH,
-    heights.reduce((sum, h) => sum + h, 0) +
-      gap * Math.max(0, cards.length - 1) +
-      topPadding +
-      bottomPadding,
-  );
+  const heightsTotal = heights.reduce((sum, h) => sum + h, 0);
+  const gapCount = Math.max(0, cards.length - 1);
+  const minimumContentH =
+    heightsTotal + baseGap * gapCount + topPadding + bottomPadding;
+  const contentH = Math.max(viewportH, minimumContentH);
+  const gap = gapCount > 0 && minimumContentH <= viewportH
+    ? (viewportH - heightsTotal - topPadding - bottomPadding) / gapCount
+    : baseGap;
   const content = new Node("TaskListContent");
   content.addComponent(UITransform).setContentSize(viewportW, contentH);
   viewport.addChild(content);
@@ -1533,8 +2978,8 @@ function drawTaskCard(
   const card = new Node(`TaskCard_${task.id}`);
   card.addComponent(UITransform).setContentSize(w, h);
   card.setPosition(0, y);
-  fillRoundRect(card, w, h, 15, new Color(255, 253, 242, 252));
-  strokeRoundRect(card, w, h, 15, new Color(129, 76, 42, 230), 2.2);
+  fillRoundRect(card, w, h, 14, new Color(255, 253, 242, 252));
+  strokeRoundRect(card, w, h, 14, new Color(129, 76, 42, 230), 2.2);
 
   const contentOffsetY = expanded ? (h - collapsedH) / 2 : 0;
   const topWash = new Node("TaskCardWarmTop");
@@ -1595,13 +3040,16 @@ function drawTaskProgress(
     task.target > 0 ? Math.min(1, Math.max(0, task.progress / task.target)) : 0;
   const bar = new Node("TaskProgress");
   bar.setPosition(wide ? -7 : -6, y);
-  fillRoundRect(bar, progressW, 16, 8, new Color(220, 190, 153, 245));
-  strokeRoundRect(bar, progressW, 16, 8, new Color(134, 82, 45, 185), 1.5);
-  const fill = new Node("TaskProgressFill");
-  const fillW = Math.max(9, progressW * ratio);
-  fill.setPosition(-progressW / 2 + fillW / 2, 0);
-  fillRoundRect(fill, fillW, 13, 7, new Color(148, 210, 112, 235));
-  bar.addChild(fill);
+  drawCatalogStyleProgress(
+    bar,
+    progressW,
+    ratio,
+    new Color(220, 190, 153, 245),
+    new Color(148, 210, 112, 235),
+    "TaskProgressFill",
+    "TaskProgressKnob",
+    false,
+  );
   bar.addChild(
     ui.makeLabel(
       `\u8fdb\u5ea6\uff1a${task.progress}/${task.target}`,
@@ -1651,9 +3099,14 @@ function drawTaskActionButton(
         return;
       }
       if (complete && task.realQuestId) {
+        const rewardStartWorld = button.worldPosition.clone();
         if (gm.claimTask(task.realQuestId)) {
           ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
-          ui.renderTaskPanel();
+          animateTaskRewardsToInventory(
+            ui,
+            task.rewards || [],
+            rewardStartWorld,
+          );
         } else {
           ui.toast("\u80cc\u5305\u7a7a\u95f4\u4e0d\u8db3");
         }
@@ -1662,6 +3115,114 @@ function drawTaskActionButton(
       navigateToTaskAction(ui, task.action || "farm");
     });
   parent.addChild(button);
+}
+
+function animateTaskRewardsToInventory(
+  ui: any,
+  rewards: TaskRewardData[],
+  startWorld: Vec3,
+) {
+  const root: Node | undefined = ui.bubbleRoot;
+  const navTarget = ui.node
+    .getChildByName("BottomNav")
+    ?.getChildByName("Nav_inventory")
+    ?.getChildByName("Icon");
+  if (!root || !root.isValid || !navTarget || rewards.length === 0) return;
+
+  root.active = true;
+  root.setSiblingIndex(ui.node.children.length - 1);
+  const rootTransform =
+    root.getComponent(UITransform) || root.addComponent(UITransform);
+  const visible = view.getVisibleSize();
+  rootTransform.setContentSize(visible.width, visible.height);
+
+  const start = rootTransform.convertToNodeSpaceAR(startWorld);
+  const target = rootTransform.convertToNodeSpaceAR(navTarget.worldPosition);
+  const visibleRewards = rewards.slice(0, 12);
+
+  visibleRewards.forEach((reward, index) => {
+    const bubble = new Node(`TaskRewardFlight_${index}`);
+    bubble.addComponent(UITransform).setContentSize(48, 48);
+    const col = index % 4;
+    const row = Math.floor(index / 4);
+    const spreadX = (col - (Math.min(4, visibleRewards.length) - 1) / 2) * 42;
+    const spreadY = row * 44;
+    const origin = new Vec3(start.x + spreadX, start.y + 30 + spreadY, 0);
+    bubble.setPosition(origin);
+    bubble.setScale(new Vec3(0.15, 0.15, 1));
+    const bubbleGraphics = bubble.addComponent(Graphics);
+    bubbleGraphics.fillColor = new Color(255, 240, 191, 250);
+    bubbleGraphics.circle(0, 0, 22);
+    bubbleGraphics.fill();
+    bubbleGraphics.strokeColor = new Color(181, 119, 58, 235);
+    bubbleGraphics.lineWidth = 2;
+    bubbleGraphics.circle(0, 0, 22);
+    bubbleGraphics.stroke();
+
+    const icon = reward.iconType === "item"
+      ? ui.createItemIcon(reward.icon, 31, true)
+      : new Node("RewardFlightIcon");
+    if (reward.iconType !== "item") {
+      icon.addComponent(UITransform).setContentSize(31, 31);
+      ui.applyUiIcon(reward.icon, icon);
+    }
+    icon.setPosition(0, 4);
+    bubble.addChild(icon);
+
+    const count = ui.makeLabel(
+      `x${reward.count}`,
+      10,
+      new Color(72, 39, 20),
+      true,
+      9,
+      -13,
+      28,
+      14,
+    );
+    bubble.addChild(count);
+    const opacity = bubble.addComponent(UIOpacity);
+    root.addChild(bubble);
+
+    tween(bubble)
+      .to(0.2, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" })
+      .start();
+
+    const state = { t: 0 };
+    const control = new Vec3(
+      origin.x + (target.x - origin.x) * 0.32 - 42 - index * 2,
+      Math.max(origin.y, target.y) + 82 + row * 12,
+      0,
+    );
+    tween(state)
+      .delay(1 + index * 0.035)
+      .to(
+        0.78,
+        { t: 1 },
+        {
+          easing: "quadIn",
+          onUpdate: () => {
+            if (!bubble.isValid) return;
+            const t = state.t;
+            const oneMinusT = 1 - t;
+            bubble.setPosition(
+              oneMinusT * oneMinusT * origin.x +
+                2 * oneMinusT * t * control.x +
+                t * t * target.x,
+              oneMinusT * oneMinusT * origin.y +
+                2 * oneMinusT * t * control.y +
+                t * t * target.y,
+            );
+            const scale = Math.max(0.28, 1 - t * 0.72);
+            bubble.setScale(new Vec3(scale, scale, 1));
+            opacity.opacity = Math.round(255 * Math.min(1, (1 - t) * 1.8));
+          },
+        },
+      )
+      .call(() => {
+        if (bubble.isValid) bubble.destroy();
+      })
+      .start();
+  });
 }
 
 function navigateToTaskAction(ui: any, action: TaskAction) {
@@ -1879,16 +3440,92 @@ export function buySeed(ui: any, crop: ItemDef) {
   }
   InventorySystem.getInstance().addItem(crop.id, 1);
   ui.toast(`购买 ${ui.itemName(crop.id)} x1`);
+  if (ui.panels.shop?.active) ui.renderShopPanel();
 }
 
 export function getSeedBuyPrice(ui: any, crop: ItemDef): number {
+  const fixedPrices: Record<string, number> = {
+    speedTicket: 120,
+    doubleHarvestCard: 280,
+    goldBoostCard: 280,
+    universalSeed: 180,
+    makeUpSignInCard: 200,
+  };
+  if (fixedPrices[crop.id] !== undefined) return fixedPrices[crop.id];
   return Math.max(crop.sellPrice, Math.ceil(crop.sellPrice * 1.2));
 }
 
+export function useInventoryTool(ui: any, slotIndex: number) {
+  const slot = InventorySystem.getInstance().slots[slotIndex];
+  const item = slot ? getItem(slot.itemId) : undefined;
+  if (!item || item.category !== ItemCategory.TOOL) return;
+  if (item.id === "speedTicket") {
+    ui.showPanel("craft");
+    ui.toast(
+      CraftSystem.getInstance().getActiveCraftCount() > 0
+        ? "请在制作队列中选择加速"
+        : "开始合成后可在制作队列中使用加速券",
+    );
+    return;
+  }
+  if (item.id === "makeUpSignInCard") {
+    ui.showPanel("signIn");
+    ui.toast(
+      GameManager.getInstance().getMissedDailySignInDay()
+        ? "点击签到摘要右侧的补签按钮使用补签卡"
+        : "当前没有需要补签的日期",
+    );
+    return;
+  }
+  ui.showDialog(
+    `使用${item.name}`,
+    item.description,
+    [
+      { text: "取消", cb: () => {} },
+      {
+        text: "使用",
+        cb: () => {
+          const result = GameManager.getInstance().useTool(item.id);
+          ui.toast(result || "当前无法使用");
+          if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
+        },
+      },
+    ],
+  );
+}
+
+export function useSpecialItem(ui: any, slotIndex: number) {
+  const slot = InventorySystem.getInstance().slots[slotIndex];
+  if (!slot || slot.itemId !== "mysteryBox") return;
+  ui.showDialog(
+    "开启神秘礼盒",
+    "打开后可随机获得金币、钻石或当前等级种子。",
+    [
+      { text: "取消", cb: () => {} },
+      {
+        text: "开启",
+        cb: () => {
+          const result = GameManager.getInstance().openMysteryBox();
+          ui.toast(result || "礼盒数量不足");
+          if (ui.panels.inventory?.active) ui.renderInventoryPanel();
+        },
+      },
+    ],
+  );
+}
+
 export function startCraft(ui: any, recipeId: string) {
-  const id = CraftSystem.getInstance().startCraft(recipeId);
+  const craft = CraftSystem.getInstance();
+  const id = craft.startCraft(recipeId);
   if (id < 0) {
-    ui.toast("材料或等级不足");
+    const messages: Record<string, string> = {
+      recipe: "配方不存在",
+      level: "等级不足",
+      materials: "材料不足",
+      gold: "金币不足",
+      capacity: "制作队列已占满",
+    };
+    ui.toast(messages[craft.getLastStartError()] || "无法开始合成");
     return;
   }
   ui.toast("开始合成");

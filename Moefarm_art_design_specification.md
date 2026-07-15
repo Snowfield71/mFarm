@@ -1,801 +1,280 @@
-# 萌田农场 - 美术资源和图标设计规范
+# 萌田农场美术规范与图片生成提示词
 
-## 第一部分：整体视觉风格指南
+> 本文由原“美术资源和图标设计规范”与“AI 图片生成提示词”合并而成，是项目唯一的美术图片规范入口。
 
-### 1.1 美术风格定位
+## 1. 视觉基准
 
-**风格名称：** 日系治愈卡通风
+- 风格：精致二维手绘休闲农场游戏，温暖、柔和、童趣，但边缘必须干净。
+- 轮廓：深棕色细描边，线宽稳定，圆角统一，不使用纯黑硬边。
+- 材质：轻微纸张纹理和柔和高光，避免明显噪点、波浪色差与生成式涂抹痕迹。
+- 光照：左上方柔光，阴影向右下，阴影短而轻。
+- 主色：奶油纸张 `#F9E8CF`、棕色描边 `#9B622E`、粉色缎带、蜂蜜金、叶片绿。
+- 禁止：摄影写实、3D 塑料感、厚重投影、紫蓝霓虹、文字水印、棋盘格背景、伪透明。
 
-**特点：**
+## 2. 当前资源结构
 
-- 圆润柔和的线条
-- 温暖友好的色彩
-- 萌系的角色和物体设计
-- 清爽简洁的 UI 布局
-- 精致细节的装饰元素
-
-**参考作品风格：**
-
-- 类似《合成大西瓜》的清爽感
-- 类似《开心农场》的治愈感
-- 类似《不思议的皇冠》的可爱感
-
-### 1.2 核心色彩体系
-
-#### 主色板
-
-```
-┌─────────────────────────────────────┐
-│ 农场绿 #90EE90    [========]        │
-│ 淡粉色 #FFB6C1    [========]        │
-│ 金黄色 #FFD700    [========]        │
-│ 天蓝色 #87CEEB    [========]        │
-│ 暖橙色 #FFA500    [========]        │
-│ 深红色 #DC143C    [========]        │
-│ 纯白色 #FFFFFF    [========]        │
-│ 深灰色 #333333    [========]        │
-└─────────────────────────────────────┘
-```
-
-#### 分类专属色
-
-| 物品类型 | 主色   | 辅色 | 用途               |
-| -------- | ------ | ---- | ------------------ |
-| 蔬菜类   | 绿色系 | 黄绿 | 生菜、玉米、胡萝卜 |
-| 水果类   | 红色系 | 粉红 | 草莓、樱桃、苹果   |
-| 加工品   | 棕色系 | 米黄 | 面粉、黄油、面包   |
-| 建筑类   | 灰棕系 | 木色 | 鸡舍、牛棚、仓库   |
-| 装饰类   | 多彩系 | 各异 | 花朵、树木、栅栏   |
-| 特殊品   | 紫金系 | 闪光 | 礼盒、幸运星、翡翠 |
-
----
-
-## 第二部分：物品图标设计规范
-
-### 2.1 图标尺寸和分辨率
-
-**标准尺寸：**
-
-- 设计尺寸：128×128 px（高清设计）
-- 使用尺寸：64×64 px（界面显示）
-- 缩小尺寸：32×32 px（列表显示）
-- 放大尺寸：256×256 px（详情页）
-
-**导出格式：**
-
-- PNG 格式，支持透明通道
-- 最大色深 32 bit（带 Alpha 通道）
-- 不要添加额外边框或阴影（在导出时统一处理）
-
-### 2.2 图标设计要素
-
-#### 基础设计原则
-
-1. **对称性和平衡**
-   - 物体应保持视觉平衡
-   - 不应过度倾斜或扭曲
-   - 主体位置在中心略上方
-
-2. **轮廓和边界**
-   - 清晰的物体边界
-   - 圆润的角（不超过 3px 倒角）
-   - 必要时添加描边（1-2px 深色）
-
-3. **高光和阴影**
-   - 适度的阴影增加立体感
-   - 高光位置在左上方
-   - 避免过度渐变
-
-4. **颜色饱和度**
-   - 中等偏高的饱和度
-   - 避免灰暗沉闷
-   - 保持温暖清爽的色调
-
-#### 具体设计规范
-
-**蔬菜类物品（如小麦、玉米、胡萝卜）**
-
-```
-设计特点：
-├─ 主体形状：写实但不复杂的蔬菜造型
-├─ 颜色：天然的蔬菜色（绿色、橙色、黄色）
-├─ 装饰：可添加土壤或根须的暗示
-├─ 表情：可添加小眼睛/微笑（可选）
-└─ 尺寸占比：70% 的设计空间
-
-示例：小麦
-- 金黄色为主（#FFD700）
-- 显示小麦穗的形状
-- 穗上有小颗粒细节
-- 底部显示根部或茎
-
-示例：玉米
-- 黄色主色（#FFD700）
-- 玉米粒排列规整
-- 带有绿色的叶片
-- 顶部有细须
-
-示例：胡萝卜
-- 橙色主色（#FFA500）
-- 锥形胡萝卜形状
-- 顶部带绿叶
-- 底部可显示须根
+```text
+Server/assets/textures/ui/
+├─ common/
+│  ├─ currency/
+│  ├─ navigation/
+│  └─ panels/panel_bg.png
+├─ task/
+│  ├─ buttons/
+│  ├─ icons/
+│  ├─ rewards/
+│  └─ tabs/
+├─ catalog/catalog_bg.png
+├─ craft/
+│  ├─ buttons/
+│  └─ icons/
+├─ inventory/icons/
+├─ signin/buttons/
+└─ shop/
+   ├─ buttons/
+   ├─ icons/
+   └─ tabs/
 ```
 
-**水果类物品（如草莓、樱桃、苹果）**
+通用面板使用 `common/panels/panel_bg.png`；图鉴因包含 `3 x 3` 卡片与右下角对折，使用独立的 `catalog/catalog_bg.png`。
 
-```
-设计特点：
-├─ 主体形状：饱满圆润的水果形状
-├─ 颜色：鲜艳的水果色（红、粉、黄）
-├─ 装饰：叶子、蒂部、种子细节
-├─ 光泽感：适度的高光增加质感
-└─ 尺寸占比：65% 的设计空间
+## 3. 导出规范
 
-示例：草莓
-- 红色主色（#FF1493）
-- 心形或圆锥形外轮廓
-- 表面有小芝麻粒（棕色小点）
-- 顶部有绿色的叶子冠
-- 左上方有高光
-
-示例：樱桃
-- 深红色主色（#DC143C）
-- 两个圆球连接的造型
-- 中间有深色连接点
-- 顶部有细茎（棕色线条）
-- 整体光泽感强
-
-示例：苹果
-- 红色主色（#FF4500）或黄色（#FFD700）
-- 圆形略微下宽上窄的形状
-- 底部有凹陷（果蒂部位）
-- 顶部有叶子（可选）
-- 左上方有高光和阴影
-```
-
-**面包和加工品（如面包、黄油、面粉）**
-
-```
-设计特点：
-├─ 主体形状：立体的面包/加工品形状
-├─ 颜色：棕色、米色、黄色系
-├─ 装饰：纹理、细节线、装饰物
-├─ 质感：体现材质感（柔软/坚硬/光滑）
-└─ 尺寸占比：70% 的设计空间
-
-示例：面粉（袋子）
-- 米白色主色（#F5F5DC）
-- 布袋形状，顶部有褶皱
-- 侧面有深色标签（可选）
-- 布料纹理暗示
-- 投影增加立体感
-
-示例：黄油
-- 金黄色主色（#FFD700）
-- 方形或圆形块状
-- 表面光滑有高光
-- 可显示在盘子或纸上
-- 阴影表现体积
-
-示例：面包
-- 棕色主色（#8B4513）
-- 面包的形状（圆形、条形等）
-- 表面有纹理（格子、条纹）
-- 可显示切口或蒸气
-- 顶部金黄色高光
-```
-
-**建筑类物品（如鸡舍、牛棚、合成台）**
-
-```
-设计特点：
-├─ 主体形状：建筑俯视图或微观视图
-├─ 颜色：棕色、灰色为主
-├─ 装饰：门窗、屋顶细节、物体标识
-├─ 视角：通常采用 45 度斜视角或正俯视
-└─ 尺寸占比：80% 的设计空间
-
-示例：鸡舍
-- 棕色木制房子外形
-- 屋顶呈三角形（深棕色）
-- 侧面有木板纹理
-- 有小门和小窗
-- 顶部可放置鸡的图标或剪影
-
-示例：合成台
-- 灰色金属工作台
-- 顶部是平整的工作面（浅灰）
-- 四周有支架和配件
-- 侧面可显示齿轮等机械元素
-- 整体给人科技感
-
-示例：仓库
-- 深棕色木材颜色
-- 方形仓库建筑
-- 大门和门框清晰
-- 侧面显示木板质感
-- 屋顶可显示纹理
-```
-
-**装饰品（如花朵、树木、栅栏）**
-
-```
-设计特点：
-├─ 主体形状：自然的动植物形状
-├─ 颜色：各异，鲜艳多彩
-├─ 装饰：花瓣、叶片、细节丰富
-├─ 生动感：表现生命力和活力
-└─ 尺寸占比：60-70% 的设计空间
-
-示例：向日葵
-- 金黄色花瓣（#FFD700）
-- 圆形深棕色花蕊（#654321）
-- 花瓣均匀排列
-- 绿色的茎和叶片
-- 整体向上的动感
-
-示例：树木
-- 深绿色的树冠（#228B22）
-- 棕色的树干（#8B4513）
-- 树冠呈圆形或球形
-- 可显示树叶的层次感
-- 根部简化表现
-
-示例：栅栏
-- 棕色木材颜色
-- 竖木条排列
-- 横木条连接
-- 简洁几何形状
-- 投影增加立体感
-```
-
-**特殊物品（如礼盒、幸运星、翡翠）**
-
-```
-设计特点：
-├─ 主体形状：独特的造型设计
-├─ 颜色：炫彩或深色系
-├─ 装饰：闪光、光晕、精致细节
-├─ 稀有感：体现珍贵和特殊
-└─ 尺寸占比：60% 的设计空间
-
-示例：礼盒
-- 紫色或多彩色系
-- 方形礼盒形状
-- 顶部有蝴蝶结（金色或粉色）
-- 表面有光亮感
-- 周围可有闪光效果
-
-示例：幸运星
-- 金色或黄色（#FFD700）
-- 五角星形状
-- 表面有闪光或发光效果
-- 可显示光晕（渐变圆形）
-- 整体透出神秘感
-
-示例：翡翠
-- 翠绿色（#00CED1）
-- 不规则的晶体形状
-- 表面有切割面细节
-- 强光泽感和高光
-- 周围有光晕效果
-```
-
-### 2.3 图标视觉层次
-
-**层次从外到内：**
-
-```
-第 1 层 - 外轮廓（必需）
-  └─ 清晰的物体边界
-
-第 2 层 - 主体颜色（必需）
-  └─ 物体的基础色彩
-
-第 3 层 - 阴影（推荐）
-  └─ 底部或侧面的深色
-
-第 4 层 - 高光（推荐）
-  └─ 左上方的亮点
-
-第 5 层 - 细节（可选）
-  └─ 纹理、图案、装饰物
-
-第 6 层 - 发光效果（可选）
-  └─ 特殊物品的光晕
-```
-
-### 2.4 图标示意图
-
-#### 颜色示意（RGB 构成）
-
-```
-蔬菜（绿色系）:
-R: 100-200  G: 200-255  B: 100-150
-示例：#90EE90, #9ACD32, #6B8E23
-
-水果（红色系）:
-R: 200-255  G: 0-100    B: 0-100
-示例：#FF1493, #DC143C, #FF6347
-
-面包（棕色系）:
-R: 150-200  G: 100-150  B: 50-100
-示例：#D2691E, #8B4513, #CD853F
-
-建筑（灰色系）:
-R: 100-180  G: 100-180  B: 100-180
-示例：#808080, #A9A9A9, #696969
-```
-
----
-
-## 第三部分：图标制作工作流
-
-### 3.1 推荐工具
-
-**主要设计工具：**
-
-- Adobe Illustrator（AI）- 矢量设计，推荐
-- Aseprite - 像素画和动画，次选
-- Procreate - iPad 专业绘画，可选
-- Krita - 免费开源，备选
-
-**辅助工具：**
-
-- TexturePacker - 打包成图集
-- ImageMagick - 批量处理
-- PNG Crush - 压缩优化
-
-### 3.2 制作步骤
-
-**第 1 步：构思和草图（10 分钟）**
-
-- 参考真实物体照片
-- 手绘初稿草图
-- 确定整体形状和颜色
-
-**第 2 步：主体设计（20 分钟）**
-
-- 绘制主要物体轮廓
-- 填充基础颜色
-- 调整比例和形状
-
-**第 3 步：细节和纹理（15 分钟）**
-
-- 添加阴影深化立体感
-- 添加高光增加光泽
-- 绘制细节纹理
-
-**第 4 步：检查和优化（10 分钟）**
-
-- 检查颜色是否符合规范
-- 验证图标清晰度
-- 调整对比度和饱和度
-
-**第 5 步：导出和测试（5 分钟）**
-
-- 导出 PNG 格式（128×128）
-- 缩放至 64×64 测试显示效果
-- 对比实机效果
-
-### 3.3 制作效率指标
-
-| 工作项     | 时间     | 数量   |
-| ---------- | -------- | ------ |
-| 草图和批准 | 1 小时   | 10 个  |
-| 设计和制作 | 2-3 小时 | 10 个  |
-| 修改和优化 | 1 小时   | 10 个  |
-| 打包和导出 | 30 分钟  | 60+ 个 |
-
-**总耗时估计：** 60+ 个图标 = 15-20 工作小时
-
----
-
-## 第四部分：UI 界面设计规范
-
-### 4.1 按钮设计
-
-**标准按钮尺寸：**
-
-- 小按钮：80×40 px
-- 中按钮：120×50 px
-- 大按钮：160×60 px
-
-**按钮状态设计：**
-
-| 状态 | 背景色  | 文字色  | 效果       |
-| ---- | ------- | ------- | ---------- |
-| 正常 | #90EE90 | #FFFFFF | 无         |
-| 按下 | #7ECDC2 | #FFFFFF | 缩小 0.95x |
-| 禁用 | #CCCCCC | #999999 | 半透明     |
-| 悬停 | #A0FF90 | #FFFFFF | 发光       |
-
-**按钮圆角：** 8-10px
-
-### 4.2 物品栏格子设计
-
-**单格尺寸：** 60×60 px
-
-**格子背景：**
-
-```
-┌─────────────┐
-│   纹理背景  │  <- 象棋格或布料纹理
-│  [物品图标] │  <- 48×48 px
-│   数量显示  │  <- 右下角，黑色字体
-└─────────────┘
-```
-
-**空格子：** 浅灰色或虚线框
-**已选中：** 高光或边框颜色变化
-
-### 4.3 面板设计
-
-**面板边框：**
-
-- 圆角矩形：16px 倒角
-- 边框宽度：2-3px
-- 边框颜色：#90EE90
-
-**面板内部：**
-
-- 背景色：#FFFACD（浅黄）或 #F0F8E8（浅绿）
-- 内间距：16px
-- 标题居中显示
-
-### 4.4 文字排版
-
-**标题：**
-
-- 字体：黑体粗体
-- 大小：24-32px
-- 颜色：#333333
-- 行距：1.5
-
-**正文：**
-
-- 字体：黑体
-- 大小：14px
-- 颜色：#666666
-- 行距：1.8
-
-**强调信息：**
-
-- 字体：黑体
-- 大小：16px
-- 颜色：#FFD700（金币）或 #FF1493（钻石）
-
----
-
-## 第五部分：图标制作检查清单
-
-### 5.1 设计完成检查
-
-- ☐ 图标尺寸正确（128×128 px 设计）
-- ☐ 颜色符合分类规范
-- ☐ 没有过度复杂的细节
-- ☐ 轮廓清晰可辨
-- ☐ 缩小至 64px 时仍清晰
-- ☐ 透明通道正确（PNG）
-- ☐ 没有锯齿或压缩失真
-
-### 5.2 视觉风格检查
-
-- ☐ 与其他图标风格统一
-- ☐ 圆润温和的线条
-- ☐ 适度的立体感（阴影和高光）
-- ☐ 颜色对比度足够
-- ☐ 高光位置一致（大多在左上）
-- ☐ 表情或角色设计可爱友好
-
-### 5.3 导出和打包检查
-
-- ☐ 导出为 PNG 格式
-- ☐ 色深 32bit（带 Alpha）
-- ☐ 文件大小合理（< 50KB）
-- ☐ 命名规范（如 item_wheat.png）
-- ☐ 批量导出无遗漏
-
----
-
-## 第六部分：广告相关 UI 设计规范
-
-### 6.1 激励视频广告入口按钮
-
-#### 标准样式
-
-```
-┌──────────────────────┐
-│  📺 观看广告免费加速  │  ← 绿色按钮
-└──────────────────────┘
-
-┌──────────────────────┐
-│  📺 双倍收获（看广告） │  ← 金色按钮
-└──────────────────────┘
-```
-
-**设计规范：**
-
-| 元素 | 规范 |
-| --- | --- |
-| 背景色 | `#FF6B35`（橙色）或 `#90EE90`（浅绿） |
-| 图标 | 📺 电视图标（24×24 px，白色） |
-| 文字 | "📺 观看广告" + 奖励描述 |
-| 字体 | 黑体 14px，白色 #FFFFFF |
-| 圆角 | 8-10px |
-| 按钮尺寸 | 140×44 px（小型），180×50 px（标准） |
-| 动画 | 轻微呼吸缩放（1x → 1.05x → 1x，2 秒循环） |
-
-#### 各场景按钮设计
-
-**加速场景（地块 / 合成台）：**
-
-```
-┌───────────────────┬──────────────────────┐
-│  钻石加速 (5💎)    │  📺 广告免费加速      │
-└───────────────────┴──────────────────────┘
-  灰色按钮              橙色按钮（带呼吸光效）
-```
-
-**双倍收益触发：**
-
-```
-┌────────────────────────────────────┐
-│  📺 观看广告获得双倍收获（剩余 3/5） │
-└────────────────────────────────────┘
-  橙色渐变背景，右侧显示剩余次数
-```
-
-**提前解锁：**
-
-```
-┌────────────────────────────────────┐
-│  🔒 提前解锁 (还需 2 级)            │
-│  📺 观看广告提前解锁（试用 1 次）     │
-└────────────────────────────────────┘
-  锁定图标灰色，下方橙色广告按钮
-```
-
-### 6.2 广告福利面板
-
-#### 面板布局
-
-```
-┌──────────────────────────────┐
-│  📺 广告福利      [×]        │  ← 标题栏：深绿色 #2E8B57
-├──────────────────────────────┤
-│                              │
-│  今日已看: [████░░░░] 3/10    │  ← 进度条（绿色渐变色）
-│                              │
-│  ┌─ 奖励列表 ────────────┐   │
-│  │ ○ 双倍收获    剩余 3/5 │   │  ← 可用项目
-│  │ ● 快速生长    剩余 0/5 │   │  ← 灰色 = 已用完
-│  │ ○ 神秘宝箱    剩余 2/3 │   │
-│  │ ○ 钻石领取    剩余 1/5 │   │
-│  │ ○ 金币加倍    剩余 3/5 │   │
-│  └────────────────────────┘   │
-│                              │
-│  ── 累计奖励 ──               │
-│  ⭐⭐⭐  🎁   ⭐⭐⭐  🎁  🏆  │  ← 阶梯图标
-│  3次       5次    8次  10次   │
-│  已完成   可领取  未达成 未达成 │
-│                              │
-└──────────────────────────────┘
-```
-
-**面板规范：**
-
-| 元素 | 规范 |
-| --- | --- |
-| 面板背景 | #FFFACD（浅黄），圆角 16px |
-| 标题栏 | #2E8B57（深绿），白色字体 20px 粗体 |
-| 进度条 | 背景 #E0E0E0，填充渐变 #90EE90 → #FFD700 |
-| 奖励列表项 | 图标 24×24 + 文字 14px #333 + 剩余次数 12px #999 |
-| 累计奖励步进点 | 圆形 32×32，已完成绿色，待领取金色脉动，未达成灰色 |
-
-### 6.3 插屏广告过渡页
-
-**设计要点：**
-
-```
-┌──────────────────────────────┐
-│                              │
-│        游戏加载中...           │
-│                              │
-│    ┌────────────────────┐    │
-│    │                    │    │
-│    │   广告内容（微信）    │    │
-│    │                    │    │
-│    └────────────────────┘    │
-│                              │
-│    [跳过广告] 5s 后可关闭     │
-│                              │
-│  观看广告支持开发者继续运营 💪  │
-└──────────────────────────────┘
-```
-
-- 过渡页使用游戏风格背景（淡绿/农场景色）
-- 关闭按钮 5 秒后变为可点击
-- 倒计时使用游戏内字体风格
-- 鼓励文字使用圆润可爱的字体（#666，12px）
-
-### 6.4 Banner 广告展示区域
-
-**位置与样式：**
-
-```
-┌──────────────────────────────┐
-│                              │
-│         游戏主界面             │
-│                              │
-│ ┌────────────────────────┐   │
-│ │ [广告内容 - 320×50]    │   │  ← 半透明底边
-│ └────────────────────────┘   │
-│ [物品] [设置] [任务] [图鉴]  │  ← 导航栏
-└──────────────────────────────┘
-```
-
-- Banner 区域背景：白色半透明（#FFFFFF 80% 透明度）
-- 左上角小字 "广告"（#999，10px）
-- 用户操作时自动隐藏，空闲 3 秒重新出现
-- 隐藏动画：向下滑动消失（0.3 秒）
-
-### 6.5 广告奖励反馈动画
-
-**成功获得奖励：**
-
-```
-第 1 帧：屏幕顶部弹出 [📺 奖励已获得！]
-第 2 帧：奖励图标 + 数量从屏幕中心放大弹出
-第 3 帧：发光粒子散开
-第 4 帧：图标缩放入物品栏/状态栏
-总时长：1.5 秒
-```
-
-**动画参数：**
-
-| 阶段 | 持续时间 | 效果 |
+| 资源 | 建议母版 | 导出要求 |
 | --- | --- | --- |
-| 弹窗出现 | 0.3s | 从顶部滑入 + 弹性缓动 |
-| 奖励展示 | 0.5s | 物品图标放大 + 旋转（0.8x → 1.2x → 1.0x） |
-| 粒子特效 | 0.5s | 6-10 个金色粒子从中心向外扩散 |
-| 缩小归位 | 0.2s | 图标缩放到目标位置 |
+| 物品图标 | 512 x 512 | PNG、透明背景、主体占画布 78% 至 86% |
+| 功能图标 | 256 x 256 | PNG、透明背景、四周留白一致 |
+| 按钮 | 4 倍实际显示尺寸 | PNG、透明背景、文字与按钮合成时保持清晰 |
+| 分类栏 | 4 倍实际显示尺寸 | 四种选中状态宽高完全一致 |
+| 面板背景 | 至少 2 倍设计尺寸 | 不拉伸文字或装饰，必要时九宫格缩放 |
 
-**广告拒绝/失败反馈：**
+所有透明 PNG 必须检查 Alpha：外部像素 `A=0`；抗锯齿边缘允许半透明，但 RGB 应接近边缘主体色，不能残留白、灰、黑或 `#CFA774` 色边。
 
-```
-┌──────────────────────────┐
-│  ⚠️ 广告加载失败          │
-│  已保留本次广告机会，请重试  │
-│      [确定]               │
-└──────────────────────────┘
-```
+## 4. 面板规范
 
-- 背景：#FF6B6B（柔和的红色警告）
-- 图标：24×24 警告标志
-- 文字：14px #333
+### 4.1 通用面板
 
-### 6.6 VIP 免广告标识
+- 内容比例与设计分辨率 `360 x 640` 一致。
+- 奶油色纸张背景，顶部粉色缎带，四角叶片与花朵装饰。
+- 任务、合成、背包和商店不包含右下角对折。
+- 面板图片内部不预绘业务文字，标题由代码渲染。
+- 关闭按钮、分类栏和内容卡片由代码与独立图片组合。
 
-```
-┌────────────────────┐
-│ 👑 免广告          │  ← 金色徽章，显示在玩家头像旁
-└────────────────────┘
-```
+### 4.2 图鉴面板
 
-- 皇冠图标 + "免广告" 文字
-- 背景渐变色：#FFD700 → #FFA500
-- 24×80 px 胶囊形标签
-- 月卡用户持续显示，临时免广告用户倒计时显示（"免广告 23:45"）
+- 与通用面板宽高、背景色和标题位置一致。
+- 固定 `3 x 3` 金色卡片，每张卡片包含图标区与底部名称区。
+- 九个卡片整体比通用参考位置向上 `8px`。
+- 仅右下角有纸张对折；对折外部必须真透明。
+- 对折轮廓不可被抠图侵蚀，也不能在外侧保留金色、灰色或白色毛边。
 
-### 6.7 广告UI贴图文件清单
+### 4.3 分类栏
 
-| 文件 | 尺寸 | 说明 |
-| --- | --- | --- |
-| `btn_ad_watch.png` | 180×50 | 观看广告按钮（绿色） |
-| `btn_ad_watch_orange.png` | 180×50 | 观看广告按钮（橙色） |
-| `btn_ad_watch_pressed.png` | 180×50 | 按钮按下状态 |
-| `icon_ad_tv.png` | 24×24 | 📺 电视图标 |
-| `icon_ad_diamond.png` | 24×24 | 广告获得钻石图标 |
-| `icon_ad_gold.png` | 24×24 | 广告获得金币图标 |
-| `icon_ad_box.png` | 32×32 | 神秘宝箱图标 |
-| `icon_ad_speed.png` | 24×24 | 加速图标 |
-| `icon_daily_ad_panel.png` | 300×320 | 广告福利面板背景 |
-| `icon_ad_cumulative_done.png` | 32×32 | 累计已领取标记（绿色对勾） |
-| `icon_ad_cumulative_claim.png` | 32×32 | 累计可领取标记（金色脉动） |
-| `icon_ad_cumulative_locked.png` | 32×32 | 累计未达成标记（灰色锁） |
-| `icon_vip_crown.png` | 24×24 | VIP 皇冠图标 |
-| `effect_ad_reward_particle.png` | 16×16 | 奖励粒子贴图（金色圆点） |
-| `bg_ad_banner.png` | 320×50 | Banner 广告底栏背景 |
+- 选中项背景为 `#F9E8CF`，与面板背景融合。
+- 未选中项使用略深的暖杏色。
+- 项目之间保持统一间距，底部横向连接线完整。
+- 只有选中项底部两角向外转圆；未选中项底部保持水平连接。
+- 图标和文字分别作为独立元素渲染，禁止把低分辨率整图再次拉伸。
 
----
+### 4.4 卡片与进度条
 
-## 第七部分：资源文件组织
+- 内容卡片使用暖白背景、棕色描边和轻微底部阴影。
+- 标题遮盖区背景必须与卡片背景相同。
+- 进度条采用连续圆角胶囊，左右圆角一致，不得出现白色圆点、中间接缝或端点断裂。
 
-```
-Assets/
-├── Textures/
-│   ├── Items/
-│   │   ├── Vegetables/
-│   │   │   ├── item_wheat.png
-│   │   │   ├── item_corn.png
-│   │   │   └── ...
-│   │   ├── Fruits/
-│   │   │   ├── item_strawberry.png
-│   │   │   ├── item_cherry.png
-│   │   │   └── ...
-│   │   ├── Foods/
-│   │   │   ├── item_bread.png
-│   │   │   ├── item_cake.png
-│   │   │   └── ...
-│   │   ├── Buildings/
-│   │   │   ├── building_chicken_coop.png
-│   │   │   ├── building_barn.png
-│   │   │   └── ...
-│   │   └── Decorations/
-│   │       ├── deco_flower.png
-│   │       ├── deco_tree.png
-│   │       └── ...
-│   ├── UI/
-│   │   ├── Buttons/
-│   │   ├── Backgrounds/
-│   │   ├── Icons/
-│   │   └── Ad/
-│   │       ├── btn_ad_watch.png
-│   │       ├── btn_ad_watch_orange.png
-│   │       ├── btn_ad_watch_pressed.png
-│   │       ├── icon_ad_tv.png
-│   │       ├── icon_ad_diamond.png
-│   │       ├── icon_ad_gold.png
-│   │       ├── icon_ad_box.png
-│   │       ├── icon_ad_speed.png
-│   │       ├── icon_daily_ad_panel.png
-│   │       ├── icon_ad_cumulative_done.png
-│   │       ├── icon_ad_cumulative_claim.png
-│   │       ├── icon_ad_cumulative_locked.png
-│   │       ├── icon_vip_crown.png
-│   │       ├── effect_ad_reward_particle.png
-│   │       └── bg_ad_banner.png
-│   └── Atlases/
-│       └── items_atlas.plist  (TexturePacker 打包)
-├── Scripts/
-└── Prefabs/
+## 5. 通用生成提示词
+
+### 5.1 正向模板
+
+```text
+Create a polished 2D hand-painted mobile farming game asset for “Moefarm”.
+Warm cream paper palette, soft pink and honey-gold accents, clean dark-brown outlines,
+consistent rounded geometry, subtle upper-left highlight and short lower-right shadow.
+Precise symmetrical silhouette, smooth antialiased edges, production-ready game UI quality.
+No text unless explicitly supplied. Keep the requested proportions and composition exactly.
+Transparent PNG outside the object, true alpha transparency, no matte color, no watermark.
 ```
 
----
+### 5.2 负向模板
 
-## 参考色值速查表
-
-```
-// 物品主色
-const ItemColors = {
-  // 蔬菜
-  wheat: '#FFD700',      // 小麦金黄
-  corn: '#FFD700',       // 玉米金黄
-  carrot: '#FFA500',     // 胡萝卜橙色
-
-  // 水果
-  strawberry: '#FF1493', // 草莓深粉
-  cherry: '#DC143C',     // 樱桃深红
-  apple: '#FF4500',      // 苹果橙红
-
-  // 面包
-  bread: '#8B4513',      // 面包棕色
-  flour: '#F5F5DC',      // 面粉米白
-
-  // 建筑
-  building: '#8B7355',   // 建筑棕色
-
-  // 特殊
-  rare: '#9370DB',       // 稀有紫色
-  special: '#FFD700',    // 特殊金色
-};
+```text
+no watermark, no signature, no letters, no checkerboard, no fake transparency,
+no white halo, no gray fringe, no brown fringe outside the outline,
+no missing outline pixels, no duplicated edges, no ghosting, no color waves,
+no noisy texture, no uneven border width, no distorted proportions,
+no photorealism, no 3D plastic render, no heavy drop shadow
 ```
 
----
+## 6. 专项提示词
 
-**美术规范版本：** 1.0
-**推荐设计工具：** Adobe Illustrator 或 Aseprite
-**预计图标数量：** 60-80 个
-**文档最后更新：** 2024-06-22
+### 6.1 通用背景面板
+
+```text
+Using the provided panel reference as the exact composition template, recreate a high-resolution
+vertical mobile game panel at the same aspect ratio. Preserve the cream paper background,
+top pink ribbon, corner flowers and leaves. Remove all watermark artifacts and all business text.
+Do not add a folded corner. Keep the interior clean for runtime UI. The outer silhouette must be
+fully opaque where paper exists and truly transparent only where explicitly marked.
+```
+
+### 6.2 图鉴背景
+
+```text
+Edit the supplied catalog panel without changing its canvas size or aspect ratio.
+Keep the title ribbon and decorations. Keep exactly nine cards in a 3 by 3 grid and move the
+whole grid upward by 8 pixels. Preserve card sizes, spacing, gold borders and bottom name masks.
+Keep one small folded paper corner at bottom-right. Everything outside the fold contour must have
+alpha 0. Preserve every gold outline pixel on the fold; remove all beige, gold, gray and white
+residue outside it. No other content changes.
+```
+
+### 6.3 物品图标
+
+```text
+Create one centered [ITEM NAME] icon for a cozy hand-painted farming game.
+Three-quarter front view, recognizable silhouette, warm natural colors, dark-brown clean outline,
+subtle highlight, minimal short shadow contained inside the object bounds. The object occupies
+82 percent of a square canvas. Transparent background, no frame, no label, no quantity, no watermark.
+```
+
+### 6.4 功能按钮
+
+```text
+Create a compact rounded rectangular game button matching the supplied task button reference.
+Warm [BUTTON COLOR] fill, dark-brown outline, thin inner highlight, small orange-brown bottom bevel,
+no separate black shadow plate. Center the Chinese label “[LABEL]” in bold dark-brown characters
+with a soft cream outline. Transparent outside the button and no extra padding.
+```
+
+### 6.5 厨师帽与勺子
+
+```text
+Create a clean hand-painted cooking status icon: a white chef hat beside a wooden spoon,
+with two small golden sparkles. Dark-brown smooth outline, warm cream shading, compact balanced
+composition matching the supplied reference. Transparent background, no square backdrop,
+no placeholder symbols, no text, no watermark.
+```
+
+### 6.6 农作物三阶段
+
+#### 硬性规则
+
+- 每种农作物分别生成发芽期、成长期、完全成熟期三张独立图片，统一为 `256 x 256`，禁止先生成合图再裁切。
+- 三阶段使用同一画布中心线和同一底部基线；土壤最底部建议固定在 `y=232` 附近，横向中心固定在 `x=128`。
+- 土壤必须与植物作为一个完整画面生成，不允许后期把植物和通用土壤两层简单叠加。
+- 三阶段土壤的颜色、描边、明暗、纹理和不规则轮廓必须完全一致；只能根据植物实际根部宽度做轻微横向变化。
+- 土壤使用温暖中棕色、短而轻的内部明暗，不使用深黑投影，不与植物根部上下分离。
+- 发芽期必须参考该作物现实中的幼苗形态，不能所有作物都画成相同的对称双叶。
+- 避免笔直的茎、叶脉和机械对称轮廓；使用自然弧线与少量不对称变化。
+- 使用简单色块和两级明暗表现体积，减少叶脉、纹理线和写实细节。
+- 南瓜、卷心菜等重型作物必须贴地生长；胡萝卜等根茎作物应表现埋入土壤，而不是由细茎悬空托举。
+- 完全成熟期不得保留不符合生长阶段的花朵，例如成熟草莓以果实为主。
+- 同批作物的描边宽度、绿色范围、饱和度和主体占比必须统一；树类果实不能左右偏离田地中心。
+
+#### 生成提示词
+
+```text
+Create one isolated growth-stage sprite for [CROP NAME], stage [1/2/3], for the Moefarm mobile game.
+Canvas 256 by 256. Match the supplied approved crop references exactly: concise cute 2D cartoon,
+smooth dark warm-brown outline, bright but controlled natural colors, simple two-step light and shade,
+very few internal detail lines, gently curved organic shapes, no realism and no mechanical symmetry.
+Design this stage from the real germination and growth structure of [CROP NAME]. Do not reuse a generic
+two-leaf seedling. The plant grows directly from one integrated irregular warm-brown soil patch.
+Use the exact same soil color, outline, highlight, texture and bottom silhouette as the other two stages.
+Center the plant at x=128 and place the lowest soil pixel on the shared y=232 baseline.
+Heavy produce such as pumpkin or cabbage rests naturally on the soil; root crops remain partly buried.
+Transparent background, no separate drop shadow, no text, no frame, no watermark, no magenta residue.
+```
+
+### 6.7 建筑物图标
+
+#### 同组画风
+
+- 统一 `256 x 256` 透明画布，主体横向宽度建议 `210px` 至 `224px`，四周留白均衡。
+- 使用紧凑的三分之四前视角、深暖棕圆润外描边、较细的内部描边、明快自然色和两级卡通明暗。
+- 建筑底部使用小范围草地、灌木或贴地阴影作为共同环境层，不能有的悬空、有的落地。
+- 线条密度以鸡舍、房屋、牛棚、水井为基准；禁止写实木纹、复杂透视线和建筑渲染图质感。
+- “统一风格”只统一描边、色彩、光照、视角、留白和环境层，不得复用其他建筑的标志性结构。
+
+#### 建筑辨识规则
+
+- 牛棚：红色立面、弧形深色屋顶、白色 X 形大门。
+- 鸡舍：小型红瓦坡顶、鸡形入口、木坡道与围栏。
+- 房屋：住宅门窗、烟囱、花箱与门廊。
+- 水井：石砌井台、蓝色顶棚、卷轴与水桶。
+- 蜂窝：绿色缓坡顶、抽屉式蜂箱、蜜蜂与花丛。
+- 仓库：低矮横向体量、缓坡金属顶、轨道平移门、装卸平台、粮袋与货箱；禁止使用牛棚的弧形瓦顶和 X 形大门。
+- 生成新建筑前先列出其三项独有结构，再列出必须避开的现有建筑结构；结构重复则判定不通过。
+
+#### 生成提示词
+
+```text
+Create one [BUILDING NAME] icon for the Moefarm mobile game on a 256 by 256 transparent canvas.
+Match the approved building family only in illustration language: compact three-quarter front view,
+thick rounded warm dark-brown outer contour, thinner warm internal outlines, bright cheerful palette,
+simple two-step cel shading, restrained highlights, low line density and a small organic ground layer.
+Give [BUILDING NAME] its own unmistakable silhouette and these unique structures: [UNIQUE FEATURES].
+Do not borrow signature structures from other buildings: [FORBIDDEN FEATURES].
+Keep the subject width between 210 and 224 pixels and visually centered. No realistic architectural
+rendering, no complex wood grain, no text, no frame, no watermark, and true alpha outside the object.
+```
+
+#### 仓库固定提示词
+
+```text
+Create a low, wide farm warehouse with a shallow asymmetrical blue-gray corrugated metal shed roof,
+warm golden horizontal timber siding, one large plain vertical-plank sliding door on a visible dark rail,
+a short loading platform and ramp, two stacked crates and one grain sack. Use a mostly horizontal silhouette.
+Absolutely no arched roof, roof tiles, gable facade, X-braced barn doors, red barn colors, chimney,
+residential windows, porch or flower garden. Match Moefarm building outline, shading and grass base.
+```
+
+### 6.8 农田与牧场扩建牌
+
+- 两张图片必须由同一个母版派生，统一 `256 x 256`、牌体尺寸、文字、钉子、木纹、支撑位置和底部基线。
+- 文字固定为“扩建”，奶油色字面、深棕描边和短偏移阴影；不得让模型自由改字。
+- 农田版：两根支撑底部保留绿色草丛，并有轻微贴地阴影。
+- 牧场版：不出现草，使用与农田版草丛占地宽度相同的柔和椭圆贴地阴影。
+- 支撑必须从牌体后方到底部连续完整，禁止拆成上下两段、宽度错位、断层或重复支撑。
+- 外部必须真透明，不允许白底、棋盘格、洋红底或颜色毛边进入最终文件。
+
+```text
+Using the approved expansion billboard as an exact master, create the [FARMLAND/PASTURE] variant.
+Preserve the three honey-gold wooden planks, two top pegs, four round nails, Chinese text “扩建”,
+two continuous support posts, board proportions, line thickness, highlights and shared ground baseline.
+For FARMLAND, keep green grass tufts around both post bases. For PASTURE, remove all grass and add
+two soft oval contact shadows with the same footprint as the farmland grass. Change nothing else.
+Canvas 256 by 256, centered, true transparent background, no disconnected pixels and no watermark.
+```
+
+### 6.9 UI 与面板资源
+
+- 面板、分类栏、按钮和入口图标沿用第 4 节的尺寸与状态规则；同组状态必须从同一母版派生。
+- UI 文字优先由代码渲染；必须烘焙文字时，先锁定准确中文内容，再检查缺字、错字和变形。
+- 入口、货币、任务、签到与导航图标使用简化轮廓和高对比主体，实际显示尺寸下仍能一眼识别。
+- 项目运行前统一预加载美术资源；资源路径、大小写和 `ImageCache.ts` 映射必须一致，禁止运行时临时请求不存在的旧文件。
+
+## 7. 图片编辑流程
+
+1. 先锁定原图画布尺寸与目标实际显示尺寸。
+2. 只修改用户指定区域，不重新生成未要求变化的内容。
+3. 需要多个状态时先制作一个母版，再复制母版改变选中项，禁止分别自由生成。
+4. 去背景时使用 Alpha 蒙版或路径蒙版，不用颜色阈值反复侵蚀描边。
+5. 对右下角对折先沿最外轮廓建立闭合路径，再将路径外像素设为 `RGBA(0,0,0,0)`。
+6. 以深色、白色和棋盘格三种底色放大到 400% 检查边缘。
+7. 用最近邻和线性缩放分别预览，确认缩放后无断线、白边与模糊文字。
+
+## 8. 验收清单
+
+- [ ] 画布宽高、主体位置和参考图一致。
+- [ ] 同组图片尺寸、间距、描边宽度和圆角一致。
+- [ ] 图标未被横向或纵向拉伸。
+- [ ] 缎带左右完全对称，褶皱色彩连续，无波浪或留白。
+- [ ] 花朵和叶片只有一次清晰轮廓，无重影。
+- [ ] 透明区 Alpha 为 0，不存在白边、灰边或金棕色残留。
+- [ ] 图鉴对折轮廓完整，对折外部真透明。
+- [ ] 农作物三阶段使用同一土壤材质、中心线和底部基线，植物与土壤为一体绘制。
+- [ ] 建筑物共享画风但轮廓与功能结构互不混用；仓库不得出现牛棚弧顶和 X 形大门。
+- [ ] 农田与牧场扩建牌尺寸和支撑完全一致，仅底部草丛与贴地阴影不同。
+- [ ] 导入 Cocos 后按实际尺寸显示仍清晰。
+- [ ] 文件名与 `ImageCache.ts` 路径映射一致。

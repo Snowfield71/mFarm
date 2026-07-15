@@ -1,1 +1,1 @@
-export type PanelName = 'inventory' | 'craft' | 'shop' | 'quest' | 'task';
+export type PanelName = 'inventory' | 'craft' | 'shop' | 'quest' | 'task' | 'signIn' | 'achievement';

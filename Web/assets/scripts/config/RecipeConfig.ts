@@ -26,9 +26,12 @@ export const RECIPE_DB: Record<string, RecipeDef> = {
     R001: { id: 'R001', name: '面粉制作', materials: [{ itemId: 'wheat', count: 3 }], product: { itemId: 'flour', count: 1 }, craftTime: 10, cost: 20, exp: 10, requiredLevel: 1, tier: 1 },
     R002: { id: 'R002', name: '黄油制作', materials: [{ itemId: 'milk', count: 2 }], product: { itemId: 'butter', count: 1 }, craftTime: 15, cost: 25, exp: 12, requiredLevel: 7, tier: 1 },
     R003: { id: 'R003', name: '番茄酱制作', materials: [{ itemId: 'tomato', count: 3 }], product: { itemId: 'ketchup', count: 1 }, craftTime: 12, cost: 22, exp: 11, requiredLevel: 3, tier: 1 },
-    R006: { id: 'R006', name: '玉米片制作', materials: [{ itemId: 'corn', count: 3 }], product: { itemId: 'cereal', count: 1 }, craftTime: 12, cost: 0, exp: 11, requiredLevel: 3, tier: 1 },
+    R006: { id: 'R006', name: '玉米片制作', materials: [{ itemId: 'corn', count: 3 }], product: { itemId: 'cornFlakes', count: 1 }, craftTime: 12, cost: 22, exp: 11, requiredLevel: 3, tier: 1 },
     R004: { id: 'R004', name: '胡萝卜泥制作', materials: [{ itemId: 'carrot', count: 2 }], product: { itemId: 'carrotPuree', count: 1 }, craftTime: 8, cost: 18, exp: 9, requiredLevel: 4, tier: 1 },
-    R005: { id: 'R005', name: '蜂蜜采集', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'honey', count: 1 }, craftTime: 20, cost: 30, exp: 15, requiredLevel: 10, tier: 1 },
+    R005: { id: 'R005', name: '蜂蜜采集', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'honey', count: 1 }, craftTime: 20, cost: 30, exp: 15, requiredLevel: 15, tier: 1 },
+    R007: { id: 'R007', name: '向日葵培育', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'sunflower', count: 1 }, craftTime: 12, cost: 18, exp: 8, requiredLevel: 15, tier: 1 },
+    R008: { id: 'R008', name: '郁金香培育', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'tulip', count: 1 }, craftTime: 12, cost: 18, exp: 8, requiredLevel: 15, tier: 1 },
+    R009: { id: 'R009', name: '玫瑰培育', materials: [{ itemId: 'flower', count: 3 }], product: { itemId: 'rose', count: 1 }, craftTime: 16, cost: 24, exp: 10, requiredLevel: 15, tier: 1 },
 
     // === 二级配方 (Lv.3-4): 面包和简单料理 ===
     R010: { id: 'R010', name: '面包烘焙', materials: [{ itemId: 'flour', count: 2 }, { itemId: 'butter', count: 1 }], product: { itemId: 'bread', count: 1 }, craftTime: 30, cost: 50, exp: 25, requiredLevel: 7, tier: 2 },

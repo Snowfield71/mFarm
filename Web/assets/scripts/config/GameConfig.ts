@@ -51,11 +51,11 @@ export const FontSpec = {
 
 // ===== 游戏数值配置 (GDD §1.3) =====
 export const GameValues = {
-  INITIAL_GOLD: 200,
-  INITIAL_DIAMOND: 500,
+  INITIAL_LEVEL: 99,
+  INITIAL_GOLD: 10_000_000,
+  INITIAL_DIAMOND: 10_000_000,
   INITIAL_LAND: 9, // 3x3 初始
   MAX_LAND: 15, // 5x3 上限
-  INVENTORY_SLOTS: 20,
   MAX_STACK: 99,
   EXP_PER_LEVEL: 100,
   EXP_GROWTH_RATE: 1.2,
@@ -70,7 +70,7 @@ export const GameValues = {
     25: 1, // 等级25 +1块 → 共15块
   },
 
-  // 合成台配置
+  // 并行制作队列配置
   CRAFT_TABLE_COST: 100,
   MAX_CRAFT_TABLES: 3,
 
@@ -78,10 +78,6 @@ export const GameValues = {
   SPEEDUP_DIAMOND: 5, // 5钻石=30秒
   SPEEDUP_DURATION: 30,
   AD_SPEEDUP_DURATION: 30,
-
-  // 扩展背包
-  EXPAND_INVENTORY_COST: 10, // 10钻石+5格
-  EXPAND_INVENTORY_SLOTS: 5,
 
   // 分享奖励
   SHARE_GOLD_REWARD: 50,

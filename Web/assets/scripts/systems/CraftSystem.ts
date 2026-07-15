@@ -18,6 +18,8 @@ export interface CraftProcess {
     isComplete: boolean;
 }
 
+export type CraftStartError = 'none' | 'recipe' | 'level' | 'materials' | 'gold' | 'capacity';
+
 @ccclass('CraftSystem')
 export class CraftSystem extends Component {
     private static instance: CraftSystem;
@@ -25,6 +27,7 @@ export class CraftSystem extends Component {
     private nextId = 0;
     private updateTimer = 0;
     private maxCraftTables = 1;
+    private lastStartError: CraftStartError = 'none';
 
     static getInstance(): CraftSystem { return CraftSystem.instance; }
 
@@ -32,7 +35,7 @@ export class CraftSystem extends Component {
         CraftSystem.instance = this;
     }
 
-    loadFromSave(processes: CraftProcess[] = [], nextCraftId: number = 0) {
+    loadFromSave(processes: CraftProcess[] = [], nextCraftId: number = 0, maxCraftTables: number = 1) {
         this.activeCrafts.clear();
         let maxId = -1;
         for (const process of processes) {
@@ -49,13 +52,15 @@ export class CraftSystem extends Component {
             });
         }
         this.nextId = Math.max(nextCraftId || 0, maxId + 1);
+        this.maxCraftTables = Math.max(1, Math.min(GameValues.MAX_CRAFT_TABLES, maxCraftTables || 1));
         this.updateCrafts();
         EventManager.getInstance().emit('craftRestored');
     }
 
-    exportSave(): { activeCrafts: CraftProcess[]; nextCraftId: number } {
+    exportSave(): { activeCrafts: CraftProcess[]; nextCraftId: number; maxCraftTables: number } {
         return {
             nextCraftId: this.nextId,
+            maxCraftTables: this.maxCraftTables,
             activeCrafts: Array.from(this.activeCrafts.values())
                 .filter(process => !process.isComplete)
                 .map(process => ({ ...process })),
@@ -79,24 +84,43 @@ export class CraftSystem extends Component {
     }
 
     startCraft(recipeId: string): number {
+        this.lastStartError = 'none';
         const recipe = getRecipe(recipeId);
-        if (!recipe) return -1;
+        if (!recipe) {
+            this.lastStartError = 'recipe';
+            return -1;
+        }
 
         const inv = InventorySystem.getInstance();
         const gm = GameManager.getInstance();
 
+        if (gm.playerLevel < recipe.requiredLevel) {
+            this.lastStartError = 'level';
+            return -1;
+        }
+
+        if (this.getActiveCraftCount() >= this.maxCraftTables) {
+            this.lastStartError = 'capacity';
+            return -1;
+        }
+
         for (const material of recipe.materials) {
             if (!inv.hasItems(material.itemId, material.count)) {
                 Logger.warn(TAG, `Not enough material: ${material.itemId}`);
+                this.lastStartError = 'materials';
                 return -1;
             }
         }
 
-        if (gm.playerLevel < recipe.requiredLevel) {
-            Logger.warn(TAG, 'Level is too low');
+        if (gm.gold < recipe.cost) {
+            this.lastStartError = 'gold';
             return -1;
         }
 
+        if (recipe.cost > 0 && !gm.spendGold(recipe.cost)) {
+            this.lastStartError = 'gold';
+            return -1;
+        }
         for (const material of recipe.materials) {
             inv.removeItem(material.itemId, material.count);
         }
@@ -127,6 +151,7 @@ export class CraftSystem extends Component {
         InventorySystem.getInstance().addItem(recipe.product.itemId, recipe.product.count);
         GameManager.getInstance().addExperience(recipe.exp);
 
+        this.activeCrafts.delete(craftId);
         EventManager.getInstance().emit('craftCompleted', { craftId, recipe });
         Logger.info(TAG, `Craft completed: ${recipe.name}`);
     }
@@ -151,9 +176,39 @@ export class CraftSystem extends Component {
         return Array.from(this.activeCrafts.values()).filter(process => !process.isComplete);
     }
 
-    upgradeMaxTables() {
-        if (this.maxCraftTables >= GameValues.MAX_CRAFT_TABLES) return;
+    accelerateCraft(craftId: number, seconds: number): boolean {
+        const process = this.activeCrafts.get(craftId);
+        if (!process || process.isComplete || seconds <= 0) return false;
+        process.startTime -= seconds * 1000;
+        this.updateCrafts();
+        EventManager.getInstance().emit('craftAccelerated', { craftId, seconds });
+        return true;
+    }
+
+    useSpeedTicket(craftId: number): boolean {
+        const process = this.activeCrafts.get(craftId);
+        if (!process || process.isComplete) return false;
+        const inventory = InventorySystem.getInstance();
+        if (!inventory.hasItems('speedTicket', 1)) return false;
+        if (!this.accelerateCraft(craftId, GameValues.SPEEDUP_DURATION)) return false;
+        inventory.removeItem('speedTicket', 1);
+        return true;
+    }
+
+    getMaxCraftTables(): number { return this.maxCraftTables; }
+
+    getLastStartError(): CraftStartError { return this.lastStartError; }
+
+    getCraftTableUpgradeCost(): number {
+        return GameValues.CRAFT_TABLE_COST * this.maxCraftTables;
+    }
+
+    upgradeMaxTables(): boolean {
+        if (this.maxCraftTables >= GameValues.MAX_CRAFT_TABLES) return false;
+        const gm = GameManager.getInstance();
+        if (!gm.spendGold(this.getCraftTableUpgradeCost())) return false;
         this.maxCraftTables++;
         EventManager.getInstance().emit('craftTablesChanged', this.maxCraftTables);
+        return true;
     }
 }

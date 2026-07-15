@@ -5,9 +5,10 @@ import { EventManager } from '../../core/EventManager';
 import { InventorySystem } from '../../systems/InventorySystem';
 import { LandBlock, LandSystem } from '../../systems/LandSystem';
 import { CraftSystem } from '../../systems/CraftSystem';
+import { CurrencySystem } from '../../systems/CurrencySystem';
 import { getItem, getPlantableCrops, ITEM_DB, ItemCategory, ItemDef } from '../../config/ItemConfig';
 import { getRecipe, getRecipesByLevel, RecipeDef } from '../../config/RecipeConfig';
-import { fillRect, fillRoundRect, strokeRoundRect } from '../utils/UIDraw';
+import { drawCatalogStyleProgress, fillRect, fillRoundRect, strokeRoundRect } from '../utils/UIDraw';
 import type { PanelName } from './MainUITypes';
 
 export function bindEvents(ui: any) {
@@ -19,28 +20,41 @@ export function bindEvents(ui: any) {
     evt.on('inventoryChanged', () => {
         if (ui.panels.inventory?.active) ui.renderInventoryPanel();
         if (ui.panels.quest?.active) ui.renderQuestPanel();
-        updateTaskEntryState(ui);
+        updateTaskNavBadge(ui);
     });
     evt.on('craftStarted', () => {
-        if (ui.panels.craft?.active) ui.renderCraftPanel();
+        if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
     });
     evt.on('craftCompleted', (data: any) => {
         ui.toast(`${ui.recipeName(data.recipe)} 完成`);
-        if (ui.panels.craft?.active) ui.renderCraftPanel();
+        if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
         if (ui.panels.inventory?.active) ui.renderInventoryPanel();
         if (ui.panels.quest?.active) ui.renderQuestPanel();
-        updateTaskEntryState(ui);
+        updateTaskNavBadge(ui);
     });
     evt.on('achievementUnlocked', () => {
         if (ui.panels.quest?.active) ui.renderQuestPanel();
+        if (ui.panels.achievement?.active) ui.renderAchievementPanel();
+        updateAchievementEntryState(ui);
     });
+    evt.on('achievementClaimed', () => updateAchievementEntryState(ui));
     evt.on('taskChanged', () => {
         if (ui.panels.task?.active) ui.renderTaskPanel();
-        updateTaskEntryState(ui);
+        updateTaskNavBadge(ui);
+    });
+    evt.on('craftTablesChanged', () => {
+        if (ui.panels.craft?.active) ui.renderCraftPanel();
+    });
+    evt.on('dailySignInChanged', () => {
+        updateDailySignInEntryState(ui);
     });
     evt.on('cropMatured', (data: any) => {
         ui.refreshLandBlock(data.blockId, true);
     });
+    evt.on('buildingReady', (data: any) => {
+        ui.refreshPastureSlot(data.slotId);
+    });
+    evt.on('pastureChanged', () => ui.refreshPasture());
     evt.on('landExpanded', () => {
         if (ui.suppressNextLandExpandedRefresh) {
             ui.suppressNextLandExpandedRefresh = false;
@@ -59,7 +73,11 @@ export function refreshAll(ui: any) {
     if (ui.panels.craft?.active) ui.renderCraftPanel();
     if (ui.panels.quest?.active) ui.renderQuestPanel();
     if (ui.panels.task?.active) ui.renderTaskPanel();
-    updateTaskEntryState(ui);
+    if (ui.panels.signIn?.active) ui.renderDailySignInPanel();
+    if (ui.panels.achievement?.active) ui.renderAchievementPanel();
+    updateTaskNavBadge(ui);
+    updateDailySignInEntryState(ui);
+    updateAchievementEntryState(ui);
 
 }
 
@@ -69,25 +87,26 @@ export function refreshTopBar(ui: any) {
     if (level) level.getComponent(Label)!.string = `Lv.${gm.playerLevel} 农场`;
     const currencyArea = ui.topBar.getChildByName('CurrencyArea');
     const gold = findNode(currencyArea, 'GoldDisplay');
-    if (gold) {
-        const label = gold.getComponent(Label)!;
-        label.string = formatCurrency(gm.gold);
-    }
     const diamond = findNode(currencyArea, 'DiamondDisplay');
-    if (diamond) {
-        const label = diamond.getComponent(Label)!;
-        label.string = formatCurrency(gm.diamond);
-    }
-    const currencyLabels = [gold, diamond]
-        .filter((node): node is Node => !!node)
-        .map(node => ({ node, label: node.getComponent(Label)! }));
+    const currencyLabels = [
+        { node: gold, value: gm.gold },
+        { node: diamond, value: gm.diamond },
+    ]
+        .filter((entry): entry is { node: Node; value: number } => !!entry.node)
+        .map(({ node, value }) => {
+            const label = node.getComponent(Label)!;
+            label.string = CurrencySystem.getInstance().format(value);
+            return { node, label };
+        });
     if (currencyLabels.length > 0) {
         const sharedFontSize = Math.min(
             ...currencyLabels.map(({ node, label }) => currencyFontSize(node, label)),
         );
         currencyLabels.forEach(({ label }) => {
             label.fontSize = sharedFontSize;
-            label.lineHeight = 24;
+            label.lineHeight = sharedFontSize + 4;
+            label.horizontalAlign = Label.HorizontalAlign.CENTER;
+            label.verticalAlign = Label.VerticalAlign.CENTER;
         });
     }
     const expText = ui.topBar.getChildByName('ExpBg')?.getChildByName('ExpText');
@@ -140,52 +159,101 @@ function currencyFontSize(node: Node, label: Label) {
     const units = Array.from(label.string).reduce((sum, char) => {
         if (/[\u4e00-\u9fff]/.test(char)) return sum + 1;
         if (char === '.') return sum + 0.32;
+        if (/\d/.test(char)) return sum + 0.54;
         return sum + 0.62;
     }, 0);
-    return Math.max(10, Math.min(22, Math.floor(width / Math.max(1, units))));
+    const fittedSize = Math.max(
+        14,
+        Math.min(18, Math.floor(width / Math.max(1, units))),
+    );
+    return fittedSize - 4;
 }
 
-function formatCurrency(value: number): string {
-    const n = Math.max(0, Math.floor(value || 0));
-    if (n < 1000) return `${n}`;
-    if (n < 10000) return `${formatCompactNumber(n / 1000)}\u5343`;
-    if (n < 100000000) return `${formatCompactNumber(n / 10000)}\u4e07`;
-    if (n < 1000000000000) return `${formatCompactNumber(n / 100000000)}\u4ebf`;
-    if (n < 10000000000000000)
-        return `${formatCompactNumber(n / 1000000000000)}\u4e07\u4ebf`;
-    return `${formatCompactNumber(n / 10000000000000000)}\u4eac`;
-}
-
-function formatCompactNumber(value: number): string {
-    const compact = Math.floor(value * 10) / 10;
-    return `${compact}`.replace(/\.0$/, '');
-}
-
-function updateTaskEntryState(ui: any) {
-    const entry = ui.node.getChildByName('TaskEntry');
-    const badge = entry?.getChildByName('Badge');
+function updateTaskNavBadge(ui: any) {
+    const badge = ui.node
+        .getChildByName('BottomNav')
+        ?.getChildByName('Nav_task')
+        ?.getChildByName('Badge');
     if (!badge) return;
     const quests = GameManager.getInstance().getTasks();
     badge.active = quests.some(q => q.progress >= q.target && !q.claimed);
+}
+
+function updateDailySignInEntryState(ui: any) {
+    const badge = ui.node
+        .getChildByName('DailySignInEntry')
+        ?.getChildByName('Badge');
+    if (!badge) return;
+    badge.active = GameManager.getInstance().isDailySignInClaimable();
+}
+
+function updateAchievementEntryState(ui: any) {
+    const badge = ui.topBar
+        ?.getChildByName('Avatar')
+        ?.getChildByName('AchievementEntry')
+        ?.getChildByName('Badge');
+    if (!badge) return;
+    const gm = GameManager.getInstance();
+    badge.active = gm.achievements.some(id => gm.claimedAchievements.indexOf(id) < 0);
 }
 
 export function updateCraftProgressViews(ui: any) {
     const body = ui.panels.craft?.getChildByName('Body');
     if (!body) return;
 
-    for (const process of CraftSystem.getInstance().getAllActiveCrafts()) {
+    const activeCrafts = CraftSystem.getInstance().getAllActiveCrafts();
+
+    const arrowFill = body
+        .getChildByName('CraftRecipeSection')
+        ?.getChildByName('CraftRecipeArrow')
+        ?.getChildByName('CraftArrowFillMask')
+        ?.getChildByName('CraftArrowAnimatedFill');
+    if (arrowFill && activeCrafts.length > 0) {
+        const cycleMs = 4200;
+        const fillMs = 4050;
+        const elapsedInCycle = Math.max(
+            0,
+            Date.now() - activeCrafts[0].startTime,
+        ) % cycleMs;
+        const ratio = elapsedInCycle < fillMs ? elapsedInCycle / fillMs : 0;
+        const eased = 0.5 - Math.cos(Math.PI * ratio) / 2;
+        arrowFill.setScale(new Vec3(eased, 1, 1));
+    }
+
+    for (const process of activeCrafts) {
         const row = body.getChildByName(`Crafting_${process.craftId}`);
         if (!row) continue;
-        const progress = Math.max(0, Math.min(100, process.progress));
+        const elapsedSeconds = Math.max(0, (Date.now() - process.startTime) / 1000);
+        const progress = Math.max(
+            0,
+            Math.min(
+                100,
+                process.craftDuration > 0
+                    ? (elapsedSeconds / process.craftDuration) * 100
+                    : process.progress,
+            ),
+        );
+        process.progress = progress;
+        const displayProgress = Math.floor(progress);
         const barBg = row.getChildByName('CraftProgressBg');
-        const barFill = barBg?.getChildByName('CraftProgressFill');
-        if (barFill) {
-            const fillW = Math.max(4, 124 * progress / 100);
-            barFill.setPosition(-62 + fillW / 2, 0);
-            fillRoundRect(barFill, fillW, 7, 4, new Color(78, 188, 214, 235));
+        if (barBg && (barBg as any).craftProgressPercent !== displayProgress) {
+            const barW = (barBg as any).craftProgressWidth || 124;
+            drawCatalogStyleProgress(
+                barBg,
+                barW,
+                progress / 100,
+                new Color(220, 190, 153, 245),
+                new Color(148, 210, 112, 245),
+                'CraftProgressFill',
+                'CraftProgressKnob',
+                false,
+            );
+            (barBg as any).craftProgressPercent = displayProgress;
         }
         const text = row.getChildByName('CraftProgressText');
-        if (text) text.getComponent(Label)!.string = `${Math.floor(progress)}%`;
+        if (text && text.getComponent(Label)!.string !== `${displayProgress}%`) {
+            text.getComponent(Label)!.string = `${displayProgress}%`;
+        }
     }
 
 }

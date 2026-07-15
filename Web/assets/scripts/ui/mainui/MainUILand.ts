@@ -5,6 +5,7 @@ import { EventManager } from '../../core/EventManager';
 import { InventorySystem } from '../../systems/InventorySystem';
 import { LandBlock, LandSystem } from '../../systems/LandSystem';
 import { CraftSystem } from '../../systems/CraftSystem';
+import { LevelSystem } from '../../systems/LevelSystem';
 import { getItem, getPlantableCrops, ITEM_DB, ItemCategory, ItemDef } from '../../config/ItemConfig';
 import { getRecipe, getRecipesByLevel, RecipeDef } from '../../config/RecipeConfig';
 import { fillRect, fillRoundRect, strokeRoundRect } from '../utils/UIDraw';
@@ -27,7 +28,156 @@ export function refreshLand(ui: any) {
         ui.landTiles.push(tile);
     }
     updateHarvestAllButton(ui);
+    refreshPasture(ui);
 
+}
+
+export function refreshPasture(ui: any) {
+    if (!ui.pastureRoot) return;
+    ui.pastureTiles.forEach((tile: Node) => tile.destroy());
+    ui.pastureTiles = [];
+    for (const slot of LandSystem.getInstance().getBuildingSlots()) {
+        const tile = createPastureTile(ui, slot);
+        const pos = getPasturePosition(ui, slot.id);
+        tile.setPosition(pos.x, pos.y);
+        ui.pastureRoot.addChild(tile);
+        ui.pastureTiles.push(tile);
+    }
+    if (ui.activePastureSlotId >= 0) showSelectedPasture(ui, ui.activePastureSlotId);
+    updatePastureCollectAllButton(ui);
+}
+
+export function refreshPastureSlot(ui: any, slotId: number) {
+    const index = ui.pastureTiles.findIndex((tile: Node) => tile.name === `Pasture_${slotId}`);
+    const slot = LandSystem.getInstance().getBuildingSlot(slotId);
+    if (index < 0 || !slot) return;
+    const oldTile = ui.pastureTiles[index];
+    const newTile = createPastureTile(ui, slot);
+    newTile.setPosition(oldTile.position);
+    oldTile.removeFromParent();
+    oldTile.destroy();
+    ui.pastureRoot.addChild(newTile);
+    newTile.setSiblingIndex(index);
+    ui.pastureTiles[index] = newTile;
+    if (ui.activePastureSlotId === slotId) showSelectedPasture(ui, slotId);
+    updatePastureCollectAllButton(ui);
+}
+
+export function createPastureTile(ui: any, slot: LandBlock): Node {
+    const tile = new Node(`Pasture_${slot.id}`);
+    tile.addComponent(UITransform).setContentSize(82, 82);
+    const pad = new Node('BuildingPad');
+    pad.addComponent(UITransform).setContentSize(96, 96);
+    ui.applyUiIcon('buildingPad', pad);
+    tile.addChild(pad);
+    const unlocked = LandSystem.getInstance().isPastureSlotUnlocked(slot.id);
+    if (!unlocked) {
+        const shade = new Node('PastureLockedShade');
+        fillRoundRect(shade, 78, 78, 14, new Color(76, 70, 56, 70));
+        tile.addChild(shade);
+        const billboard = createPastureExpansionBillboard(ui);
+        billboard.setScale(new Vec3(0.68, 0.68, 1));
+        billboard.setPosition(0, 1);
+        tile.addChild(billboard);
+    } else if (slot.state === 'occupied') {
+        drawOccupiedMarker(ui, tile, slot);
+    }
+    tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        handlePastureClick(ui, slot.id);
+    });
+    return tile;
+}
+
+export function getPasturePosition(_ui: any, index: number): { x: number; y: number } {
+    const cols = 3;
+    const stepX = 92;
+    const stepY = 96;
+    return {
+        x: (index % cols - 1) * stepX,
+        y: (1.5 - Math.floor(index / cols)) * stepY,
+    };
+}
+
+export function handlePastureClick(ui: any, slotId: number) {
+    const slot = LandSystem.getInstance().getBuildingSlot(slotId);
+    if (!slot) return;
+    if (!LandSystem.getInstance().isPastureSlotUnlocked(slotId)) {
+        closeBuildingBubble(ui);
+        handleLockedPastureClick(ui, slotId);
+        return;
+    }
+    if (slot.state === 'empty') {
+        if (ui.activePastureSlotId === slotId) {
+            closeBuildingBubble(ui);
+            return;
+        }
+        if (ui.activePastureSlotId >= 0 && ui.bubbleRoot.getChildByName('BuildingBubble')) {
+            ui.activePastureSlotId = slotId;
+            showSelectedPasture(ui, slotId);
+            return;
+        }
+        openBuildingBubble(ui, slotId);
+        return;
+    }
+    closeBuildingBubble(ui);
+    ui.handleOccupiedBuilding(slotId);
+}
+
+function handleLockedPastureClick(ui: any, slotId: number) {
+    const land = LandSystem.getInstance();
+    const unlockOrder = Math.max(0, land.getPastureUnlockedCount() - 4);
+    const cost = 500 + unlockOrder * 250;
+    ui.showDialog(
+        '扩建牧场',
+        `消耗 ${cost} 金币解锁这块石板`,
+        [
+            { text: '稍后', cb: () => {} },
+            { text: '扩建', cb: () => {
+                const gm = GameManager.getInstance();
+                if (!gm.spendGold(cost)) {
+                    ui.toast('金币不足');
+                    return;
+                }
+                if (!land.expandPastureSlot(slotId)) {
+                    gm.addGold(cost);
+                    ui.toast('这块石板已经解锁');
+                    return;
+                }
+                ui.refreshTopBar();
+                ui.toast('牧场石板扩建成功');
+            }},
+        ],
+    );
+}
+
+function showSelectedPasture(ui: any, slotId: number) {
+    clearSelectedPasture(ui);
+    const tile = ui.pastureTiles.find((candidate: Node) => candidate.name === `Pasture_${slotId}`);
+    if (!tile) return;
+    const border = new Node('PastureSelectedBorder');
+    border.setPosition(0, 1);
+    const graphics = border.addComponent(Graphics);
+    graphics.strokeColor = new Color(255, 245, 157, 250);
+    graphics.lineWidth = 4;
+    graphics.roundRect(-43, -43, 86, 86, 15);
+    graphics.stroke();
+    graphics.strokeColor = new Color(89, 173, 87, 210);
+    graphics.lineWidth = 1.5;
+    graphics.roundRect(-38, -38, 76, 76, 12);
+    graphics.stroke();
+    tile.addChild(border);
+    tween(border)
+        .repeatForever(
+            tween()
+                .to(0.58, { scale: new Vec3(1.035, 1.035, 1) }, { easing: 'quadInOut' })
+                .to(0.58, { scale: new Vec3(0.97, 0.97, 1) }, { easing: 'quadInOut' }),
+        )
+        .start();
+}
+
+function clearSelectedPasture(ui: any) {
+    for (const tile of ui.pastureTiles) tile.getChildByName('PastureSelectedBorder')?.destroy();
 }
 
 export function refreshLandBlock(ui: any, blockId: number, animateStage = false) {
@@ -123,7 +273,7 @@ export function createLandTile(ui: any, block: LandBlock): Node {
             tile.addChild(createCropProgressBar(block.progress));
         }
     } else if (block.state === 'occupied') {
-        ui.drawOccupiedMarker(tile);
+        ui.drawOccupiedMarker(tile, block);
     }
 
     tile.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.handleLandClick(block.id));
@@ -139,7 +289,10 @@ function getRemainingSeconds(block: LandBlock): number {
 
 type CropVisualStage = 'seed' | 'middle' | 'mature';
 
-const STAGED_CROPS = new Set(['wheat', 'tomato', 'corn']);
+const STAGED_CROPS = new Set([
+    'wheat', 'tomato', 'corn', 'carrot', 'lettuce', 'pumpkin',
+    'strawberry', 'cherry', 'banana', 'apple',
+]);
 
 const CROP_STAGE_VISUAL: Record<string, Record<CropVisualStage, { size: number; y: number }>> = {
     wheat: {
@@ -157,9 +310,31 @@ const CROP_STAGE_VISUAL: Record<string, Record<CropVisualStage, { size: number; 
         middle: { size: 104, y: 0 },
         mature: { size: 104, y: 0 },
     },
+    carrot: {
+        seed: { size: 96, y: 0 }, middle: { size: 96, y: 0 }, mature: { size: 96, y: 0 },
+    },
+    lettuce: {
+        seed: { size: 96, y: 0 }, middle: { size: 96, y: 0 }, mature: { size: 96, y: 0 },
+    },
+    pumpkin: {
+        seed: { size: 96, y: 0 }, middle: { size: 100, y: 0 }, mature: { size: 104, y: 0 },
+    },
+    strawberry: {
+        seed: { size: 96, y: 0 }, middle: { size: 100, y: 0 }, mature: { size: 104, y: 0 },
+    },
+    cherry: {
+        seed: { size: 96, y: 0 }, middle: { size: 104, y: 0 }, mature: { size: 108, y: 0 },
+    },
+    banana: {
+        seed: { size: 96, y: 0 }, middle: { size: 104, y: 0 }, mature: { size: 108, y: 0 },
+    },
+    apple: {
+        seed: { size: 96, y: 0 }, middle: { size: 104, y: 0 }, mature: { size: 108, y: 0 },
+    },
 };
 
-const CROP_ASSET_BOTTOM_PADDING = 18;
+const CROP_STAGE_ASSET_SIZE = 512;
+const CROP_STAGE_ASSET_BOTTOM_PADDING = 32;
 
 function getCropVisualId(block: LandBlock): string {
     if (!block.cropType) return '';
@@ -181,7 +356,7 @@ function getCropVisualSize(block: LandBlock): number {
 
 function getCropIconY(ui: any, block: LandBlock, cropSize: number): number {
     if (block.cropType && STAGED_CROPS.has(block.cropType)) {
-        return cropSize * (0.5 - CROP_ASSET_BOTTOM_PADDING / 256);
+        return cropSize * (0.5 - CROP_STAGE_ASSET_BOTTOM_PADDING / CROP_STAGE_ASSET_SIZE);
     }
     return (block.state === 'harvesting' ? 0 : -ui.constructor.TILE_SIZE / 2 - 3) + cropSize / 2;
 }
@@ -313,30 +488,40 @@ export function drawTileBase(ui: any, tile: Node, color: Color, locked = false) 
 
 }
 
-export function drawOccupiedMarker(ui: any, tile: Node) {
+export function drawOccupiedMarker(ui: any, tile: Node, block: LandBlock) {
     const marker = new Node('OccupiedMarker');
-    marker.setPosition(0, 2);
-    const g = marker.addComponent(Graphics);
-    g.fillColor = new Color(112, 94, 72, 210);
-    g.roundRect(-16, -10, 32, 22, 4);
-    g.fill();
-    g.fillColor = new Color(154, 124, 82, 235);
-    g.moveTo(-19, 1);
-    g.lineTo(0, 17);
-    g.lineTo(19, 1);
-    g.close();
-    g.fill();
-    g.fillColor = new Color(82, 64, 48, 230);
-    g.roundRect(-4, -10, 8, 12, 2);
-    g.fill();
+    marker.setPosition(0, 5);
+    marker.addComponent(UITransform).setContentSize(74, 74);
+    if (block.buildingId) {
+        const icon = ui.createItemIcon(block.buildingId, 72, true);
+        icon.setPosition(block.buildingId === 'fence' ? 3 : 0, 0);
+        marker.addChild(icon);
+    }
     tile.addChild(marker);
+
+    const production = LandSystem.getInstance().getBuildingProduction(block.id);
+    if (production?.ready) {
+        const ready = new Node('BuildingReady');
+        ready.setPosition(25, 25);
+        const g = ready.addComponent(Graphics);
+        g.fillColor = new Color(247, 196, 69, 255);
+        g.circle(0, 0, 8);
+        g.fill();
+        g.strokeColor = new Color(255, 250, 218, 255);
+        g.lineWidth = 2;
+        g.circle(0, 0, 8);
+        g.stroke();
+        tile.addChild(ready);
+    }
 
 }
 
 export function updateHarvestAllButton(ui: any) {
     const button = ui.node.getChildByName('HarvestAllButton');
     if (!button) return;
-    const count = LandSystem.getInstance().getAllBlocks().filter(block => block.state === 'harvesting').length;
+    const count = ui.activeWorld === 'farm'
+        ? LandSystem.getInstance().getAllBlocks().filter(block => block.state === 'harvesting').length
+        : 0;
     if (count <= 0) {
         if (button.active) {
             tween(button)
@@ -507,14 +692,15 @@ export function ensureLandCountForLevel(ui: any) {
 }
 
 export function getAutoUnlockedLandCount(ui: any): number {
-    const gm = GameManager.getInstance();
-    let count = GameValues.INITIAL_LAND;
-    const levels = Object.keys(GameValues.LAND_UNLOCK).map(Number).sort((a, b) => a - b);
-    for (const lv of levels) {
-        if (gm.playerLevel >= lv) count += GameValues.LAND_UNLOCK[lv];
-    }
-    return Math.min(count, GameValues.MAX_LAND);
+    return LevelSystem.getInstance().getMaxLandBlocks(GameManager.getInstance().playerLevel);
 
+}
+
+function createPastureExpansionBillboard(ui: any): Node {
+    const billboard = new Node('PastureExpansionBillboard');
+    billboard.addComponent(UITransform).setContentSize(72, 72);
+    ui.applyUiIcon('pastureBillboard', billboard);
+    return billboard;
 }
 
 export function getNextLandUnlockLevel(ui: any, index: number): number {
@@ -537,6 +723,19 @@ export function handleLandClick(ui: any, blockId: number) {
         if (ui.selectedSeedId) {
             ui.plantCrop(blockId, ui.selectedSeedId);
         } else {
+            if (ui.activeBubbleLandId === blockId) {
+                ui.closeSeedBubble();
+                return;
+            }
+            if (
+                ui.activeBubbleLandId >= 0 &&
+                Math.floor(ui.activeBubbleLandId / ui.constructor.LAND_COLS) ===
+                    Math.floor(blockId / ui.constructor.LAND_COLS)
+            ) {
+                ui.activeBubbleLandId = blockId;
+                showSelectedLand(ui, blockId);
+                return;
+            }
             ui.openSeedBubble(blockId);
         }
         return;
@@ -564,13 +763,18 @@ export function handleLandClick(ui: any, blockId: number) {
         return;
     }
 
+    if (block.state === 'occupied') {
+        ui.handleOccupiedBuilding(blockId);
+        return;
+    }
+
     if (block.state === 'harvesting') {
         const cropId = land.harvestCrop(blockId);
         if (!cropId) return;
         const def = getItem(cropId);
-        const count = def?.harvestCount ?? 1;
+        const count = (def?.harvestCount ?? 1) * GameManager.getInstance().consumeHarvestMultiplier();
         InventorySystem.getInstance().addItem(cropId, count);
-        GameManager.getInstance().addExperience(5);
+        GameManager.getInstance().addExperience(land.getHarvestExperience());
         ui.refreshTopBar();
         animateHarvest(ui, blockId, cropId, count, () => {
             ui.refreshLandBlock(blockId);
@@ -587,19 +791,20 @@ export function handleLandClick(ui: any, blockId: number) {
 
 export function harvestAllMatureCrops(ui: any) {
     const land = LandSystem.getInstance();
-    const ready = land.getAllBlocks()
+    const matureBlocks = land.getAllBlocks()
         .filter(block => block.state === 'harvesting' && block.cropType)
-        .map(block => ({
-            blockId: block.id,
-            cropId: block.cropType as string,
-            count: getItem(block.cropType as string)?.harvestCount ?? 1,
-        }));
-
-    if (ready.length === 0) {
+    if (matureBlocks.length === 0) {
         ui.toast('没有成熟作物');
         updateHarvestAllButton(ui);
         return;
     }
+
+    const harvestMultiplier = GameManager.getInstance().consumeHarvestMultiplier();
+    const ready = matureBlocks.map(block => ({
+        blockId: block.id,
+        cropId: block.cropType as string,
+        count: (getItem(block.cropType as string)?.harvestCount ?? 1) * harvestMultiplier,
+    }));
 
     let harvestedKinds = 0;
     let totalCount = 0;
@@ -614,7 +819,7 @@ export function harvestAllMatureCrops(ui: any) {
         harvestedKinds++;
         totalCount += item.count;
         InventorySystem.getInstance().addItem(cropId, item.count);
-        GameManager.getInstance().addExperience(5);
+        GameManager.getInstance().addExperience(land.getHarvestExperience());
         animateHarvest(ui, item.blockId, cropId, item.count, () => {
             remainingAnimations--;
             if (remainingAnimations <= 0) {
@@ -694,10 +899,38 @@ export function plantCrop(ui: any, blockId: number, cropId: string) {
 
 }
 
+export function plantUniversalSeed(ui: any, blockId: number) {
+    const inventory = InventorySystem.getInstance();
+    if (!inventory.hasItems('universalSeed', 1)) {
+        ui.toast('万能种子不足');
+        return;
+    }
+    const gm = GameManager.getInstance();
+    const candidates = getPlantableCrops().filter(seed => seed.unlockLevel <= gm.playerLevel);
+    if (candidates.length === 0) {
+        ui.toast('当前没有可种植的作物');
+        return;
+    }
+    const seed = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!LandSystem.getInstance().plantCrop(blockId, seed.id)) {
+        ui.toast('这块田不能种植');
+        return;
+    }
+    inventory.removeItem('universalSeed', 1);
+    ui.selectedSeedId = null;
+    ui.bubbleRoot.removeAllChildren();
+    ui.refreshLandBlock(blockId);
+    ui.animatePlanting(blockId);
+    ui.toast(`万能种子随机种下 ${getItem(seed.cropId || '')?.name || seed.name}`);
+}
+
 export function ownedPlantableCrops(ui: any): ItemDef[] {
     const gm = GameManager.getInstance();
     const inv = InventorySystem.getInstance();
-    return getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel && inv.hasItems(c.id, 1));
+    const crops = getPlantableCrops().filter(c => c.unlockLevel <= gm.playerLevel && inv.hasItems(c.id, 1));
+    const universalSeed = getItem('universalSeed');
+    if (universalSeed && inv.hasItems(universalSeed.id, 1)) crops.push(universalSeed);
+    return crops;
 
 }
 
@@ -770,7 +1003,18 @@ export function openSeedBubble(ui: any, blockId: number) {
         cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
             const target = ui.activeBubbleLandId;
             ui.scheduleOnce(() => {
-                if (target >= 0) ui.plantCrop(target, crop.id);
+                if (target < 0) return;
+                const targetBlock = LandSystem.getInstance().getBlock(target);
+                if (!targetBlock || targetBlock.state !== 'empty') {
+                    ui.toast('这块田地当前不能种植');
+                    return;
+                }
+                if (!InventorySystem.getInstance().hasItems(crop.id, 1)) {
+                    ui.toast('种子不足');
+                    return;
+                }
+                if (crop.id === 'universalSeed') ui.plantUniversalSeed(target);
+                else ui.plantCrop(target, crop.id);
             }, 0);
         });
         content.addChild(cell);
@@ -809,6 +1053,194 @@ function getSeedBubblePosition(
         Math.max(-vs.width / 2 + bubbleW / 2 + margin, Math.min(vs.width / 2 - bubbleW / 2 - margin, targetX)),
         Math.max(-vs.height / 2 + bubbleH / 2 + 88, Math.min(vs.height / 2 - bubbleH / 2 - 148, targetY)),
         0,
+    );
+}
+
+export function openBuildingBubble(ui: any, slotId: number) {
+    const inventory = InventorySystem.getInstance();
+    const buildings = Object.keys(ITEM_DB).map(id => ITEM_DB[id])
+        .filter(item => (
+            item.category === ItemCategory.BUILDING || item.category === ItemCategory.DECORATION
+        ) && inventory.hasItems(item.id, 1))
+        .sort((a, b) => a.unlockLevel - b.unlockLevel);
+    if (buildings.length === 0) {
+        ui.toast('背包中没有可放置的建筑');
+        return;
+    }
+    ui.bubbleRoot.removeAllChildren();
+    ui.activePastureSlotId = slotId;
+    showSelectedPasture(ui, slotId);
+
+    const mask = new Node('BuildingBubbleMask');
+    mask.addComponent(UITransform).setContentSize(Design.WIDTH, view.getVisibleSize().height);
+    fillRect(mask, Design.WIDTH, view.getVisibleSize().height, new Color(0, 0, 0, 0));
+    mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        const targetSlotId = getTouchedPastureSlotId(ui, event);
+        ui.scheduleOnce(() => targetSlotId >= 0 ? ui.handlePastureClick(targetSlotId) : ui.closeBuildingBubble(), 0);
+    });
+    ui.bubbleRoot.addChild(mask);
+
+    const itemSize = 58;
+    const cols = Math.min(4, buildings.length);
+    const rows = Math.ceil(buildings.length / cols);
+    const visibleRows = Math.min(2, rows);
+    const gap = 6;
+    const width = cols * itemSize + (cols - 1) * gap + 18;
+    const viewportHeight = visibleRows * itemSize + (visibleRows - 1) * gap;
+    const contentHeight = rows * itemSize + (rows - 1) * gap;
+    const height = viewportHeight + 20;
+    const visibleSize = view.getVisibleSize();
+    const y = Math.min(visibleSize.height / 2 - height / 2 - 150, ui.pastureRoot.position.y + 190 * ui.pastureRoot.scale.y);
+
+    const bubble = new Node('BuildingBubble');
+    bubble.addComponent(UITransform).setContentSize(width, height);
+    bubble.setPosition(0, y);
+    fillRoundRect(bubble, width, height, 13, new Color(255, 249, 226, 252));
+    strokeRoundRect(bubble, width, height, 13, new Color(148, 105, 63, 210), 2);
+    bubble.on(Node.EventType.TOUCH_END, (event: any) => event?.stopPropagation?.());
+    ui.bubbleRoot.addChild(bubble);
+
+    const viewport = new Node('BuildingViewport');
+    viewport.addComponent(UITransform).setContentSize(width - 12, viewportHeight);
+    viewport.addComponent(Mask);
+    bubble.addChild(viewport);
+    const content = new Node('BuildingContent');
+    content.addComponent(UITransform).setContentSize(width - 12, contentHeight);
+    viewport.addChild(content);
+    const startX = -(width - 18) / 2 + itemSize / 2;
+    const startY = contentHeight / 2 - itemSize / 2;
+
+    buildings.forEach((building, index) => {
+        const cell = new Node(`Building_${building.id}`);
+        cell.addComponent(UITransform).setContentSize(itemSize, itemSize);
+        cell.setPosition(startX + (index % cols) * (itemSize + gap), startY - Math.floor(index / cols) * (itemSize + gap));
+        fillRoundRect(cell, itemSize, itemSize, 10, new Color(246, 227, 191, 250));
+        strokeRoundRect(cell, itemSize, itemSize, 10, new Color(168, 111, 57, 170), 1.3);
+        const icon = ui.createItemIcon(building.id, 39);
+        icon.setPosition(0, 7);
+        cell.addChild(icon);
+        cell.addChild(ui.makeLabel(building.name, 9, new Color(78, 43, 24), true, 0, -18, itemSize - 4, 12));
+        cell.addChild(ui.makeLabel(`x${inventory.getItemCount(building.id)}`, 8, new Color(114, 67, 35), false, 17, 18, 24, 12));
+        cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+            if (ui.activePastureSlotId >= 0) ui.placeBuilding(ui.activePastureSlotId, building.id);
+        });
+        content.addChild(cell);
+    });
+    if (rows > visibleRows) {
+        const scrollView = viewport.addComponent(ScrollView);
+        scrollView.horizontal = false;
+        scrollView.vertical = true;
+        scrollView.inertia = true;
+        (scrollView as any).elastic = false;
+        scrollView.content = content;
+    }
+    bubble.scale = new Vec3(0.72, 0.72, 1);
+    tween(bubble).to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+}
+
+export function closeBuildingBubble(ui: any) {
+    if (ui.bubbleRoot) ui.bubbleRoot.removeAllChildren();
+    ui.activePastureSlotId = -1;
+    clearSelectedPasture(ui);
+}
+
+function getTouchedPastureSlotId(ui: any, event: any): number {
+    const location = event?.getUILocation?.();
+    if (!location || !ui.pastureRoot) return -1;
+    const transform = ui.pastureRoot.getComponent(UITransform);
+    const local = transform?.convertToNodeSpaceAR?.(new Vec3(location.x, location.y, 0));
+    if (!local) return -1;
+    for (const slot of LandSystem.getInstance().getBuildingSlots()) {
+        const pos = getPasturePosition(ui, slot.id);
+        if (Math.abs(local.x - pos.x) <= 47 && Math.abs(local.y - pos.y) <= 47) return slot.id;
+    }
+    return -1;
+}
+
+export function placeBuilding(ui: any, slotId: number, buildingId: string) {
+    const item = getItem(buildingId);
+    const inventory = InventorySystem.getInstance();
+    const isPlaceable = item?.category === ItemCategory.BUILDING || item?.category === ItemCategory.DECORATION;
+    if (!item || !isPlaceable || !inventory.hasItems(buildingId, 1)) {
+        ui.toast('建筑数量不足');
+        return;
+    }
+    if (!LandSystem.getInstance().occupyBuildingSlot(slotId, buildingId)) {
+        ui.toast('这块地无法放置建筑');
+        return;
+    }
+    inventory.removeItem(buildingId, 1);
+    closeBuildingBubble(ui);
+    ui.refreshPastureSlot(slotId);
+    ui.toast(`${item.name}放置完成`);
+}
+
+export function updatePastureCollectAllButton(ui: any) {
+    const button = ui.node.getChildByName('PastureCollectAllButton');
+    if (!button) return;
+    const land = LandSystem.getInstance();
+    const ready = ui.activeWorld === 'pasture' && land.getBuildingSlots()
+        .some(slot => land.getBuildingProduction(slot.id)?.ready);
+    if (ready && !button.active) {
+        button.active = true;
+        button.scale = new Vec3(0.72, 0.72, 1);
+        tween(button).to(0.18, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' }).start();
+    } else if (!ready) {
+        button.active = false;
+        button.scale = new Vec3(1, 1, 1);
+    }
+}
+
+export function collectAllPastureProducts(ui: any) {
+    const land = LandSystem.getInstance();
+    const inventory = InventorySystem.getInstance();
+    const collected = new Map<string, number>();
+    for (const slot of land.getBuildingSlots()) {
+        const product = land.collectBuildingProduct(slot.id);
+        if (!product) continue;
+        inventory.addItem(product.itemId, product.count);
+        collected.set(product.itemId, (collected.get(product.itemId) || 0) + product.count);
+    }
+    if (collected.size === 0) {
+        ui.toast('当前没有可收取的牧场产物');
+        return;
+    }
+    ui.refreshPasture();
+    const summary = Array.from(collected.entries())
+        .map(([id, count]) => `${ui.itemName(id)} x${count}`)
+        .join('、');
+    ui.toast(`一键收取：${summary}`);
+}
+
+export function handleOccupiedBuilding(ui: any, slotId: number) {
+    const land = LandSystem.getInstance();
+    const block = land.getBuildingSlot(slotId);
+    if (!block?.buildingId) return;
+    const building = getItem(block.buildingId);
+    const production = land.getBuildingProduction(slotId);
+    if (production?.ready) {
+        const product = land.collectBuildingProduct(slotId);
+        if (!product) return;
+        InventorySystem.getInstance().addItem(product.itemId, product.count);
+        ui.refreshPastureSlot(slotId);
+        ui.toast(`收取 ${ui.itemName(product.itemId)} x${product.count}`);
+        return;
+    }
+    const status = production
+        ? `距离下次产出还有 ${formatCountdown(production.remaining)}`
+        : land.getPlacementEffectText(block.buildingId);
+    ui.showDialog(
+        building?.name || '农场建筑',
+        status,
+        [
+            { text: '保留', cb: () => {} },
+            { text: '拆除', cb: () => {
+                if (!land.clearBuildingSlot(slotId)) return;
+                InventorySystem.getInstance().addItem(block.buildingId!, 1);
+                ui.refreshPastureSlot(slotId);
+                ui.toast('建筑已放回背包');
+            }},
+        ],
     );
 }
 

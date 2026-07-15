@@ -24,18 +24,32 @@ const { ccclass } = _decorator;
 @ccclass('MainUI')
 export class MainUI extends Component {
     private topBar!: Node;
+    private artBackground!: Node;
     private landRoot!: Node;
+    private pastureRoot!: Node;
     private bubbleRoot!: Node;
     private dialogRoot!: Node;
     private panels: Partial<Record<PanelName, Node>> = {};
 
     private landTiles: Node[] = [];
+    private pastureTiles: Node[] = [];
+    private worldSwitchButton!: Node;
+    private activeWorld: 'farm' | 'pasture' = 'farm';
+    private worldSwitching = false;
     private selectedSeedId: string | null = null;
     private activeBubbleLandId = -1;
+    private activePastureSlotId = -1;
     private progressRefreshTimer = 0;
     private suppressNextLandExpandedRefresh = false;
     private taskDetailId?: string;
     private taskCategory: "main" | "daily" | "branch" | "special" = "main";
+    private selectedCraftRecipeId = '';
+    private craftRecipeScrollOffset = 0;
+    private craftArrowX?: number;
+    private inventoryCategory: "all" | "seeds" | "materials" | "products" = "all";
+    private inventoryScrollOffset = 0;
+    private shopCategory: "seeds" | "tools" = "seeds";
+    private shopScrollOffset = 0;
 
     private static readonly LAND_COLS = 3;
     private static readonly LAND_ROWS = 5;
@@ -50,7 +64,8 @@ export class MainUI extends Component {
         this.createLandArea();
         this.createBottomNav();
         this.createPanels();
-        this.createTaskEntry();
+        this.createShopEntry();
+        this.createDailySignInEntry();
         this.createDialogRoot();
         this.createBubbleRoot();
         this.bindEvents();
@@ -88,25 +103,35 @@ export class MainUI extends Component {
         return MainUIScene.createCurrencyEntry(this, parent, icon, labelName, value, y, color, iconSize, pillW, iconOffsetY);
     }
     private createLandArea() { return MainUIScene.createLandArea(this); }
+    private switchWorld(target?: 'farm' | 'pasture') { return MainUIScene.switchWorld(this, target); }
     private layoutLandArea() { return MainUIScene.layoutLandArea(this); }
     private getLandGridSize(): { width: number; height: number } { return MainUIScene.getLandGridSize(this); }
     private createBottomNav() { return MainUIScene.createBottomNav(this); }
     private createPanels() { return MainUIScene.createPanels(this); }
     private layoutResponsiveFeaturePanels() { return MainUIScene.layoutResponsiveFeaturePanels(this); }
-    private createTaskEntry() { return MainUIScene.createTaskEntry(this); }
+    private createShopEntry() { return MainUIScene.createShopEntry(this); }
+    private createDailySignInEntry() { return MainUIScene.createDailySignInEntry(this); }
     private createPanel(title: string, w: number, h: number): Node { return MainUIScene.createPanel(this, title, w, h); }
     private closePanelWithAnimation(panel: Node) { return MainUIScene.closePanelWithAnimation(this, panel); }
     private createDialogRoot() { return MainUIScene.createDialogRoot(this); }
     private createBubbleRoot() { return MainUIScene.createBubbleRoot(this); }
 
     private refreshLand() { return MainUILand.refreshLand(this); }
+    private refreshPasture() { return MainUILand.refreshPasture(this); }
+    private refreshPastureSlot(slotId: number) { return MainUILand.refreshPastureSlot(this, slotId); }
+    private createPastureTile(slot: LandBlock): Node { return MainUILand.createPastureTile(this, slot); }
+    private getPasturePosition(index: number): { x: number; y: number } { return MainUILand.getPasturePosition(this, index); }
+    private handlePastureClick(slotId: number) { return MainUILand.handlePastureClick(this, slotId); }
+    private openBuildingBubble(slotId: number) { return MainUILand.openBuildingBubble(this, slotId); }
+    private closeBuildingBubble() { return MainUILand.closeBuildingBubble(this); }
+    private collectAllPastureProducts() { return MainUILand.collectAllPastureProducts(this); }
     private refreshLandBlock(blockId: number, animateStage = false) { return MainUILand.refreshLandBlock(this, blockId, animateStage); }
     private animateUnlockLand(index: number) { return MainUILand.animateUnlockLand(this, index); }
     private updateGrowingProgress(blockId: number, progress: number) { return MainUILand.updateGrowingProgress(this, blockId, progress); }
     private createLandTile(block: LandBlock): Node { return MainUILand.createLandTile(this, block); }
     private createLockedTile(index: number): Node { return MainUILand.createLockedTile(this, index); }
     private drawTileBase(tile: Node, color: Color, locked = false) { return MainUILand.drawTileBase(this, tile, color, locked); }
-    private drawOccupiedMarker(tile: Node) { return MainUILand.drawOccupiedMarker(this, tile); }
+    private drawOccupiedMarker(tile: Node, block: LandBlock) { return MainUILand.drawOccupiedMarker(this, tile, block); }
     private animatePlanting(blockId: number) { return MainUILand.animatePlanting(this, blockId); }
     private getLandPosition(index: number): { x: number; y: number } { return MainUILand.getLandPosition(this, index); }
     private ensureLandCountForLevel() { return MainUILand.ensureLandCountForLevel(this); }
@@ -116,6 +141,9 @@ export class MainUI extends Component {
     private handleLockedLandClick(index: number) { return MainUILand.handleLockedLandClick(this, index); }
     private harvestAllMatureCrops() { return MainUILand.harvestAllMatureCrops(this); }
     private plantCrop(blockId: number, cropId: string) { return MainUILand.plantCrop(this, blockId, cropId); }
+    private plantUniversalSeed(blockId: number) { return MainUILand.plantUniversalSeed(this, blockId); }
+    private placeBuilding(blockId: number, buildingId: string) { return MainUILand.placeBuilding(this, blockId, buildingId); }
+    private handleOccupiedBuilding(blockId: number) { return MainUILand.handleOccupiedBuilding(this, blockId); }
     private ownedPlantableCrops(): ItemDef[] { return MainUILand.ownedPlantableCrops(this); }
     private openSeedBubble(blockId: number) { return MainUILand.openSeedBubble(this, blockId); }
     private closeSeedBubble() { return MainUILand.closeSeedBubble(this); }
@@ -126,11 +154,16 @@ export class MainUI extends Component {
     private renderShopPanel() { return MainUIPanels.renderShopPanel(this); }
     private renderShopPanelScrollable() { return MainUIPanels.renderShopPanelScrollable(this); }
     private renderCraftPanel() { return MainUIPanels.renderCraftPanel(this); }
+    private refreshCraftPanelDynamicSections() { return MainUIPanels.refreshCraftPanelDynamicSections(this); }
     private renderQuestPanel(enterDirection = 0) { return MainUIPanels.renderQuestPanel(this, enterDirection); }
     private renderTaskPanel() { return MainUIPanels.renderTaskPanel(this); }
+    private renderDailySignInPanel() { return MainUIPanels.renderDailySignInPanel(this); }
+    private renderAchievementPanel() { return MainUIPanels.renderAchievementPanel(this); }
     private buySeed(crop: ItemDef) { return MainUIPanels.buySeed(this, crop); }
     private getSeedBuyPrice(crop: ItemDef): number { return MainUIPanels.getSeedBuyPrice(this, crop); }
     private startCraft(recipeId: string) { return MainUIPanels.startCraft(this, recipeId); }
+    private useInventoryTool(slotIndex: number) { return MainUIPanels.useInventoryTool(this, slotIndex); }
+    private useSpecialItem(slotIndex: number) { return MainUIPanels.useSpecialItem(this, slotIndex); }
 
     private openSellDialog(slotIndex: number) { return MainUIDialogs.openSellDialog(this, slotIndex); }
     private applyEditBoxTextColor(editBox: EditBox, color: Color, placeholderColor: Color) {

@@ -2,18 +2,31 @@ import { _decorator, Component, Node, view, ResolutionPolicy } from 'cc';
 import { DataManager, SaveData } from './DataManager';
 import { EventManager } from './EventManager';
 import { GameValues, Design } from '../config/GameConfig';
-import { ITEM_DB } from '../config/ItemConfig';
+import { getPlantableCrops, ITEM_DB } from '../config/ItemConfig';
 import { getAllRecipes } from '../config/RecipeConfig';
 import { Logger } from '../utils/Logger';
 import { ImageCache } from '../utils/ImageCache';
 import { InventorySystem } from '../systems/InventorySystem';
 import { LandSystem } from '../systems/LandSystem';
 import { CraftSystem } from '../systems/CraftSystem';
+import { CurrencySystem } from '../systems/CurrencySystem';
+import { LevelSystem } from '../systems/LevelSystem';
 import { MainUI } from '../ui/MainUI';
 import { TASK_DEFINITIONS, TaskCategory, TaskEvent, getTaskDefinition } from '../config/TaskConfig';
+import { DAILY_SIGN_IN_REWARDS, DailySignInReward } from '../config/DailySignInConfig';
+import { ACHIEVEMENTS } from '../config/AchievementConfig';
 
 const { ccclass } = _decorator;
 const TAG = 'GameManager';
+
+function localDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const monthValue = date.getMonth() + 1;
+    const dayValue = date.getDate();
+    const month = monthValue < 10 ? `0${monthValue}` : `${monthValue}`;
+    const day = dayValue < 10 ? `0${dayValue}` : `${dayValue}`;
+    return `${year}-${month}-${day}`;
+}
 
 /**
  * 🎮 游戏主管理器
@@ -27,13 +40,15 @@ export class GameManager extends Component {
     private static instance: GameManager;
 
     // 玩家数据
-    playerLevel: number = 1;
+    playerLevel: number = GameValues.INITIAL_LEVEL;
     experience: number = 0;
     gold: number = GameValues.INITIAL_GOLD;
     diamond: number = GameValues.INITIAL_DIAMOND;
-    nextLevelExp: number = GameValues.EXP_PER_LEVEL;
+    nextLevelExp: number = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, GameValues.INITIAL_LEVEL - 1));
     totalPlayTime: number = 0;
-    unlockedRecipes: string[] = ['R001', 'R002', 'R003'];
+    unlockedRecipes: string[] = getAllRecipes()
+        .filter(recipe => recipe.requiredLevel <= GameValues.INITIAL_LEVEL)
+        .map(recipe => recipe.id);
     discoveredItems: string[] = [];
     completedQuests: string[] = [];
     dailyQuestProgress: Record<string, number> = {};
@@ -41,8 +56,13 @@ export class GameManager extends Component {
     lastQuestDate: string = '';
     taskProgress: Record<string, number> = {};
     claimedTasks: string[] = [];
+    dailySignInDay: number = 0;
+    lastDailySignInDate: string = '';
+    doubleHarvestCharges: number = 0;
+    goldBoostCharges: number = 0;
     totalCraftCount: number = 0;
     achievements: string[] = [];
+    claimedAchievements: string[] = [];
     hasLoaded: boolean = false;
     private saveQueued = false;
 
@@ -68,43 +88,15 @@ export class GameManager extends Component {
 
     start() {
         // 延迟一帧初始化，确保所有子管理器 start 已调用
-        this.scheduleOnce(() => {
+        this.scheduleOnce(async () => {
             this.loadGameData();
             this.bindProgressEvents();
+            const loaded = await ImageCache.getInstance().preloadAllRequired();
+            Logger.info(TAG, `🖼️ 初始化资源完成：物品 ${loaded.items}，UI ${loaded.ui}`);
             this.createMainUI();
             this.hasLoaded = true;
             Logger.info(TAG, '✅ 萌田农场启动完成');
-            // 后台预加载物品图片
-            ImageCache.getInstance().preloadUiIcons([
-                'catalogBg',
-                'panelBg',
-                'taskMain',
-                'taskDaily',
-                'taskBranch',
-                'taskSpecial',
-                'taskTabsMain',
-                'taskTabsDaily',
-                'taskTabsBranch',
-                'taskTabsSpecial',
-                'btnGo',
-                'btnDetail',
-                'btnClaim',
-                'btnClaimed',
-                'task1',
-                'task2',
-                'task3',
-                'rewardGold',
-                'rewardSeed',
-            ]);
-            this.preloadItemImages();
         }, 0.15);
-    }
-
-    /** 后台预加载所有物品图片 */
-    private async preloadItemImages() {
-        const itemIds = Object.keys(ITEM_DB);
-        Logger.info(TAG, `🖼️ 开始预加载 ${itemIds.length} 张物品图片...`);
-        const loaded = await ImageCache.getInstance().preload(itemIds);
     }
 
     /** 创建所有子系统节点 */
@@ -115,6 +107,8 @@ export class GameManager extends Component {
             { name: 'InventorySystem', ctor: InventorySystem },
             { name: 'LandSystem', ctor: LandSystem },
             { name: 'CraftSystem', ctor: CraftSystem },
+            { name: 'CurrencySystem', ctor: CurrencySystem },
+            { name: 'LevelSystem', ctor: LevelSystem },
         ];
 
         for (const { name, ctor } of nodes) {
@@ -139,11 +133,22 @@ export class GameManager extends Component {
     loadGameData() {
         const saveData = this.dataManager.loadGame();
         if (saveData) {
-            this.playerLevel = saveData.playerLevel || 1;
-            this.gold = saveData.gold ?? GameValues.INITIAL_GOLD;
-            this.diamond = saveData.diamond ?? GameValues.INITIAL_DIAMOND;
+            this.playerLevel = Math.max(
+                saveData.playerLevel || GameValues.INITIAL_LEVEL,
+                GameValues.INITIAL_LEVEL,
+            );
+            this.gold = Math.max(saveData.gold ?? GameValues.INITIAL_GOLD, GameValues.INITIAL_GOLD);
+            this.diamond = Math.max(
+                saveData.diamond ?? GameValues.INITIAL_DIAMOND,
+                GameValues.INITIAL_DIAMOND,
+            );
             this.experience = saveData.experience || 0;
-            this.unlockedRecipes = saveData.unlockedRecipes || ['R001', 'R002', 'R003'];
+            this.unlockedRecipes = Array.from(new Set([
+                ...(saveData.unlockedRecipes || []),
+                ...getAllRecipes()
+                    .filter(recipe => recipe.requiredLevel <= this.playerLevel)
+                    .map(recipe => recipe.id),
+            ]));
             this.discoveredItems = saveData.discoveredItems || [];
             this.completedQuests = saveData.completedQuests || [];
             this.dailyQuestProgress = saveData.dailyQuestProgress || {};
@@ -151,14 +156,28 @@ export class GameManager extends Component {
             this.lastQuestDate = saveData.lastQuestDate || '';
             this.taskProgress = saveData.taskProgress || { ...this.dailyQuestProgress };
             this.claimedTasks = saveData.claimedTasks || [...this.claimedDailyQuests];
+            this.dailySignInDay = Math.max(0, Math.min(7, saveData.dailySignInDay || 0));
+            this.lastDailySignInDate = saveData.lastDailySignInDate || '';
+            this.doubleHarvestCharges = Math.max(0, saveData.doubleHarvestCharges || 0);
+            this.goldBoostCharges = Math.max(0, saveData.goldBoostCharges || 0);
             this.totalCraftCount = saveData.totalCraftCount || 0;
             this.achievements = saveData.achievements || [];
+            this.claimedAchievements = saveData.claimedAchievements || [];
             this.totalPlayTime = saveData.totalPlayTime || 0;
             this.nextLevelExp = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, this.playerLevel - 1));
 
-            InventorySystem.getInstance().loadFromSave(saveData.inventory || [], saveData.inventoryMaxSlots);
-            LandSystem.getInstance().loadFromSave(saveData.landBlocks || [], saveData.plantCounts || {});
-            CraftSystem.getInstance().loadFromSave(saveData.activeCrafts || [], saveData.nextCraftId || 0);
+            InventorySystem.getInstance().loadFromSave(saveData.inventory || []);
+            LandSystem.getInstance().loadFromSave(
+                saveData.landBlocks || [],
+                saveData.plantCounts || {},
+                saveData.buildingSlots || [],
+                saveData.pastureUnlockedSlots,
+            );
+            CraftSystem.getInstance().loadFromSave(
+                saveData.activeCrafts || [],
+                saveData.nextCraftId || 0,
+                saveData.maxCraftTables || 1,
+            );
             Logger.info(TAG, '📂 存档加载完成', `等级:${this.playerLevel}`);
         }
         this.ensureDailyQuests();
@@ -180,11 +199,13 @@ export class GameManager extends Component {
             diamond: this.diamond,
             experience: this.experience,
             landBlocks: landSave.blocks,
+            buildingSlots: landSave.buildingSlots,
+            pastureUnlockedSlots: landSave.pastureUnlockedSlots,
             plantCounts: landSave.plantCounts,
             inventory: inventorySave.slots,
-            inventoryMaxSlots: inventorySave.maxSlots,
             activeCrafts: craftSave.activeCrafts,
             nextCraftId: craftSave.nextCraftId,
+            maxCraftTables: craftSave.maxCraftTables,
             unlockedRecipes: this.unlockedRecipes,
             discoveredItems: this.discoveredItems,
             totalPlayTime: Math.floor(this.totalPlayTime),
@@ -195,8 +216,13 @@ export class GameManager extends Component {
             lastQuestDate: this.lastQuestDate,
             taskProgress: this.taskProgress,
             claimedTasks: this.claimedTasks,
+            dailySignInDay: this.dailySignInDay,
+            lastDailySignInDate: this.lastDailySignInDate,
+            doubleHarvestCharges: this.doubleHarvestCharges,
+            goldBoostCharges: this.goldBoostCharges,
             totalCraftCount: this.totalCraftCount,
             achievements: this.achievements,
+            claimedAchievements: this.claimedAchievements,
             timestamp: Date.now(),
         };
         this.dataManager.saveGame(data);
@@ -253,6 +279,7 @@ export class GameManager extends Component {
         });
         evt.on('itemSold', (data: any) => { this.advanceTaskProgress('itemSold', data); this.requestSave(); });
         evt.on('landExpanded', (data: any) => { this.advanceTaskProgress('landExpanded', data); this.evaluateAchievements(); this.requestSave(); });
+        evt.on('pastureExpanded', () => this.requestSave());
         evt.on('goldChanged', () => this.requestSave());
         evt.on('diamondChanged', () => this.requestSave());
         evt.on('experienceChanged', () => this.requestSave());
@@ -275,7 +302,9 @@ export class GameManager extends Component {
         }
         for (const block of LandSystem.getInstance().getAllBlocks()) {
             if (block.cropType) seen.add(block.cropType);
-            if (block.buildingId) seen.add(block.buildingId);
+        }
+        for (const slot of LandSystem.getInstance().getBuildingSlots()) {
+            if (slot.buildingId) seen.add(slot.buildingId);
         }
         this.discoveredItems = Array.from(seen);
     }
@@ -334,6 +363,164 @@ export class GameManager extends Component {
             if (this.taskProgress[task.id] === undefined) this.taskProgress[task.id] = 0;
         }
         this.syncLegacyDailyTaskState();
+    }
+
+    claimAchievement(id: string): boolean {
+        const definition = ACHIEVEMENTS.find(item => item.id === id);
+        if (!definition || this.achievements.indexOf(id) < 0) return false;
+        if (this.claimedAchievements.indexOf(id) >= 0) return false;
+        if (definition.reward.type === 'gold') this.addGold(definition.reward.count);
+        else this.addDiamond(definition.reward.count);
+        this.claimedAchievements.push(id);
+        this.eventManager.emit('achievementClaimed', id);
+        this.requestSave();
+        return true;
+    }
+
+    isDailySignInClaimable(): boolean {
+        return this.lastDailySignInDate !== localDateKey(new Date());
+    }
+
+    getDailySignInDisplayDay(): number {
+        if (!this.isDailySignInClaimable()) return Math.max(1, this.dailySignInDay);
+        return this.isYesterday(this.lastDailySignInDate) && this.dailySignInDay < 7
+            ? this.dailySignInDay + 1
+            : 1;
+    }
+
+    claimDailySignIn(): DailySignInReward | null {
+        if (!this.isDailySignInClaimable()) return null;
+        const day = this.getDailySignInDisplayDay();
+        const reward = DAILY_SIGN_IN_REWARDS[day - 1];
+        if (!reward) return null;
+
+        const grantedReward = this.grantDailySignInReward(reward);
+
+        this.dailySignInDay = day;
+        this.lastDailySignInDate = localDateKey(new Date());
+        this.eventManager.emit('dailySignInChanged', { day, reward: grantedReward });
+        this.requestSave();
+        return grantedReward;
+    }
+
+    getMissedDailySignInDay(): number | null {
+        if (!this.lastDailySignInDate || this.dailySignInDay <= 0 || this.dailySignInDay >= 7) return null;
+        if (this.lastDailySignInDate === localDateKey(new Date()) || this.isYesterday(this.lastDailySignInDate)) return null;
+        return this.dailySignInDay + 1;
+    }
+
+    claimMissedDailySignIn(): DailySignInReward | null {
+        const day = this.getMissedDailySignInDay();
+        const inventory = InventorySystem.getInstance();
+        if (!day || !inventory.hasItems('makeUpSignInCard', 1)) return null;
+        const reward = DAILY_SIGN_IN_REWARDS[day - 1];
+        if (!reward) return null;
+
+        inventory.removeItem('makeUpSignInCard', 1);
+        const grantedReward = this.grantDailySignInReward(reward);
+        this.dailySignInDay = day;
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        this.lastDailySignInDate = localDateKey(yesterday);
+        this.eventManager.emit('dailySignInChanged', { day, reward: grantedReward, makeUp: true });
+        this.requestSave();
+        return grantedReward;
+    }
+
+    private grantDailySignInReward(reward: DailySignInReward): DailySignInReward {
+        if (reward.type === 'randomTool') {
+            const harvest = Math.random() < 0.5;
+            const itemId = harvest ? 'doubleHarvestCard' : 'speedTicket';
+            const count = harvest ? 1 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 3);
+            const label = harvest ? '双倍收获卡' : '加速券';
+            InventorySystem.getInstance().addItem(itemId, count);
+            return { day: reward.day, type: 'item', itemId, count, label };
+        }
+        if (reward.type === 'gold') this.addGold(reward.count);
+        else if (reward.type === 'diamond') this.addDiamond(reward.count);
+        else if (reward.itemId) InventorySystem.getInstance().addItem(reward.itemId, reward.count);
+        return reward;
+    }
+
+    private isYesterday(dateKey: string): boolean {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        return dateKey === localDateKey(yesterday);
+    }
+
+    useTool(itemId: string): string | null {
+        const inventory = InventorySystem.getInstance();
+        if (!inventory.hasItems(itemId, 1)) return null;
+
+        if (itemId === 'speedTicket') {
+            return CraftSystem.getInstance().getActiveCraftCount() > 0
+                ? '请在合成工坊的制作队列中使用加速券'
+                : '开始合成后，可在制作队列中使用加速券';
+        }
+        if (itemId === 'doubleHarvestCard') {
+            inventory.removeItem(itemId, 1);
+            this.doubleHarvestCharges++;
+            this.requestSave();
+            return '下一次收获数量翻倍';
+        }
+        if (itemId === 'goldBoostCard') {
+            inventory.removeItem(itemId, 1);
+            this.goldBoostCharges++;
+            this.requestSave();
+            return '下一次出售金币翻倍';
+        }
+        if (itemId === 'universalSeed') {
+            const seeds = getPlantableCrops().filter(item => item.unlockLevel <= this.playerLevel);
+            if (seeds.length === 0) return '当前没有可获得的种子';
+            const seed = seeds[Math.floor(Math.random() * seeds.length)];
+            inventory.runBatch(() => {
+                inventory.removeItem(itemId, 1);
+                inventory.addItem(seed.id, 3);
+            });
+            return `获得 ${seed.name} x3`;
+        }
+        return null;
+    }
+
+    openMysteryBox(): string | null {
+        const inventory = InventorySystem.getInstance();
+        if (!inventory.hasItems('mysteryBox', 1)) return null;
+        inventory.removeItem('mysteryBox', 1);
+        const roll = Math.random();
+        if (roll < 0.45) {
+            const gold = 400 + Math.floor(Math.random() * 5) * 100;
+            this.addGold(gold);
+            return `礼盒开出金币 x${gold}`;
+        }
+        if (roll < 0.7) {
+            const diamonds = 8 + Math.floor(Math.random() * 5);
+            this.addDiamond(diamonds);
+            return `礼盒开出钻石 x${diamonds}`;
+        }
+        const seeds = getPlantableCrops().filter(item => item.unlockLevel <= this.playerLevel);
+        const seed = seeds[Math.floor(Math.random() * seeds.length)];
+        if (!seed) {
+            this.addGold(500);
+            return '礼盒开出金币 x500';
+        }
+        inventory.addItem(seed.id, 5);
+        return `礼盒开出${seed.name} x5`;
+    }
+
+    consumeHarvestMultiplier(): number {
+        if (this.doubleHarvestCharges <= 0) return 1;
+        this.doubleHarvestCharges--;
+        this.requestSave();
+        return 2;
+    }
+
+    applySaleGold(baseGold: number): number {
+        const multiplier = this.goldBoostCharges > 0 ? 2 : 1;
+        if (multiplier > 1) this.goldBoostCharges--;
+        const awarded = Math.max(0, baseGold) * multiplier;
+        this.addGold(awarded);
+        this.requestSave();
+        return awarded;
     }
 
     private syncLegacyDailyTaskState() {

@@ -95,6 +95,7 @@ export function createBackground(ui: any) {
     ui.applyUiIcon('bgFarmSkyHills', artBg);
     ui.node.addChild(artBg);
     artBg.setSiblingIndex(ui.node.children.length - 1);
+    ui.artBackground = artBg;
 
 }
 
@@ -279,6 +280,26 @@ export function createTopBar(ui: any) {
     avatar.addChild(avatarImage);
     ui.topBar.addChild(avatar);
 
+    const achievementEntry = new Node('AchievementEntry');
+    achievementEntry.addComponent(UITransform).setContentSize(96, 96);
+    achievementEntry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        ui.showPanel('achievement');
+    });
+    const achievementBadge = new Node('Badge');
+    achievementBadge.setPosition(34, 34);
+    achievementBadge.active = false;
+    const achievementBadgeGraphics = achievementBadge.addComponent(Graphics);
+    achievementBadgeGraphics.fillColor = new Color(247, 70, 66, 255);
+    achievementBadgeGraphics.circle(0, 0, 6);
+    achievementBadgeGraphics.fill();
+    achievementBadgeGraphics.strokeColor = new Color(255, 245, 214, 255);
+    achievementBadgeGraphics.lineWidth = 1.6;
+    achievementBadgeGraphics.circle(0, 0, 6);
+    achievementBadgeGraphics.stroke();
+    achievementEntry.addChild(achievementBadge);
+    avatar.addChild(achievementEntry);
+
     const title = ui.makeLabel('萌田农场', 24, new Color(88, 45, 24), true, 0, 20, 150, 34);
     title.setPosition(-3, 22);
     title.getComponent(UITransform)?.setContentSize(160, 34);
@@ -369,14 +390,26 @@ export function createCurrencyEntry(ui: any, parent: Node, icon: string, labelNa
     pill.addChild(iconNode);
     ui.applyUiIcon(icon, iconNode);
 
-    const textW = Math.max(36, pillW - 30);
-    const textX = pillW / 2 - 4 - textW / 2;
-    const label = ui.makeLabel(value, 18, color, true, textX, 0, textW, 24);
-    label.name = labelName;
-    const labelComponent = label.getComponent(Label)!;
-    labelComponent.fontSize = 22;
-    labelComponent.overflow = Label.Overflow.CLAMP;
+    const textW = Math.max(44, pillW - 30);
+    const textX = pillW / 2 - 4 - textW / 2 - 5;
+    const label = new Node(labelName);
+    label.setPosition(textX, 0);
+    label.addComponent(UITransform).setContentSize(textW, 24);
+    const labelComponent = label.addComponent(Label);
+    labelComponent.string = value;
+    labelComponent.fontSize = 16;
+    labelComponent.lineHeight = 20;
+    labelComponent.color = color;
+    labelComponent.isBold = true;
+    labelComponent.verticalAlign = Label.VerticalAlign.CENTER;
+    labelComponent.horizontalAlign = Label.HorizontalAlign.CENTER;
+    labelComponent.overflow = Label.Overflow.NONE;
     labelComponent.enableWrapText = false;
+    label.name = labelName;
+    const labelCtor = Label as any;
+    if (labelCtor.CacheMode?.NONE !== undefined) {
+        (labelComponent as any).cacheMode = labelCtor.CacheMode.NONE;
+    }
     pill.addChild(label);
 
 }
@@ -387,7 +420,14 @@ export function createLandArea(ui: any) {
     ui.landRoot.addComponent(UITransform).setContentSize(size.width, size.height);
     ui.layoutLandArea();
     ui.node.addChild(ui.landRoot);
+
+    ui.pastureRoot = new Node('PastureRoot');
+    ui.pastureRoot.addComponent(UITransform).setContentSize(size.width, size.height);
+    ui.pastureRoot.active = false;
+    ui.node.addChild(ui.pastureRoot);
+    createWorldSwitchButton(ui);
     createHarvestAllButton(ui);
+    createPastureCollectAllButton(ui);
 
 }
 
@@ -404,26 +444,10 @@ function createHarvestAllButton(ui: any) {
     fillRoundRect(glow, 28, 30, 12, new Color(116, 216, 104, 82));
     button.addChild(glow);
 
-    const basket = new Node('BasketIcon');
-    basket.setPosition(0, 0);
-    const g = basket.addComponent(Graphics);
-    g.strokeColor = new Color(74, 136, 70, 235);
-    g.lineWidth = 2.1;
-    g.moveTo(-8, 3);
-    g.quadraticCurveTo(0, 12, 8, 3);
-    g.stroke();
-    g.fillColor = new Color(246, 190, 84, 245);
-    g.roundRect(-10, -8, 20, 15, 4);
-    g.fill();
-    g.strokeColor = new Color(140, 96, 42, 160);
-    g.roundRect(-10, -8, 20, 15, 4);
-    g.stroke();
-    g.fillColor = new Color(92, 178, 84, 220);
-    g.circle(-4, 3, 2.2);
-    g.circle(2, 4, 2.4);
-    g.circle(6, 1, 1.9);
-    g.fill();
-    button.addChild(basket);
+    const harvestIcon = new Node('HarvestEntryIcon');
+    harvestIcon.addComponent(UITransform).setContentSize(32, 32);
+    ui.applyUiIcon('entryHarvest', harvestIcon);
+    button.addChild(harvestIcon);
 
     button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
         event?.stopPropagation?.();
@@ -495,7 +519,154 @@ export function layoutLandArea(ui: any) {
 
     ui.landRoot.setPosition(0, centerY);
     ui.landRoot.setScale(new Vec3(scale, scale, 1));
+    if (ui.pastureRoot) {
+        ui.pastureRoot.setPosition(0, centerY);
+        ui.pastureRoot.setScale(new Vec3(scale, scale, 1));
+    }
 
+}
+
+function createPastureCollectAllButton(ui: any) {
+    const button = new Node('PastureCollectAllButton');
+    button.active = false;
+    button.addComponent(UITransform).setContentSize(38, 46);
+    button.setPosition(Design.WIDTH / 2 - 20, -108);
+    fillRoundRect(button, 38, 46, 13, new Color(255, 250, 230, 240));
+    strokeRoundRect(button, 38, 46, 13, new Color(224, 142, 54, 210), 2);
+    const glow = new Node('Glow');
+    glow.setPosition(0, -1);
+    fillRoundRect(glow, 28, 30, 12, new Color(245, 166, 65, 92));
+    button.addChild(glow);
+    const icon = new Node('PastureCollectIcon');
+    icon.addComponent(UITransform).setContentSize(32, 32);
+    ui.applyUiIcon('pastureCollect', icon);
+    button.addChild(icon);
+    button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        tween(button)
+            .to(0.06, { scale: new Vec3(0.92, 0.92, 1) }, { easing: 'quadOut' })
+            .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+            .start();
+        ui.collectAllPastureProducts();
+    });
+    ui.node.addChild(button);
+    tween(glow)
+        .repeatForever(
+            tween()
+                .to(0.8, { scale: new Vec3(1.12, 1.06, 1) }, { easing: 'quadInOut' })
+                .to(0.8, { scale: new Vec3(1, 1, 1) }, { easing: 'quadInOut' }),
+        )
+        .start();
+}
+
+function createWorldSwitchButton(ui: any) {
+    const button = new Node('WorldSwitchButton');
+    button.addComponent(UITransform).setContentSize(38, 46);
+    button.setPosition(Design.WIDTH / 2 - 20, 38);
+    fillRoundRect(button, 38, 46, 13, new Color(255, 250, 230, 240));
+    strokeRoundRect(button, 38, 46, 13, new Color(105, 174, 86, 180), 2);
+    const glow = new Node('WorldSwitchGlow');
+    glow.setPosition(0, -1);
+    fillRoundRect(glow, 30, 32, 9, new Color(137, 205, 112, 220));
+    button.addChild(glow);
+    drawWorldSwitchArrow(ui, button, false);
+    button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        switchWorld(ui);
+    });
+    ui.node.addChild(button);
+    ui.worldSwitchButton = button;
+}
+
+function drawWorldSwitchArrow(ui: any, button: Node, pointsLeft: boolean) {
+    button.getChildByName('Arrow')?.destroy();
+    const arrow = new Node('Arrow');
+    arrow.addComponent(UITransform).setContentSize(34, 34);
+    arrow.setPosition(0, -1);
+    button.addChild(arrow);
+    ui.applyUiIcon(pointsLeft ? 'entryFarmArrow' : 'entryPastureArrow', arrow);
+}
+
+export function switchWorld(ui: any, target?: 'farm' | 'pasture') {
+    if (ui.worldSwitching) return;
+    const next: 'farm' | 'pasture' = target || (ui.activeWorld === 'farm' ? 'pasture' : 'farm');
+    if (next === ui.activeWorld) return;
+    ui.worldSwitching = true;
+    ui.closeSeedBubble();
+    ui.closeBuildingBubble();
+
+    const vs = view.getVisibleSize();
+    const cloudRoot = new Node('WorldCloudTransition');
+    cloudRoot.addComponent(UITransform).setContentSize(vs.width, vs.height);
+    ui.node.addChild(cloudRoot);
+    const halfW = vs.width / 2 + 84;
+    const left = createCloudCurtainHalf('CloudLeft', halfW + 28, vs.height + 110, true);
+    const right = createCloudCurtainHalf('CloudRight', halfW, vs.height + 70, false);
+    const coveredLeftX = -vs.width / 4 + 46;
+    const coveredRightX = vs.width / 4 - 34;
+    left.setPosition(-vs.width / 2 - halfW / 2, 0);
+    right.setPosition(vs.width / 2 + halfW / 2, 0);
+    cloudRoot.addChild(left);
+    cloudRoot.addChild(right);
+
+    const reveal = () => {
+        ui.activeWorld = next;
+        ui.landRoot.active = next === 'farm';
+        ui.pastureRoot.active = next === 'pasture';
+        ui.applyUiIcon(next === 'farm' ? 'bgFarmSkyHills' : 'bgPastureFence', ui.artBackground);
+        drawWorldSwitchArrow(ui, ui.worldSwitchButton, next === 'pasture');
+        ui.worldSwitchButton.setPosition(
+            next === 'pasture' ? -Design.WIDTH / 2 + 20 : Design.WIDTH / 2 - 20,
+            38,
+        );
+        const harvestAll = ui.node.getChildByName('HarvestAllButton');
+        const pastureCollectAll = ui.node.getChildByName('PastureCollectAllButton');
+        if (next === 'pasture') {
+            if (harvestAll) harvestAll.active = false;
+            ui.refreshPasture();
+        } else {
+            if (pastureCollectAll) pastureCollectAll.active = false;
+            ui.refreshLand();
+        }
+    };
+    tween(left)
+        .to(0.31, { position: new Vec3(coveredLeftX, 7, 0) }, { easing: 'quadInOut' })
+        .call(reveal)
+        .delay(0.18)
+        .to(0.52, { position: new Vec3(-vs.width / 2 - halfW / 2 - 24, -9, 0) }, { easing: 'quadIn' })
+        .call(() => {
+            cloudRoot.destroy();
+            ui.worldSwitching = false;
+        })
+        .start();
+    tween(right)
+        .to(0.39, { position: new Vec3(coveredRightX, -6, 0) }, { easing: 'sineInOut' })
+        .delay(0.12)
+        .to(0.63, { position: new Vec3(vs.width / 2 + halfW / 2 + 18, 12, 0) }, { easing: 'quadIn' })
+        .start();
+}
+
+function createCloudCurtainHalf(name: string, width: number, height: number, leftSide: boolean): Node {
+    const cloud = new Node(name);
+    cloud.addComponent(UITransform).setContentSize(width, height);
+    const g = cloud.addComponent(Graphics);
+    g.fillColor = leftSide ? new Color(248, 253, 255, 255) : new Color(243, 250, 255, 255);
+    g.rect(-width / 2, -height / 2, width, height);
+    g.fill();
+    const edgeX = leftSide ? width / 2 - 7 : -width / 2 + 9;
+    const spacing = leftSide ? 47 : 55;
+    const start = leftSide ? -height / 2 + 17 : -height / 2 + 38;
+    for (let y = start, i = 0; y < height / 2; y += spacing, i++) {
+        const radius = leftSide ? 25 + ((i * 7) % 4) * 5 : 31 + ((i * 5 + 1) % 3) * 7;
+        const offset = leftSide ? (i % 2) * 8 : -(i % 3) * 6;
+        g.circle(edgeX + offset, y, radius);
+        g.fill();
+        if ((leftSide && i % 3 === 1) || (!leftSide && i % 2 === 0)) {
+            g.circle(edgeX + (leftSide ? -18 : 20), y + radius * 0.72, radius * 0.62);
+            g.fill();
+        }
+    }
+    return cloud;
 }
 
 export function getLandGridSize(ui: any): { width: number; height: number } {
@@ -527,7 +698,7 @@ export function createBottomNav(ui: any) {
     buttons.forEach((item, index) => {
         const btn = new Node(`Nav_${item.panel}`);
         const iconSize = item.panel === 'inventory' ? 49 : (item.panel === 'craft' ? 54 : 49);
-        const iconY = item.panel === 'quest' ? 16 : 18;
+        const iconY = 18;
         btn.addComponent(UITransform).setContentSize(76, 58);
         btn.setPosition(-navW / 2 + slotW * index + slotW / 2, 1);
         fillRoundRect(btn, 76, 58, 13, new Color(255, 247, 210, 255));
@@ -542,6 +713,21 @@ export function createBottomNav(ui: any) {
         const label = ui.makeLabel(item.name, 14, new Color(88, 45, 24), true, 0, -12, 68, 26);
         label.name = 'Label';
         btn.addChild(label);
+
+        if (item.panel === 'task') {
+            const badge = new Node('Badge');
+            badge.setPosition(28, 24);
+            badge.active = false;
+            const badgeGraphics = badge.addComponent(Graphics);
+            badgeGraphics.fillColor = new Color(247, 70, 66, 255);
+            badgeGraphics.circle(0, 0, 5.5);
+            badgeGraphics.fill();
+            badgeGraphics.strokeColor = new Color(255, 242, 211, 255);
+            badgeGraphics.lineWidth = 1.5;
+            badgeGraphics.circle(0, 0, 5.5);
+            badgeGraphics.stroke();
+            btn.addChild(badge);
+        }
 
         btn.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
             tween(btn)
@@ -610,13 +796,15 @@ function addStarSprinkles(parent: Node, stars: number[][]) {
 }
 
 export function createPanels(ui: any) {
-    ui.panels.inventory = ui.createPanel('背包仓库', 318, 398);
-    ui.panels.craft = ui.createPanel('合成工坊', 318, 398);
-    ui.panels.shop = ui.createPanel('集市商店', 318, 398);
+    ui.panels.inventory = ui.createPanel('储物背包', Design.WIDTH, 540);
+    ui.panels.craft = ui.createPanel('合成工坊', Design.WIDTH, 540);
+    ui.panels.shop = ui.createPanel('好物集市', Design.WIDTH, 540);
     ui.panels.quest = ui.createPanel('图鉴', Design.WIDTH, 540);
     ui.panels.task = ui.createPanel('\u4eca\u65e5\u4efb\u52a1', Design.WIDTH, 540);
+    ui.panels.signIn = ui.createPanel('\u6bcf\u65e5\u7b7e\u5230', Design.WIDTH, 540);
+    ui.panels.achievement = ui.createPanel('\u6210\u5c31\u624b\u518c', Design.WIDTH, 540);
     layoutResponsiveFeaturePanels(ui);
-    for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task]) {
+    for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task, ui.panels.signIn, ui.panels.achievement]) {
         if (!panel) continue;
         panel.active = false;
         ui.node.addChild(panel);
@@ -660,45 +848,30 @@ export function layoutResponsiveFeaturePanels(ui: any) {
     const bottomNavH = 82;
     const scale = vs.width / Design.WIDTH;
     const centerY = -vs.height / 2 + bottomNavH + (panelH * scale) / 2;
-    for (const panel of [ui.panels.quest, ui.panels.task]) {
+    for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task, ui.panels.signIn, ui.panels.achievement]) {
         if (!panel) continue;
         panel.setPosition(0, centerY);
         panel.setScale(scale, scale, 1);
     }
 }
 
-export function createTaskEntry(ui: any) {
-    const entry = new Node('TaskEntry');
+export function createShopEntry(ui: any) {
+    const entry = new Node('ShopEntry');
     entry.setPosition(Design.WIDTH / 2 - 20, -55);
     entry.addComponent(UITransform).setContentSize(38, 46);
     fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
     strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
 
-    const icon = new Node('TaskIcon');
-    icon.setPosition(0, 0);
-    const g = icon.addComponent(Graphics);
-    g.strokeColor = new Color(76, 150, 78, 240);
-    g.lineWidth = 2.4;
-    g.roundRect(-8, -11, 16, 22, 3.5);
-    g.stroke();
-    g.strokeColor = new Color(76, 150, 78, 210);
-    g.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-        const y = 5 - i * 7;
-        g.moveTo(-4, y);
-        g.lineTo(5, y);
-        g.stroke();
-        g.circle(-6.5, y, 1);
-        g.stroke();
-    }
-    entry.addChild(icon);
+    const glow = new Node('ShopEntryGlow');
+    glow.setPosition(0, -1);
+    fillRoundRect(glow, 30, 32, 9, new Color(240, 168, 70, 220));
+    entry.addChild(glow);
 
-    const badge = new Node('Badge');
-    badge.name = 'Badge';
-    badge.setPosition(13, 17);
-    badge.active = false;
-    fillRoundRect(badge, 9, 9, 4.5, new Color(255, 92, 92, 245));
-    entry.addChild(badge);
+    const icon = new Node('ShopEntryIcon');
+    icon.addComponent(UITransform).setContentSize(30, 30);
+    icon.setPosition(0, -1);
+    ui.applyUiIcon('entryShop', icon);
+    entry.addChild(icon);
 
     entry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
         event?.stopPropagation?.();
@@ -706,11 +879,7 @@ export function createTaskEntry(ui: any) {
             .to(0.06, { scale: new Vec3(0.92, 0.92, 1) }, { easing: 'quadOut' })
             .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
             .start();
-        if (ui.panels.task?.active) {
-            ui.renderTaskPanel();
-            return;
-        }
-        ui.showPanel('task');
+        ui.showPanel('shop');
     });
     ui.node.addChild(entry);
     for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task]) {
@@ -793,6 +962,72 @@ export function createDialogRoot(ui: any) {
 
 export function createBubbleRoot(ui: any) {
     ui.bubbleRoot = new Node('BubbleRoot');
+    const visible = view.getVisibleSize();
+    ui.bubbleRoot.addComponent(UITransform).setContentSize(visible.width, visible.height);
     ui.node.addChild(ui.bubbleRoot);
 
+}
+
+export function createDailySignInEntry(ui: any) {
+    const entry = new Node('DailySignInEntry');
+    entry.setPosition(-Design.WIDTH / 2 + 20, -55);
+    entry.addComponent(UITransform).setContentSize(38, 46);
+    fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
+    strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
+
+    const tile = new Node('CalendarTile');
+    tile.setPosition(0, -1);
+    fillRoundRect(tile, 30, 32, 9, new Color(129, 205, 133, 225));
+    entry.addChild(tile);
+
+    const calendar = new Node('CalendarIcon');
+    calendar.setPosition(0, -1);
+    const g = calendar.addComponent(Graphics);
+    g.fillColor = new Color(255, 248, 218, 255);
+    g.roundRect(-9, -9, 18, 18, 4);
+    g.fill();
+    g.strokeColor = new Color(122, 69, 38, 235);
+    g.lineWidth = 1.8;
+    g.roundRect(-9, -9, 18, 18, 4);
+    g.stroke();
+    g.fillColor = new Color(239, 105, 101, 255);
+    g.roundRect(-9, 3, 18, 6, 3);
+    g.fill();
+    g.strokeColor = new Color(122, 69, 38, 235);
+    g.lineWidth = 1.6;
+    g.moveTo(-5, 7);
+    g.lineTo(-5, 11);
+    g.moveTo(5, 7);
+    g.lineTo(5, 11);
+    g.stroke();
+    g.fillColor = new Color(246, 190, 66, 255);
+    g.circle(0, -3, 3.2);
+    g.fill();
+    entry.addChild(calendar);
+
+    const badge = new Node('Badge');
+    badge.setPosition(13, 17);
+    badge.active = false;
+    const badgeG = badge.addComponent(Graphics);
+    badgeG.fillColor = new Color(247, 70, 66, 255);
+    badgeG.circle(0, 0, 5.5);
+    badgeG.fill();
+    badgeG.strokeColor = new Color(255, 242, 211, 255);
+    badgeG.lineWidth = 1.5;
+    badgeG.circle(0, 0, 5.5);
+    badgeG.stroke();
+    entry.addChild(badge);
+
+    entry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        tween(entry)
+            .to(0.06, { scale: new Vec3(0.92, 0.92, 1) }, { easing: 'quadOut' })
+            .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: 'backOut' })
+            .start();
+        ui.showPanel('signIn');
+    });
+    ui.node.addChild(entry);
+    for (const panel of [ui.panels.inventory, ui.panels.craft, ui.panels.shop, ui.panels.quest, ui.panels.task, ui.panels.signIn, ui.panels.achievement]) {
+        if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
+    }
 }

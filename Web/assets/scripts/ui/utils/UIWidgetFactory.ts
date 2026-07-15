@@ -17,12 +17,12 @@ const ITEM_NAMES: Record<string, string> = {
     oatmeal: '燕麦', jam: '果酱', cheese: '奶酪', ketchup: '番茄酱',
     bread: '面包', croissant: '牛角包', cake: '蛋糕', cupcake: '杯子蛋糕', cookie: '饼干',
     pie: '派', strawberryCake: '草莓蛋糕', baguette: '法棍', donut: '甜甜圈',
-    chocolateCake: '巧克力蛋糕', cereal: '麦片', pasta: '意面',
+    chocolateCake: '巧克力蛋糕', cornFlakes: '玉米片', cereal: '麦片', pasta: '意面', flower: '鲜花',
     butterToast: '黄油吐司', honeyToast: '蜂蜜吐司', jamToast: '果酱吐司',
 };
 
 const RECIPE_NAMES: Record<string, string> = {
-    R001: '制作面粉', R002: '制作黄油', R003: '制作番茄酱', R004: '胡萝卜泥',
+    R001: '制作面粉', R002: '制作黄油', R003: '制作番茄酱', R004: '胡萝卜泥', R006: '制作玉米片',
     R010: '烘焙面包', R011: '牛角包', R012: '制作饼干', R013: '黄油吐司',
     R014: '蜂蜜吐司', R016: '麦片早餐', R017: '烹饪意面', R020: '烘焙蛋糕',
     R021: '杯子蛋糕', R022: '甜甜圈', R024: '草莓派', R026: '草莓蛋糕',
@@ -93,14 +93,18 @@ export function createItemIcon(itemId: string, size: number, trimTransparent = f
     node.addComponent(UITransform).setContentSize(size, size);
     const fallback = createFallbackIcon(itemId, size);
     node.addChild(fallback);
-    ImageCache.getInstance().load(itemId).then(sf => {
+    const applySpriteFrame = (sf: import('cc').SpriteFrame | null) => {
         if (!sf || !node.isValid) return;
         fallback.active = false;
         const sprite = node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         sprite.trim = trimTransparent;
         sprite.spriteFrame = sf;
-    });
+    };
+    const imageCache = ImageCache.getInstance();
+    const cached = imageCache.getCachedItem(itemId);
+    if (cached) applySpriteFrame(cached);
+    else imageCache.load(itemId).then(applySpriteFrame);
     return node;
 }
 
@@ -123,11 +127,16 @@ function createFallbackIcon(itemId: string, size: number): Node {
 
 /** 异步加载 UI 图标（金币、钻石、导航等）并应用到节点 */
 export function applyUiIcon(name: string, node: Node) {
-    ImageCache.getInstance().loadUiIcon(name).then(sf => {
-        if (!sf || !node.isValid) return;
-        const sprite = node.addComponent(Sprite);
+    (node as any).__uiIconRequest = name;
+    const applySpriteFrame = (sf: import('cc').SpriteFrame | null) => {
+        if (!sf || !node.isValid || (node as any).__uiIconRequest !== name) return;
+        const sprite = node.getComponent(Sprite) || node.addComponent(Sprite);
         sprite.sizeMode = Sprite.SizeMode.CUSTOM;
         sprite.trim = false;
         sprite.spriteFrame = sf;
-    });
+    };
+    const imageCache = ImageCache.getInstance();
+    const cached = imageCache.getCachedUiIcon(name);
+    if (cached) applySpriteFrame(cached);
+    else imageCache.loadUiIcon(name).then(applySpriteFrame);
 }
