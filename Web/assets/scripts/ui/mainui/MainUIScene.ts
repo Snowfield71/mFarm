@@ -458,6 +458,7 @@ export function createTopBar(ui: any) {
 
   const levelBadge = new Node("LevelBadge");
   levelBadge.setPosition(-113, -48);
+  levelBadge.addComponent(UITransform).setContentSize(88, 34);
   drawLevelStyleRoundRect(
     levelBadge,
     88,
@@ -483,6 +484,24 @@ export function createTopBar(ui: any) {
   level.getComponent(UITransform)?.setContentSize(80, 24);
   level.getComponent(Label)!.fontSize = 14;
   levelBadge.addChild(level);
+
+  const playerTitle = ui.makeLabel(
+    "",
+    9,
+    new Color(112, 70, 42),
+    true,
+    0,
+    -9,
+    82,
+    13,
+  );
+  playerTitle.name = "PlayerTitleText";
+  playerTitle.active = false;
+  levelBadge.addChild(playerTitle);
+  levelBadge.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    ui.showTitleDialog();
+  });
 
   ui.node.addChild(ui.topBar);
 }
@@ -849,6 +868,7 @@ export function switchWorld(ui: any, target?: "farm" | "pasture") {
       if (pastureCollectAll) pastureCollectAll.active = false;
       ui.refreshLand();
     }
+    ui.refreshTopBar();
   };
   tween(left)
     .to(
@@ -1129,6 +1149,7 @@ export function createPanels(ui: any) {
     Design.WIDTH,
     540,
   );
+  ui.panels.title = ui.createPanel("\u6211\u7684\u79f0\u53f7", Design.WIDTH, 540);
   layoutResponsiveFeaturePanels(ui);
   for (const panel of [
     ui.panels.inventory,
@@ -1138,6 +1159,7 @@ export function createPanels(ui: any) {
     ui.panels.task,
     ui.panels.signIn,
     ui.panels.achievement,
+    ui.panels.title,
   ]) {
     if (!panel) continue;
     panel.active = false;
@@ -1189,6 +1211,7 @@ export function layoutResponsiveFeaturePanels(ui: any) {
     ui.panels.task,
     ui.panels.signIn,
     ui.panels.achievement,
+    ui.panels.title,
   ]) {
     if (!panel) continue;
     panel.setPosition(0, centerY);
@@ -1229,6 +1252,7 @@ export function createShopEntry(ui: any) {
     ui.panels.shop,
     ui.panels.quest,
     ui.panels.task,
+    ui.panels.title,
   ]) {
     if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
   }
@@ -1399,6 +1423,7 @@ export function createDailySignInEntry(ui: any) {
     ui.panels.task,
     ui.panels.signIn,
     ui.panels.achievement,
+    ui.panels.title,
   ]) {
     if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
   }

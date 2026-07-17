@@ -42,13 +42,21 @@ import {
 } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
 import { ImageCache } from "../../utils/ImageCache";
-import { DAILY_SIGN_IN_REWARDS, DailySignInReward } from "../../config/DailySignInConfig";
-import { ACHIEVEMENTS } from "../../config/AchievementConfig";
+import {
+  DAILY_SIGN_IN_REWARDS,
+  DailySignInReward,
+} from "../../config/DailySignInConfig";
+import {
+  ACHIEVEMENTS,
+  AchievementCategory,
+  AchievementDefinition,
+} from "../../config/AchievementConfig";
 import {
   getTaskCategoryLabel,
   TaskAction,
   TaskCategory,
 } from "../../config/TaskConfig";
+import { PLAYER_TITLES, PlayerTitleCategory } from "../../config/TitleConfig";
 
 export function showPanel(ui: any, name: PanelName) {
   ui.closeSeedBubble();
@@ -56,13 +64,19 @@ export function showPanel(ui: any, name: PanelName) {
     closeActivePanel(ui, name);
     return;
   }
+  if (name === "shop") {
+    ui.shopCategory = ui.activeWorld === "pasture" ? "tools" : "seeds";
+    ui.shopScrollOffset = 0;
+  }
   if (ui.panels.inventory) ui.panels.inventory.active = name === "inventory";
   if (ui.panels.craft) ui.panels.craft.active = name === "craft";
   if (ui.panels.shop) ui.panels.shop.active = name === "shop";
   if (ui.panels.quest) ui.panels.quest.active = name === "quest";
   if (ui.panels.task) ui.panels.task.active = name === "task";
   if (ui.panels.signIn) ui.panels.signIn.active = name === "signIn";
-  if (ui.panels.achievement) ui.panels.achievement.active = name === "achievement";
+  if (ui.panels.achievement)
+    ui.panels.achievement.active = name === "achievement";
+  if (ui.panels.title) ui.panels.title.active = name === "title";
   updateBottomNavState(ui, name);
 
   if (name === "inventory") {
@@ -76,6 +90,13 @@ export function showPanel(ui: any, name: PanelName) {
       "inventorySeeds",
       "inventoryMaterials",
       "inventoryProducts",
+      "inventorySellDialogBg",
+      "inventorySellResultBg",
+      "btnSellCancel",
+      "btnSellConfirm",
+      "btnSellMinus",
+      "btnSellPlus",
+      "btnSellMax",
     ]);
     ui.renderInventoryPanel();
   }
@@ -141,16 +162,110 @@ export function showPanel(ui: any, name: PanelName) {
       "panelBg",
       "gold",
       "diamond",
-      ...ACHIEVEMENTS.map(item => item.icon),
-      ...ACHIEVEMENTS.map(item => item.lockedIcon).filter((icon): icon is string => !!icon),
+      "taskTabsMain",
+      "taskTabsDaily",
+      "taskTabsBranch",
+      "taskTabsSpecial",
+      "achievementCategoryPlanting",
+      "achievementCategoryCrafting",
+      "achievementCategoryGrowth",
+      "achievementCategoryCollection",
+      "achievementMedalWallEntry",
+      "achievementMedalWallBg",
+      ...ACHIEVEMENTS.map((item) => item.icon),
+      ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
+        (icon): icon is string => !!icon,
+      ),
     ]);
     ui.renderAchievementPanel();
+  }
+  if (name === "title") {
+    ImageCache.getInstance().preloadUiIcons([
+      "panelBg",
+      "shopTabsSeeds",
+      "shopTabsTools",
+      "btnTitleEquip",
+      "btnTitleUnequip",
+      "titleCategoryLevel",
+      "titleCategoryAchievement",
+      "titleUnlocked",
+      "titleLocked",
+    ]);
+    ui.renderTitlePanel();
   }
 }
 
 function closeActivePanel(ui: any, name: PanelName) {
   const panel = ui.panels[name];
   if (panel) ui.closePanelWithAnimation(panel);
+}
+
+/** Preload image-heavy panel assets in small batches after the main scene settles. */
+export function prewarmHeavyPanelImages(ui: any) {
+  const cache = ImageCache.getInstance();
+  const uiIcons = Array.from(
+    new Set([
+      "panelBg",
+      "taskTabsMain",
+      "taskTabsDaily",
+      "taskTabsBranch",
+      "taskTabsSpecial",
+      "inventoryAll",
+      "inventorySeeds",
+      "inventoryMaterials",
+      "inventoryProducts",
+      "shopTabsSeeds",
+      "shopTabsTools",
+      "shopSeeds",
+      "shopTools",
+      "craftChefTools",
+      "craftArrow",
+      "btnCraft",
+      "taskMain",
+      "taskDaily",
+      "taskBranch",
+      "taskSpecial",
+      "btnGo",
+      "btnDetail",
+      "btnClaim",
+      "btnClaimed",
+      "task1",
+      "task2",
+      "task3",
+      "rewardGold",
+      "rewardSeed",
+      "achievementCategoryPlanting",
+      "achievementCategoryCrafting",
+      "achievementCategoryGrowth",
+      "achievementCategoryCollection",
+      "achievementMedalWallEntry",
+      "achievementMedalWallBg",
+      ...ACHIEVEMENTS.map((item) => item.icon),
+      ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
+        (icon): icon is string => !!icon,
+      ),
+    ]),
+  );
+  const itemIds = Object.keys(ITEM_DB);
+  const jobs: Array<() => Promise<number>> = [];
+  for (let i = 0; i < uiIcons.length; i += 6) {
+    const batch = uiIcons.slice(i, i + 6);
+    jobs.push(() => cache.preloadUiIcons(batch));
+  }
+  for (let i = 0; i < itemIds.length; i += 6) {
+    const batch = itemIds.slice(i, i + 6);
+    jobs.push(() => cache.preload(batch));
+  }
+
+  let jobIndex = 0;
+  const runNext = () => {
+    if (!ui.node?.isValid || jobIndex >= jobs.length) return;
+    const scheduleNext = () => {
+      if (ui.node?.isValid) ui.scheduleOnce(runNext, 0.03);
+    };
+    jobs[jobIndex++]().then(scheduleNext, scheduleNext);
+  };
+  ui.scheduleOnce(runNext, 0.25);
 }
 
 function updateBottomNavState(ui: any, active: PanelName) {
@@ -275,7 +390,9 @@ export function renderInventoryPanel(ui: any) {
 
   const entries = inv.slots
     .map((slot, slotIndex) => ({ slot, slotIndex }))
-    .filter(({ slot }) => inventorySlotMatchesCategory(slot.itemId, ui.inventoryCategory));
+    .filter(({ slot }) =>
+      inventorySlotMatchesCategory(slot.itemId, ui.inventoryCategory),
+    );
   while (entries.length < 16) {
     entries.push({ slot: { itemId: "", count: 0 }, slotIndex: -1 });
   }
@@ -284,16 +401,50 @@ export function renderInventoryPanel(ui: any) {
 
 function drawInventoryCategoryTabs(ui: any, body: Node) {
   const tabs = [
-    { id: "all", text: "\u5168\u90e8", width: 84, visualX: -121, image: "taskTabsMain", icon: "inventoryAll", iconSize: 31 },
-    { id: "seeds", text: "\u79cd\u5b50", width: 88, visualX: -36, image: "taskTabsDaily", icon: "inventorySeeds", iconSize: 29 },
-    { id: "materials", text: "\u6750\u6599", width: 84, visualX: 47, image: "taskTabsBranch", icon: "inventoryMaterials", iconSize: 31 },
-    { id: "products", text: "\u6210\u54c1", width: 88, visualX: 128, image: "taskTabsSpecial", icon: "inventoryProducts", iconSize: 27, iconOffsetX: 4 },
+    {
+      id: "all",
+      text: "\u5168\u90e8",
+      width: 84,
+      visualX: -121,
+      image: "taskTabsMain",
+      icon: "inventoryAll",
+      iconSize: 31,
+    },
+    {
+      id: "seeds",
+      text: "\u79cd\u5b50",
+      width: 88,
+      visualX: -36,
+      image: "taskTabsDaily",
+      icon: "inventorySeeds",
+      iconSize: 29,
+    },
+    {
+      id: "materials",
+      text: "\u6750\u6599",
+      width: 84,
+      visualX: 47,
+      image: "taskTabsBranch",
+      icon: "inventoryMaterials",
+      iconSize: 31,
+    },
+    {
+      id: "products",
+      text: "\u6210\u54c1",
+      width: 88,
+      visualX: 128,
+      image: "taskTabsSpecial",
+      icon: "inventoryProducts",
+      iconSize: 27,
+      iconOffsetX: 4,
+    },
   ];
   if (!ui.inventoryCategory) ui.inventoryCategory = "all";
   const baselineY = 126;
   const imageH = 60;
   const tabGap = 5;
-  const selected = tabs.find((tab) => tab.id === ui.inventoryCategory) || tabs[0];
+  const selected =
+    tabs.find((tab) => tab.id === ui.inventoryCategory) || tabs[0];
   const image = new Node("InventoryCategoryTabsImage");
   image.addComponent(UITransform).setContentSize(360, imageH);
   image.setPosition(0, baselineY + imageH / 2 - 1);
@@ -323,7 +474,8 @@ function drawInventoryCategoryTabs(ui: any, body: Node) {
   });
   body.addChild(image);
 
-  const totalW = tabs.reduce((sum, tab) => sum + tab.width, 0) + tabGap * (tabs.length - 1);
+  const totalW =
+    tabs.reduce((sum, tab) => sum + tab.width, 0) + tabGap * (tabs.length - 1);
   let cursorX = -totalW / 2;
   tabs.forEach((tab, index) => {
     const node = new Node(`InventoryTabHit_${index}`);
@@ -336,13 +488,15 @@ function drawInventoryCategoryTabs(ui: any, body: Node) {
       tabVisuals[index].label,
       tab.id === ui.inventoryCategory,
     );
-    node.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-      event?.stopPropagation?.();
-      if (ui.inventoryCategory === tab.id) return;
-      ui.inventoryCategory = tab.id;
-      ui.inventoryScrollOffset = 0;
-      ui.renderInventoryPanel();
-    });
+    node
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (ui.inventoryCategory === tab.id) return;
+        ui.inventoryCategory = tab.id;
+        ui.inventoryScrollOffset = 0;
+        ui.renderInventoryPanel();
+      });
     body.addChild(node);
   });
 }
@@ -354,8 +508,11 @@ function inventorySlotMatchesCategory(itemId: string, category: string) {
   if (!item) return false;
   if (category === "seeds") return item.isCrop === true;
   if (category === "materials") {
-    return (item.category === ItemCategory.CROP && !item.isCrop) ||
-      item.category === ItemCategory.PROCESSED || item.category === ItemCategory.TOOL;
+    return (
+      (item.category === ItemCategory.CROP && !item.isCrop) ||
+      item.category === ItemCategory.PROCESSED ||
+      item.category === ItemCategory.TOOL
+    );
   }
   return (
     item.category === ItemCategory.FOOD ||
@@ -369,7 +526,10 @@ function inventorySlotMatchesCategory(itemId: string, category: string) {
 function drawInventoryGrid(
   ui: any,
   body: Node,
-  entries: Array<{ slot: { itemId: string; count: number }; slotIndex: number }>,
+  entries: Array<{
+    slot: { itemId: string; count: number };
+    slotIndex: number;
+  }>,
 ) {
   const viewportW = 284;
   const viewportH = 328;
@@ -388,10 +548,7 @@ function drawInventoryGrid(
   const gridW = cols * cellW + (cols - 1) * gapX;
   const gridH = rows * cellH + Math.max(0, rows - 1) * gapY;
   const gridPaddingY = 8;
-  const contentH = Math.max(
-    viewportH,
-    gridH + gridPaddingY * 2,
-  );
+  const contentH = Math.max(viewportH, gridH + gridPaddingY * 2);
   const content = new Node("InventoryContent");
   content.addComponent(UITransform).setContentSize(viewportW, contentH);
   viewport.addChild(content);
@@ -424,7 +581,14 @@ function drawInventoryGrid(
         ? new Color(239, 207, 159, 238)
         : new Color(239, 222, 191, 130),
     );
-    strokeRoundRect(cellBackground, cellW, cellH, 9, new Color(202, 161, 108, 180), 1.4);
+    strokeRoundRect(
+      cellBackground,
+      cellW,
+      cellH,
+      9,
+      new Color(202, 161, 108, 180),
+      1.4,
+    );
     cell.addChild(cellBackground);
 
     if (slot.itemId) {
@@ -458,8 +622,10 @@ function drawInventoryGrid(
       cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
         ui.inventoryScrollOffset = scrollView.getScrollOffset().y;
         const item = getItem(slot.itemId);
-        if (item?.category === ItemCategory.TOOL) ui.useInventoryTool(slotIndex);
-        else if (item?.category === ItemCategory.BUILDING) ui.openSellDialog(slotIndex);
+        if (item?.category === ItemCategory.TOOL)
+          ui.useInventoryTool(slotIndex);
+        else if (item?.category === ItemCategory.BUILDING)
+          ui.openSellDialog(slotIndex);
         else if (item?.id === "mysteryBox") ui.useSpecialItem(slotIndex);
         else ui.openSellDialog(slotIndex);
       });
@@ -499,7 +665,10 @@ function attachPanelScrollState(
   const restored = Math.max(0, Math.min(ui[offsetKey] || 0, maxOffset));
   content.setPosition(0, -maxOffset / 2 + restored);
 
-  const thumbH = Math.max(32, (viewportH * viewportH) / Math.max(viewportH, contentH));
+  const thumbH = Math.max(
+    32,
+    (viewportH * viewportH) / Math.max(viewportH, contentH),
+  );
   let thumb: Node | null = null;
   if (showScrollbar) {
     const track = new Node(`${name}ScrollTrack`);
@@ -513,13 +682,17 @@ function attachPanelScrollState(
 
   const sync = () => {
     const currentMax = Math.max(0, scrollView.getMaxScrollOffset().y);
-    const offset = currentMax > 0
-      ? Math.max(0, Math.min(currentMax, scrollView.getScrollOffset().y))
-      : 0;
+    const offset =
+      currentMax > 0
+        ? Math.max(0, Math.min(currentMax, scrollView.getScrollOffset().y))
+        : 0;
     ui[offsetKey] = offset;
     if (!thumb?.isValid) return;
     const ratio = currentMax > 0 ? offset / currentMax : 0;
-    thumb.setPosition(0, (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH));
+    thumb.setPosition(
+      0,
+      (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH),
+    );
   };
   scrollView.node.on(ScrollView.EventType.SCROLLING, sync);
   scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, sync);
@@ -644,13 +817,338 @@ function renderMarketplacePanel(ui: any) {
   drawMarketplaceGrid(ui, body, gm, items);
 }
 
+export function showTitlePanel(
+  ui: any,
+  requestedCategory?: PlayerTitleCategory,
+) {
+  if (requestedCategory) ui.titleDialogCategory = requestedCategory;
+  if (ui.panels.title?.active) {
+    ui.renderTitlePanel();
+    return;
+  }
+  showPanel(ui, "title");
+}
+
+export function renderTitlePanel(ui: any) {
+  const panel = ui.panels.title!;
+  const body = ui.clearPanelBody(panel);
+  const gm = GameManager.getInstance();
+  const category: PlayerTitleCategory = ui.titleDialogCategory || "level";
+  const visibleTitles = PLAYER_TITLES.filter(
+    (title) => title.category === category,
+  );
+  if (!visibleTitles.some((title) => title.id === ui.titleDialogSelectedId)) {
+    const equipped = visibleTitles.find(
+      (title) => title.id === gm.equippedTitleId,
+    );
+    const firstUnlocked = visibleTitles.find((title) =>
+      gm.isPlayerTitleUnlocked(title),
+    );
+    ui.titleDialogSelectedId = equipped?.id || firstUnlocked?.id || "";
+  }
+
+  clearCatalogPanelChrome(panel);
+  body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
+  body.setPosition(0, 0);
+  const defaultClose = panel.getChildByName("Close");
+  if (defaultClose) defaultClose.active = false;
+  drawCommonPanelBackground(ui, body);
+  drawRibbonTitle(ui, body, "我的称号");
+  createCatalogCloseHitArea(ui, panel, body);
+
+  const frameShadow = new Node("TitleListFrameBottomShadow");
+  frameShadow.addComponent(UITransform).setContentSize(300, 360);
+  frameShadow.setPosition(0, -62);
+  fillRoundRect(frameShadow, 300, 360, 13, new Color(111, 68, 38, 35));
+  body.addChild(frameShadow);
+  const frame = new Node("TitleListFrame");
+  frame.addComponent(UITransform).setContentSize(300, 360);
+  frame.setPosition(0, -58);
+  fillRoundRect(frame, 300, 360, 14, new Color(255, 253, 242, 242));
+  strokeRoundRect(frame, 300, 360, 14, new Color(139, 91, 53, 220), 2.2);
+  body.addChild(frame);
+
+  drawTitleCategoryTabs(ui, body, category);
+
+  const viewportH = 260;
+  const viewport = new Node("TitleListViewport");
+  viewport.addComponent(UITransform).setContentSize(278, viewportH);
+  viewport.setPosition(0, 25);
+  viewport.addComponent(Mask);
+  frame.addChild(viewport);
+  const rowH = 70;
+  const gap = 8;
+  const topPadding = 4;
+  const bottomPadding = 4;
+  const contentH = Math.max(
+    viewportH,
+    visibleTitles.length * rowH +
+      Math.max(0, visibleTitles.length - 1) * gap +
+      topPadding +
+      bottomPadding,
+  );
+  const content = new Node("TitleListContent");
+  const contentTransform = content.addComponent(UITransform);
+  contentTransform.setContentSize(278, contentH);
+  contentTransform.setAnchorPoint(0.5, 1);
+  content.setPosition(0, viewportH / 2);
+  viewport.addChild(content);
+  let y = -topPadding - rowH / 2;
+  visibleTitles.forEach((title) => {
+    const unlocked = gm.isPlayerTitleUnlocked(title);
+    const selected = ui.titleDialogSelectedId === title.id;
+    const row = new Node(`PlayerTitle_${title.id}`);
+    row.addComponent(UITransform).setContentSize(270, rowH);
+    row.setPosition(0, y);
+    (row as any).__titleId = title.id;
+    (row as any).__titleUnlocked = unlocked;
+    updateTitleItemVisual(ui, row, selected);
+    const name = ui.makeLabel(
+      `【${title.fullName}】`,
+      16,
+      unlocked ? new Color(77, 40, 22) : new Color(130, 119, 105),
+      true,
+      -130,
+      15,
+      186,
+      23,
+    );
+    name.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
+    name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    row.addChild(name);
+    const condition = ui.makeLabel(
+      title.condition,
+      12,
+      unlocked ? new Color(155, 105, 68) : new Color(145, 136, 123),
+      false,
+      -122,
+      -14,
+      178,
+      19,
+    );
+    condition.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
+    condition.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    row.addChild(condition);
+    const status = new Node("TitleStatusVisual");
+    status.addComponent(UITransform).setContentSize(78, 78);
+    status.setPosition(90, 0);
+    ui.applyUiIcon(unlocked ? "titleUnlocked" : "titleLocked", status);
+    row.addChild(status);
+    row.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (!unlocked) {
+        ui.toast(title.condition);
+        return;
+      }
+      ui.titleDialogSelectedId = title.id;
+      refreshTitleItemVisuals(ui, content);
+    });
+    content.addChild(row);
+    y -= rowH + gap;
+  });
+  const scroll = viewport.addComponent(ScrollView);
+  scroll.horizontal = false;
+  scroll.vertical = true;
+  scroll.inertia = true;
+  (scroll as any).elastic = false;
+  scroll.content = content;
+  const rememberOffset = () => {
+    ui.titleDialogScrollOffsets[category] = scroll.getScrollOffset().y;
+  };
+  scroll.node.on(ScrollView.EventType.SCROLLING, rememberOffset);
+  scroll.node.on(ScrollView.EventType.SCROLL_ENDED, rememberOffset);
+  ui.scheduleOnce(() => {
+    if (!viewport.isValid || !content.isValid) return;
+    const maxOffset = Math.max(0, scroll.getMaxScrollOffset().y);
+    const offset = Math.max(
+      0,
+      Math.min(ui.titleDialogScrollOffsets[category] || 0, maxOffset),
+    );
+    scroll.scrollToOffset(new Vec2(0, offset), 0);
+  }, 0);
+
+  const makeImageAction = (
+    name: string,
+    icon: string,
+    x: number,
+    onTap: () => void,
+  ) => {
+    const art = new Node(`${name}Art`);
+    art.addComponent(UITransform).setContentSize(104, 104);
+    art.setPosition(x, -154);
+    ui.applyUiIcon(icon, art);
+    frame.addChild(art);
+    const hit = new Node(name);
+    hit.addComponent(UITransform).setContentSize(90, 42);
+    hit.setPosition(x, -146);
+    hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      tween(art)
+        .to(0.07, { scale: new Vec3(0.94, 0.94, 1) })
+        .to(0.1, { scale: Vec3.ONE })
+        .call(onTap)
+        .start();
+    });
+    frame.addChild(hit);
+  };
+  makeImageAction("EquipTitle", "btnTitleEquip", -52, () => {
+    if (
+      !ui.titleDialogSelectedId ||
+      !gm.equipPlayerTitle(ui.titleDialogSelectedId)
+    ) {
+      ui.toast("请选择已解锁称号");
+      return;
+    }
+    ui.toast("称号佩戴成功");
+    ui.closePanelWithAnimation(panel);
+  });
+  makeImageAction("UnequipTitle", "btnTitleUnequip", 52, () => {
+    gm.unequipPlayerTitle();
+    ui.toast("已卸下称号");
+    refreshTitleItemVisuals(ui, content);
+  });
+}
+
+function updateTitleItemVisual(ui: any, row: Node, selected: boolean) {
+  const unlocked = !!(row as any).__titleUnlocked;
+  fillRoundRect(
+    row,
+    270,
+    70,
+    13,
+    selected
+      ? new Color(255, 238, 191, 255)
+      : unlocked
+        ? new Color(255, 253, 242, 252)
+        : new Color(232, 228, 216, 245),
+  );
+  strokeRoundRect(
+    row,
+    270,
+    70,
+    13,
+    selected
+      ? new Color(202, 111, 45, 245)
+      : new Color(139, 91, 53, unlocked ? 205 : 135),
+    selected ? 2.2 : 1.5,
+  );
+  const status = row.getChildByName("TitleStatusVisual");
+  if (status) {
+    ui.applyUiIcon(unlocked ? "titleUnlocked" : "titleLocked", status);
+  }
+}
+
+function refreshTitleItemVisuals(ui: any, content: Node) {
+  content.children.forEach((row) => {
+    updateTitleItemVisual(
+      ui,
+      row,
+      (row as any).__titleId === ui.titleDialogSelectedId,
+    );
+  });
+}
+
+function drawTitleCategoryTabs(
+  ui: any,
+  body: Node,
+  category: PlayerTitleCategory,
+) {
+  const tabs: Array<{
+    type: PlayerTitleCategory;
+    text: string;
+    x: number;
+    image: string;
+    icon: string;
+  }> = [
+    {
+      type: "level",
+      text: "等级成长",
+      x: -57.5,
+      image: "shopTabsSeeds",
+      icon: "titleCategoryLevel",
+    },
+    {
+      type: "achievement",
+      text: "成就限定",
+      x: 56.5,
+      image: "shopTabsTools",
+      icon: "titleCategoryAchievement",
+    },
+  ];
+  const selected = tabs.find((tab) => tab.type === category) || tabs[0];
+  const baselineY = 126;
+  const imageH = 60;
+  const image = new Node("TitleCategoryTabsImage");
+  image.addComponent(UITransform).setContentSize(360, imageH);
+  image.setPosition(0, baselineY + imageH / 2 - 1);
+  ui.applyUiIcon(selected.image, image);
+  const visuals: Array<{ icon: Node; label: Node }> = [];
+  tabs.forEach((tab, index) => {
+    const icon = new Node(`TitleTabIcon_${index}`);
+    const iconSize = index === 0 ? 27 : 26;
+    icon.addComponent(UITransform).setContentSize(iconSize, iconSize);
+    icon.setPosition(tab.x - 28, 0);
+    ui.applyUiIcon(tab.icon, icon);
+    image.addChild(icon);
+    const label = ui.makeLabel(
+      tab.text,
+      13,
+      new Color(67, 30, 14, 255),
+      true,
+      tab.x + 13,
+      0,
+      52,
+      22,
+    );
+    label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    image.addChild(label);
+    setupCategoryTabVisual(icon, label, tab.type === category);
+    visuals.push({ icon, label });
+  });
+  body.addChild(image);
+  tabs.forEach((tab, index) => {
+    const hit = new Node(`TitleTabHit_${index}`);
+    hit.addComponent(UITransform).setContentSize(112, imageH);
+    hit.setPosition(tab.x, baselineY + imageH / 2);
+    bindCategoryTabPressFeedback(
+      hit,
+      visuals[index].icon,
+      visuals[index].label,
+      tab.type === category,
+    );
+    hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (tab.type === category) return;
+      ui.titleDialogScrollOffsets[tab.type] = 0;
+      ui.titleDialogCategory = tab.type;
+      ui.titleDialogSelectedId = "";
+      ui.renderTitlePanel();
+    });
+    body.addChild(hit);
+  });
+}
+
 function drawMarketplaceTabs(ui: any, body: Node) {
   const tabs = [
-    { id: "seeds", text: "\u79cd\u5b50", x: -57.5, image: "shopTabsSeeds", icon: "shopSeeds", iconSize: 31 },
-    { id: "tools", text: "\u5de5\u5177", x: 56.5, image: "shopTabsTools", icon: "shopTools", iconSize: 32 },
+    {
+      id: "seeds",
+      text: "\u79cd\u5b50",
+      x: -57.5,
+      image: "shopTabsSeeds",
+      icon: "shopSeeds",
+      iconSize: 31,
+    },
+    {
+      id: "tools",
+      text: "\u5de5\u5177",
+      x: 56.5,
+      image: "shopTabsTools",
+      icon: "shopTools",
+      iconSize: 32,
+    },
   ];
   if (!ui.shopCategory) ui.shopCategory = "seeds";
-  const selected = tabs.find(tab => tab.id === ui.shopCategory) || tabs[0];
+  const selected = tabs.find((tab) => tab.id === ui.shopCategory) || tabs[0];
   const baselineY = 126;
   const imageH = 60;
   const image = new Node("MarketplaceCategoryTabsImage");
@@ -744,10 +1242,7 @@ function drawMarketplaceGrid(
   const rows = Math.max(1, Math.ceil(items.length / cols));
   const gridW = cols * cellW + (cols - 1) * gapX;
   const gridH = rows * cellH + Math.max(0, rows - 1) * gapY;
-  const contentH = Math.max(
-    viewportH,
-    gridH + 16,
-  );
+  const contentH = Math.max(viewportH, gridH + 16);
   const paddingY = (contentH - gridH) / 2;
   const content = new Node("MarketplaceContent");
   content.addComponent(UITransform).setContentSize(viewportW, contentH);
@@ -775,9 +1270,7 @@ function drawMarketplaceGrid(
       cellW,
       cellH,
       11,
-      unlocked
-        ? new Color(255, 250, 232, 248)
-        : new Color(225, 216, 198, 225),
+      unlocked ? new Color(255, 250, 232, 248) : new Color(225, 216, 198, 225),
     );
     strokeRoundRect(card, cellW, cellH, 11, new Color(177, 119, 66, 195), 1.8);
 
@@ -825,11 +1318,22 @@ function drawMarketplaceGrid(
       fillRoundRect(buy, 72, 24, 9, new Color(178, 170, 158, 235));
       strokeRoundRect(buy, 72, 24, 9, new Color(126, 106, 91, 190), 1.5);
       buy.addChild(
-        ui.makeLabel("\u672a\u89e3\u9501", 12, new Color(78, 36, 28), true, 0, 0, 66, 20),
+        ui.makeLabel(
+          "\u672a\u89e3\u9501",
+          12,
+          new Color(78, 36, 28),
+          true,
+          0,
+          0,
+          66,
+          20,
+        ),
       );
       bindCatalogPressFeedback(buy);
     }
-    buy.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => ui.buySeed(item));
+    buy
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, () => ui.buySeed(item));
     card.addChild(buy);
     if (!unlocked) card.addComponent(UIOpacity).opacity = 160;
     content.addChild(card);
@@ -1002,7 +1506,8 @@ export function renderCraftPanel(ui: any) {
   const unlockedRecipeIds = new Set<string>(gm.unlockedRecipes || []);
   const unlockedRecipes = allRecipes.filter(
     (recipe) =>
-      recipe.requiredLevel <= gm.playerLevel && unlockedRecipeIds.has(recipe.id),
+      recipe.requiredLevel <= gm.playerLevel &&
+      unlockedRecipeIds.has(recipe.id),
   );
 
   clearCatalogPanelChrome(panel);
@@ -1156,10 +1661,12 @@ function drawCraftRecipeSection(
   );
   const materialCount = recipe.materials.length;
   const materialGap = materialCount >= 3 ? 44 : 54;
-  const materialCenterX = materialCount >= 3 ? -80 : materialCount === 2 ? -94 : -100;
+  const materialCenterX =
+    materialCount >= 3 ? -80 : materialCount === 2 ? -94 : -100;
   const materialStartX =
     materialCenterX - ((materialCount - 1) * materialGap) / 2;
-  const materialCardSize = materialCount >= 3 ? 42 : materialCount === 2 ? 46 : 50;
+  const materialCardSize =
+    materialCount >= 3 ? 42 : materialCount === 2 ? 46 : 50;
   const materialIconSize = 36;
 
   recipe.materials.forEach((material, index) => {
@@ -1173,9 +1680,7 @@ function drawCraftRecipeSection(
       materialCardSize,
       materialCardSize,
       9,
-      enough
-        ? new Color(238, 207, 161, 205)
-        : new Color(211, 205, 190, 190),
+      enough ? new Color(238, 207, 161, 205) : new Color(211, 205, 190, 190),
     );
     const icon = ui.createItemIcon(material.itemId, materialIconSize, true);
     plate.addChild(icon);
@@ -1199,9 +1704,7 @@ function drawCraftRecipeSection(
     materialStartX + (materialCount - 1) * materialGap;
   const materialGroupRight = rightmostMaterialCenter + materialCardSize / 2;
   const productGroupLeft = 105 - 58 / 2;
-  const targetArrowX = Math.round(
-    (materialGroupRight + productGroupLeft) / 2,
-  );
+  const targetArrowX = Math.round((materialGroupRight + productGroupLeft) / 2);
   const startArrowX =
     typeof ui.craftArrowX === "number" ? ui.craftArrowX : targetArrowX;
   arrow.setPosition(startArrowX, 14);
@@ -1241,9 +1744,10 @@ function drawCraftRecipeSection(
     ),
   );
 
-  const requirement = recipe.materials
-    .map((material) => `${ui.itemName(material.itemId)} x${material.count}`)
-    .join("、") + (recipe.cost > 0 ? ` 和 ${recipe.cost}金币` : "");
+  const requirement =
+    recipe.materials
+      .map((material) => `${ui.itemName(material.itemId)} x${material.count}`)
+      .join("、") + (recipe.cost > 0 ? ` 和 ${recipe.cost}金币` : "");
   const requirementPrefix = ui.makeLabel(
     "\u9700\u8981\uff1a",
     12,
@@ -1254,7 +1758,8 @@ function drawCraftRecipeSection(
     48,
     20,
   );
-  requirementPrefix.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  requirementPrefix.getComponent(Label)!.horizontalAlign =
+    Label.HorizontalAlign.LEFT;
   section.addChild(requirementPrefix);
 
   const requirementLabel = ui.makeLabel(
@@ -1267,7 +1772,8 @@ function drawCraftRecipeSection(
     210,
     20,
   );
-  requirementLabel.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  requirementLabel.getComponent(Label)!.horizontalAlign =
+    Label.HorizontalAlign.LEFT;
   requirementLabel.getComponent(Label)!.overflow = Label.Overflow.SHRINK;
   requirementLabel.getComponent(Label)!.enableWrapText = false;
   section.addChild(requirementLabel);
@@ -1330,7 +1836,6 @@ function drawAnimatedCraftArrow(root: Node, active: boolean) {
   traceCraftArrow(outlineGraphics);
   outlineGraphics.stroke();
   root.addChild(outline);
-
 }
 
 function drawCraftProgressSection(
@@ -1433,21 +1938,24 @@ function drawCraftProgressSection(
     ticketLabel.name = "CraftSpeedTicketCount";
     speedButton.addChild(ticketLabel);
     bindCatalogPressFeedback(speedButton);
-    speedButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-      event?.stopPropagation?.();
-      if (!CraftSystem.getInstance().useSpeedTicket(process.craftId)) {
-        ui.toast("当前无法使用加速券");
-        return;
-      }
-      ui.toast("制作时间减少30秒");
-      if (!speedButton.isValid) return;
-      const remaining = InventorySystem.getInstance().getItemCount("speedTicket");
-      if (remaining <= 0) {
-        speedButton.active = false;
-      } else {
-        ticketLabel.getComponent(Label)!.string = `加速30秒 x${remaining}`;
-      }
-    });
+    speedButton
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (!CraftSystem.getInstance().useSpeedTicket(process.craftId)) {
+          ui.toast("当前无法使用加速券");
+          return;
+        }
+        ui.toast("制作时间减少30秒");
+        if (!speedButton.isValid) return;
+        const remaining =
+          InventorySystem.getInstance().getItemCount("speedTicket");
+        if (remaining <= 0) {
+          speedButton.active = false;
+        } else {
+          ticketLabel.getComponent(Label)!.string = `加速30秒 x${remaining}`;
+        }
+      });
     section.addChild(speedButton);
   }
 
@@ -1538,9 +2046,7 @@ function drawCraftOperationsSection(
       cellW,
       cellH,
       9,
-      isSelected
-        ? new Color(173, 118, 55, 255)
-        : new Color(207, 170, 115, 150),
+      isSelected ? new Color(173, 118, 55, 255) : new Color(207, 170, 115, 150),
       isSelected ? 2.4 : 1,
     );
     const icon = ui.createItemIcon(recipe.product.itemId, 34, true);
@@ -1548,7 +2054,9 @@ function drawCraftOperationsSection(
     cell.addChild(icon);
     cell.addChild(
       ui.makeLabel(
-        unlocked ? ui.itemName(recipe.product.itemId) : `Lv.${recipe.requiredLevel}`,
+        unlocked
+          ? ui.itemName(recipe.product.itemId)
+          : `Lv.${recipe.requiredLevel}`,
         9,
         unlocked ? new Color(65, 36, 22) : new Color(115, 105, 92),
         true,
@@ -1560,16 +2068,18 @@ function drawCraftOperationsSection(
     );
     if (!unlocked) cell.addComponent(UIOpacity).opacity = 145;
     bindCatalogPressFeedback(cell);
-    cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-      event?.stopPropagation?.();
-      if (!unlocked) {
-        ui.toast(`Lv.${recipe.requiredLevel} \u89e3\u9501`);
-        return;
-      }
-      ui.craftRecipeScrollOffset = scrollView.getScrollOffset().y;
-      ui.selectedCraftRecipeId = recipe.id;
-      ui.renderCraftPanel();
-    });
+    cell
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (!unlocked) {
+          ui.toast(`Lv.${recipe.requiredLevel} \u89e3\u9501`);
+          return;
+        }
+        ui.craftRecipeScrollOffset = scrollView.getScrollOffset().y;
+        ui.selectedCraftRecipeId = recipe.id;
+        ui.renderCraftPanel();
+      });
     content.addChild(cell);
   });
 
@@ -1593,11 +2103,8 @@ function drawCraftOperationsSection(
     );
   }, 0);
 
-  const startButton = createCraftActionButton(
-    ui,
-    96,
-    -4,
-    () => ui.startCraft(selected.id),
+  const startButton = createCraftActionButton(ui, 96, -4, () =>
+    ui.startCraft(selected.id),
   );
   section.addChild(startButton);
 
@@ -1614,28 +2121,32 @@ function drawCraftOperationsSection(
     atMax ? new Color(224, 211, 187, 235) : new Color(247, 222, 166, 245),
   );
   strokeRoundRect(tableButton, 104, 22, 8, new Color(153, 101, 58, 210), 1.4);
-  tableButton.addChild(ui.makeLabel(
-    atMax
-      ? `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}`
-      : `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}  +${craft.getCraftTableUpgradeCost()}金`,
-    10,
-    new Color(82, 45, 28),
-    true,
-    0,
-    0,
-    100,
-    18,
-  ));
+  tableButton.addChild(
+    ui.makeLabel(
+      atMax
+        ? `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}`
+        : `制作队列 ${craft.getMaxCraftTables()}/${GameValues.MAX_CRAFT_TABLES}  +${craft.getCraftTableUpgradeCost()}金`,
+      10,
+      new Color(82, 45, 28),
+      true,
+      0,
+      0,
+      100,
+      18,
+    ),
+  );
   if (!atMax) {
     bindCatalogPressFeedback(tableButton);
-    tableButton.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-      event?.stopPropagation?.();
-      if (!craft.upgradeMaxTables()) {
-        ui.toast("金币不足");
-        return;
-      }
-      ui.toast(`制作队列扩充至 ${craft.getMaxCraftTables()} 个`);
-    });
+    tableButton
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        if (!craft.upgradeMaxTables()) {
+          ui.toast("金币不足");
+          return;
+        }
+        ui.toast(`制作队列扩充至 ${craft.getMaxCraftTables()} 个`);
+      });
   }
   section.addChild(tableButton);
 }
@@ -1656,13 +2167,14 @@ function createCraftActionButton(
   ui.applyUiIcon("btnCraft", visual);
   button.addChild(visual);
   bindCatalogPressFeedback(button, visual);
-  button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-    event?.stopPropagation?.();
-    action();
-  });
+  button
+    .addComponent(Button)
+    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      action();
+    });
   return button;
 }
-
 
 export function renderQuestPanel(ui: any, enterDirection = 0) {
   const panel = ui.panels.quest!;
@@ -1841,11 +2353,7 @@ function drawCatalogPrevArrow(body: Node) {
   body.addChild(arrow);
 }
 
-function createCatalogCard(
-  ui: any,
-  gm: GameManager,
-  item: ItemDef,
-): Node {
+function createCatalogCard(ui: any, gm: GameManager, item: ItemDef): Node {
   const discovered = gm.hasDiscoveredItem(item.id);
   const displayUnlockLevel = ui.catalogLevel(item);
   const levelUnlocked = displayUnlockLevel <= gm.playerLevel;
@@ -2040,8 +2548,10 @@ function bindCatalogPressFeedback(hitArea: Node, visual: Node = hitArea) {
 function setupCategoryTabVisual(icon: Node, label: Node, selected: boolean) {
   const targetScale = selected ? 1.08 : 1;
   const targetOpacity = selected ? 255 : 205;
-  const iconOpacity = icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
-  const labelOpacity = label.getComponent(UIOpacity) || label.addComponent(UIOpacity);
+  const iconOpacity =
+    icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
+  const labelOpacity =
+    label.getComponent(UIOpacity) || label.addComponent(UIOpacity);
   iconOpacity.opacity = targetOpacity;
   labelOpacity.opacity = targetOpacity;
 
@@ -2054,10 +2564,18 @@ function setupCategoryTabVisual(icon: Node, label: Node, selected: boolean) {
   icon.setScale(new Vec3(0.94, 0.94, 1));
   label.setScale(new Vec3(0.94, 0.94, 1));
   tween(icon)
-    .to(0.18, { scale: new Vec3(targetScale, targetScale, 1) }, { easing: "backOut" })
+    .to(
+      0.18,
+      { scale: new Vec3(targetScale, targetScale, 1) },
+      { easing: "backOut" },
+    )
     .start();
   tween(label)
-    .to(0.18, { scale: new Vec3(targetScale, targetScale, 1) }, { easing: "backOut" })
+    .to(
+      0.18,
+      { scale: new Vec3(targetScale, targetScale, 1) },
+      { easing: "backOut" },
+    )
     .start();
 }
 
@@ -2255,12 +2773,13 @@ export function renderTaskPanel(ui: any) {
 }
 
 function refreshTaskCategoryContent(ui: any, body: Node) {
-  const removable = body.children.filter(child =>
-    child.name === "TaskCategoryTabsImage" ||
-    child.name === "TaskListViewport" ||
-    child.name.startsWith("TaskTabHit_"),
+  const removable = body.children.filter(
+    (child) =>
+      child.name === "TaskCategoryTabsImage" ||
+      child.name === "TaskListViewport" ||
+      child.name.startsWith("TaskTabHit_"),
   );
-  removable.forEach(child => {
+  removable.forEach((child) => {
     child.removeFromParent();
     child.destroy();
   });
@@ -2269,7 +2788,7 @@ function refreshTaskCategoryContent(ui: any, body: Node) {
   const gm = GameManager.getInstance();
   const cards = createTaskCardData(gm.getTasks(ui.taskCategory));
   if (ui.taskDetailId === undefined) ui.taskDetailId = "";
-  if (!cards.some(task => task.id === ui.taskDetailId)) ui.taskDetailId = "";
+  if (!cards.some((task) => task.id === ui.taskDetailId)) ui.taskDetailId = "";
   drawTaskCategoryTabs(ui, body);
   drawTaskListScroll(ui, gm, body, cards);
 }
@@ -2314,16 +2833,18 @@ export function renderDailySignInPanel(ui: any) {
   );
   summaryValue.name = "SignInSummaryValue";
   summary.addChild(summaryValue);
-  summary.addChild(ui.makeLabel(
-    "每天登录农场，好礼不间断",
-    12,
-    new Color(154, 100, 58),
-    false,
-    summaryTextX,
-    -12,
-    summaryTextW,
-    20,
-  ));
+  summary.addChild(
+    ui.makeLabel(
+      "每天登录农场，好礼不间断",
+      12,
+      new Color(154, 100, 58),
+      false,
+      summaryTextX,
+      -12,
+      summaryTextW,
+      20,
+    ),
+  );
   body.addChild(summary);
   if (missedDay) addDailySignInMakeUpAction(ui, body, summary, missedDay);
 
@@ -2340,15 +2861,17 @@ export function renderDailySignInPanel(ui: any) {
       ? reward.day < (missedDay || displayDay)
       : reward.day <= gm.dailySignInDay;
     const current = reward.day === (missedDay || displayDay);
-    body.addChild(createDailySignInCard(
-      ui,
-      reward,
-      x,
-      y,
-      claimed,
-      current,
-      claimable && current,
-    ));
+    body.addChild(
+      createDailySignInCard(
+        ui,
+        reward,
+        x,
+        y,
+        claimed,
+        current,
+        claimable && current,
+      ),
+    );
   });
 
   const button = new Node("DailySignInClaimButton");
@@ -2359,19 +2882,21 @@ export function renderDailySignInPanel(ui: any) {
   ui.applyUiIcon(claimable ? "signInClaim" : "signInClaimed", buttonVisual);
   button.addChild(buttonVisual);
   if (claimable) {
-    button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-      event?.stopPropagation?.();
-      const reward = gm.claimDailySignIn();
-      if (!reward) return;
-      tween(button)
-        .to(0.08, { scale: new Vec3(0.94, 0.94, 1) }, { easing: "quadOut" })
-        .to(0.16, { scale: new Vec3(1.06, 1.06, 1) }, { easing: "backOut" })
-        .call(() => {
-          ui.toast(`签到成功：${reward.label} x${reward.count}`);
-          updateDailySignInClaimedState(ui, body, reward.day, button);
-        })
-        .start();
-    });
+    button
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        const reward = gm.claimDailySignIn();
+        if (!reward) return;
+        tween(button)
+          .to(0.08, { scale: new Vec3(0.94, 0.94, 1) }, { easing: "quadOut" })
+          .to(0.16, { scale: new Vec3(1.06, 1.06, 1) }, { easing: "backOut" })
+          .call(() => {
+            ui.toast(`签到成功：${reward.label} x${reward.count}`);
+            updateDailySignInClaimedState(ui, body, reward.day, button);
+          })
+          .start();
+      });
   }
   body.addChild(button);
 
@@ -2385,16 +2910,18 @@ export function renderDailySignInPanel(ui: any) {
   footerLineRight.setPosition(111, 0);
   fillRoundRect(footerLineRight, 58, 2, 1, new Color(215, 170, 105, 145));
   footer.addChild(footerLineRight);
-  footer.addChild(ui.makeLabel(
-    "第7天随机获得双倍收获卡或加速券",
-    12,
-    new Color(151, 96, 55),
-    false,
-    0,
-    0,
-    170,
-    20,
-  ));
+  footer.addChild(
+    ui.makeLabel(
+      "第7天随机获得神秘礼物",
+      12,
+      new Color(151, 96, 55),
+      false,
+      0,
+      0,
+      170,
+      20,
+    ),
+  );
   body.addChild(footer);
 }
 
@@ -2423,16 +2950,18 @@ function createDailySignInCard(
   fillRoundRect(card, 72, 112, 9, fill);
   strokeRoundRect(card, 72, 112, 9, border, current ? 2.6 : 1.8);
 
-  card.addChild(ui.makeLabel(
-    `第${reward.day}天`,
-    13,
-    new Color(102, 55, 30),
-    true,
-    0,
-    42,
-    66,
-    20,
-  ));
+  card.addChild(
+    ui.makeLabel(
+      `第${reward.day}天`,
+      13,
+      new Color(102, 55, 30),
+      true,
+      0,
+      42,
+      66,
+      20,
+    ),
+  );
 
   const iconFrame = new Node("RewardFrame");
   iconFrame.setPosition(0, 4);
@@ -2448,16 +2977,18 @@ function createDailySignInCard(
   }
   iconFrame.addChild(icon);
 
-  card.addChild(ui.makeLabel(
-    `${reward.label} x${reward.count}`,
-    12,
-    new Color(91, 49, 29),
-    true,
-    0,
-    -40,
-    68,
-    22,
-  ));
+  card.addChild(
+    ui.makeLabel(
+      `${reward.label} x${reward.count}`,
+      12,
+      new Color(91, 49, 29),
+      true,
+      0,
+      -40,
+      68,
+      22,
+    ),
+  );
 
   if (claimed) {
     const mark = new Node("ClaimedMark");
@@ -2486,15 +3017,27 @@ function createDailySignInCard(
       tween(card)
         .repeatForever(
           tween()
-            .to(0.9, { position: new Vec3(x, y + 4, 0) }, { easing: "quadInOut" })
+            .to(
+              0.9,
+              { position: new Vec3(x, y + 4, 0) },
+              { easing: "quadInOut" },
+            )
             .to(0.9, { position: new Vec3(x, y, 0) }, { easing: "quadInOut" }),
         )
         .start();
       tween(glow)
         .repeatForever(
           tween()
-            .to(0.9, { scale: new Vec3(1.04, 1.04, 1) }, { easing: "quadInOut" })
-            .to(0.9, { scale: new Vec3(0.98, 0.98, 1) }, { easing: "quadInOut" }),
+            .to(
+              0.9,
+              { scale: new Vec3(1.04, 1.04, 1) },
+              { easing: "quadInOut" },
+            )
+            .to(
+              0.9,
+              { scale: new Vec3(0.98, 0.98, 1) },
+              { easing: "quadInOut" },
+            ),
         )
         .start();
     }
@@ -2517,28 +3060,32 @@ function addDailySignInMakeUpAction(
   icon.setPosition(-23, 0);
   action.addChild(icon);
   const count = InventorySystem.getInstance().getItemCount("makeUpSignInCard");
-  action.addChild(ui.makeLabel(
-    `补签\nx${count}`,
-    11,
-    new Color(91, 46, 27),
-    true,
-    14,
-    0,
-    43,
-    31,
-  ));
-  action.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-    event?.stopPropagation?.();
-    const gm = GameManager.getInstance();
-    if (InventorySystem.getInstance().getItemCount("makeUpSignInCard") <= 0) {
-      ui.toast("补签卡不足，可在好物集市的工具分类购买");
-      return;
-    }
-    const reward = gm.claimMissedDailySignIn();
-    if (!reward) return;
-    ui.toast(`补签成功：${reward.label} x${reward.count}`);
-    updateDailySignInAfterMakeUp(ui, body, summary, missedDay);
-  });
+  action.addChild(
+    ui.makeLabel(
+      `补签\nx${count}`,
+      11,
+      new Color(91, 46, 27),
+      true,
+      14,
+      0,
+      43,
+      31,
+    ),
+  );
+  action
+    .addComponent(Button)
+    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      const gm = GameManager.getInstance();
+      if (InventorySystem.getInstance().getItemCount("makeUpSignInCard") <= 0) {
+        ui.toast("补签卡不足");
+        return;
+      }
+      const reward = gm.claimMissedDailySignIn();
+      if (!reward) return;
+      ui.toast(`补签成功：${reward.label} x${reward.count}`);
+      updateDailySignInAfterMakeUp(ui, body, summary, missedDay);
+    });
   summary.addChild(action);
 }
 
@@ -2594,9 +3141,10 @@ function updateDailySignInAfterMakeUp(
   if (summaryValue) {
     summaryValue.setPosition(0, 9);
     summaryValue.getComponent(UITransform)!.setContentSize(280, 24);
-    summaryValue.getComponent(Label)!.string = `本轮已签到 ${GameManager.getInstance().dailySignInDay}/7 天`;
+    summaryValue.getComponent(Label)!.string =
+      `本轮已签到 ${GameManager.getInstance().dailySignInDay}/7 天`;
   }
-  const subtitle = summary.children.find(child => child !== summaryValue);
+  const subtitle = summary.children.find((child) => child !== summaryValue);
   if (subtitle) {
     subtitle.setPosition(0, -12);
     subtitle.getComponent(UITransform)?.setContentSize(280, 20);
@@ -2636,9 +3184,10 @@ function updateDailySignInClaimedState(
 
   const summary = body
     .getChildByName("SignInSummary")
-    ?.children.find(child => child.name === "SignInSummaryValue");
+    ?.children.find((child) => child.name === "SignInSummaryValue");
   if (summary) {
-    summary.getComponent(Label)!.string = `本轮已签到 ${gm.dailySignInDay}/7 天`;
+    summary.getComponent(Label)!.string =
+      `本轮已签到 ${gm.dailySignInDay}/7 天`;
   }
 
   const oldVisual = button.getChildByName("DailySignInButtonVisual");
@@ -2655,116 +3204,240 @@ function updateDailySignInClaimedState(
   button.setScale(new Vec3(1, 1, 1));
 }
 
+const ACHIEVEMENT_CATEGORY_TABS: Array<{
+  type: AchievementCategory;
+  text: string;
+  image: string;
+  icon: string;
+  iconSize: number;
+  iconOffsetX: number;
+  width: number;
+  visualX: number;
+}> = [
+  {
+    type: "planting",
+    text: "种植成就",
+    image: "taskTabsMain",
+    icon: "achievementCategoryPlanting",
+    iconSize: 31,
+    iconOffsetX: 0,
+    width: 84,
+    visualX: -121,
+  },
+  {
+    type: "crafting",
+    text: "合成成就",
+    image: "taskTabsDaily",
+    icon: "achievementCategoryCrafting",
+    iconSize: 30,
+    iconOffsetX: 1,
+    width: 88,
+    visualX: -36,
+  },
+  {
+    type: "growth",
+    text: "经营成长",
+    image: "taskTabsBranch",
+    icon: "achievementCategoryGrowth",
+    iconSize: 29,
+    iconOffsetX: 1,
+    width: 84,
+    visualX: 47,
+  },
+  {
+    type: "collection",
+    text: "收集牧场",
+    image: "taskTabsSpecial",
+    icon: "achievementCategoryCollection",
+    iconSize: 27,
+    iconOffsetX: 3,
+    width: 88,
+    visualX: 128,
+  },
+];
+
+function getAchievementProgress(
+  gm: GameManager,
+  definition: AchievementDefinition,
+  unlocked: boolean,
+): { current: number; target: number } {
+  let current = 0;
+  let target = Math.max(1, definition.target || 1);
+  switch (definition.progressKind) {
+    case "plants":
+      current = LandSystem.getInstance().getTotalPlantCount();
+      break;
+    case "crafts":
+      current = gm.totalCraftCount;
+      break;
+    case "gold":
+      current = gm.gold;
+      break;
+    case "diamonds":
+      current = gm.diamond;
+      break;
+    case "level":
+      current = gm.playerLevel;
+      break;
+    case "recipes":
+      current = gm.unlockedRecipes.length;
+      target = getAllRecipes().length;
+      break;
+    case "catalog": {
+      const catalog = gm.getCatalogProgress();
+      current = catalog.unlocked;
+      target = definition.target || catalog.total;
+      break;
+    }
+    case "pastureCollections":
+      current = gm.totalPastureCollectCount;
+      break;
+  }
+  if (unlocked) current = Math.max(current, target);
+  return { current: Math.min(current, target), target };
+}
+
 export function renderAchievementPanel(ui: any) {
   const panel = ui.panels.achievement!;
   const body = ui.clearPanelBody(panel);
-  const gm = GameManager.getInstance();
   clearCatalogPanelChrome(panel);
   body.getComponent(UITransform)!.setContentSize(Design.WIDTH, 540);
   body.setPosition(0, 0);
   const close = panel.getChildByName("Close");
   if (close) close.active = false;
-
   drawCommonPanelBackground(ui, body);
   drawRibbonTitle(ui, body, "成就手册");
   createCatalogCloseHitArea(ui, panel, body);
+  refreshAchievementCategoryContent(ui, body);
+  drawAchievementMedalWallEntry(ui, body);
+}
 
-  const unlockedCount = ACHIEVEMENTS.filter(item => gm.achievements.indexOf(item.id) >= 0).length;
-  const summary = new Node("AchievementSummary");
-  summary.setPosition(0, 151);
-  fillRoundRect(summary, 300, 46, 12, new Color(255, 239, 194, 245));
-  strokeRoundRect(summary, 300, 46, 12, new Color(205, 154, 83, 210), 1.8);
-  summary.addChild(ui.makeLabel(
-    `成就进度 ${unlockedCount}/${ACHIEVEMENTS.length}   已领取 ${gm.claimedAchievements.length}`,
-    15,
-    new Color(91, 49, 27),
-    true,
-    0,
-    0,
-    280,
-    26,
-  ));
-  body.addChild(summary);
+function refreshAchievementCategoryContent(ui: any, body: Node) {
+  body.children
+    .filter(
+      (child) =>
+        child.name === "AchievementCategoryTabsImage" ||
+        child.name === "AchievementListViewport" ||
+        child.name.startsWith("AchievementTabHit_"),
+    )
+    .forEach((child) => {
+      child.removeFromParent();
+      child.destroy();
+    });
+  if (
+    !ACHIEVEMENT_CATEGORY_TABS.some(
+      (tab) => tab.type === ui.achievementCategory,
+    )
+  ) {
+    ui.achievementCategory = "planting";
+  }
+  drawAchievementCategoryTabs(ui, body);
+  drawAchievementList(ui, body);
+}
 
-  const viewportH = 350;
-  const viewport = new Node("AchievementViewport");
-  viewport.addComponent(UITransform).setContentSize(310, viewportH);
-  viewport.setPosition(0, -55);
+function drawAchievementCategoryTabs(ui: any, body: Node) {
+  const baselineY = 126;
+  const imageW = 360;
+  const imageH = 60;
+  const hitH = 60;
+  const tabGap = 5;
+  const totalW =
+    ACHIEVEMENT_CATEGORY_TABS.reduce((sum, tab) => sum + tab.width, 0) +
+    tabGap * (ACHIEVEMENT_CATEGORY_TABS.length - 1);
+  let cursorX = -totalW / 2;
+  const selected = ACHIEVEMENT_CATEGORY_TABS.find(
+    (tab) => tab.type === ui.achievementCategory,
+  )!;
+  const image = new Node("AchievementCategoryTabsImage");
+  image.addComponent(UITransform).setContentSize(imageW, imageH);
+  image.setPosition(0, baselineY + imageH / 2 - 1);
+  ui.applyUiIcon(selected.image, image);
+  const tabVisuals: Array<{ icon: Node; label: Node }> = [];
+
+  ACHIEVEMENT_CATEGORY_TABS.forEach((tab, index) => {
+    const icon = new Node(`AchievementTabIcon_${index}`);
+    icon.addComponent(UITransform).setContentSize(tab.iconSize, tab.iconSize);
+    icon.setPosition(tab.visualX - 28 + tab.iconOffsetX, 0);
+    ui.applyUiIcon(tab.icon, icon);
+    image.addChild(icon);
+    const label = ui.makeLabel(
+      tab.text,
+      12,
+      new Color(67, 30, 14),
+      true,
+      tab.visualX + 10,
+      0,
+      52,
+      22,
+    );
+    label.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    image.addChild(label);
+    setupCategoryTabVisual(icon, label, tab.type === ui.achievementCategory);
+    tabVisuals.push({ icon, label });
+  });
+  body.addChild(image);
+
+  ACHIEVEMENT_CATEGORY_TABS.forEach((tab, index) => {
+    const hit = new Node(`AchievementTabHit_${index}`);
+    const centerX = cursorX + tab.width / 2;
+    cursorX += tab.width + tabGap;
+    hit.addComponent(UITransform).setContentSize(tab.width, hitH);
+    hit.setPosition(centerX, baselineY + hitH / 2);
+    bindCategoryTabPressFeedback(
+      hit,
+      tabVisuals[index].icon,
+      tabVisuals[index].label,
+      tab.type === ui.achievementCategory,
+    );
+    hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      if (ui.achievementCategory === tab.type) return;
+      ui.achievementCategory = tab.type;
+      ui.achievementScrollOffset = 0;
+      refreshAchievementCategoryContent(ui, body);
+    });
+    body.addChild(hit);
+  });
+}
+
+function drawAchievementList(ui: any, body: Node) {
+  const gm = GameManager.getInstance();
+  const definitions = ACHIEVEMENTS.filter(
+    (item) => item.category === ui.achievementCategory,
+  );
+  const viewportW = 326;
+  const viewportH = 338;
+  const viewport = new Node("AchievementListViewport");
+  viewport.addComponent(UITransform).setContentSize(viewportW, viewportH);
+  viewport.setPosition(0, -51);
   viewport.addComponent(Mask);
   body.addChild(viewport);
 
-  const cardH = 64;
-  const gap = 8;
-  const contentH = Math.max(viewportH, ACHIEVEMENTS.length * cardH + (ACHIEVEMENTS.length - 1) * gap + 16);
-  const content = new Node("AchievementContent");
-  content.addComponent(UITransform).setContentSize(310, contentH);
+  const cardH = 76;
+  const gap = 9;
+  const topPadding = 13;
+  const bottomPadding = 5;
+  const contentH = Math.max(
+    viewportH,
+    definitions.length * cardH +
+      Math.max(0, definitions.length - 1) * gap +
+      topPadding +
+      bottomPadding,
+  );
+  const content = new Node("AchievementListContent");
+  content.addComponent(UITransform).setContentSize(viewportW, contentH);
   viewport.addChild(content);
+  const maxScrollOffset = Math.max(0, contentH - viewportH);
+  const restoredScrollOffset = Math.max(
+    0,
+    Math.min(ui.achievementScrollOffset || 0, maxScrollOffset),
+  );
+  content.setPosition(0, -maxScrollOffset / 2 + restoredScrollOffset);
 
-  ACHIEVEMENTS.forEach((definition, index) => {
-    const unlocked = gm.achievements.indexOf(definition.id) >= 0;
-    const claimed = gm.claimedAchievements.indexOf(definition.id) >= 0;
-    const card = new Node(`Achievement_${definition.id}`);
-    card.addComponent(UITransform).setContentSize(300, cardH);
-    card.setPosition(0, contentH / 2 - 8 - cardH / 2 - index * (cardH + gap));
-    fillRoundRect(
-      card,
-      300,
-      cardH,
-      11,
-      claimed
-        ? new Color(226, 240, 196, 248)
-        : unlocked
-          ? new Color(255, 236, 184, 250)
-          : new Color(229, 217, 193, 235),
-    );
-    strokeRoundRect(card, 300, cardH, 11, new Color(156, 101, 57, 215), 1.7);
-
-    const achievementIcon = new Node("AchievementIcon");
-    achievementIcon.addComponent(UITransform).setContentSize(44, 44);
-    achievementIcon.setPosition(-124, 0);
-    const usesLockedArtwork = !unlocked && definition.tier === 'hidden' && !!definition.lockedIcon;
-    achievementIcon.addComponent(UIOpacity).opacity = unlocked || usesLockedArtwork ? 255 : 130;
-    ui.applyUiIcon(usesLockedArtwork ? definition.lockedIcon! : definition.icon, achievementIcon);
-    card.addChild(achievementIcon);
-
-    const title = ui.makeLabel(definition.title, 14, new Color(78, 41, 24), true, -52, 12, 118, 20);
-    title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    card.addChild(title);
-    const description = ui.makeLabel(definition.description, 11, new Color(133, 88, 52), false, -52, -11, 118, 18);
-    description.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    card.addChild(description);
-
-    const rewardIcon = new Node("AchievementRewardIcon");
-    rewardIcon.addComponent(UITransform).setContentSize(27, 27);
-    rewardIcon.setPosition(40, 5);
-    ui.applyUiIcon(definition.reward.type, rewardIcon);
-    card.addChild(rewardIcon);
-    card.addChild(ui.makeLabel(`x${definition.reward.count}`, 11, new Color(80, 43, 25), true, 42, -17, 42, 16));
-
-    const action = new Node("AchievementAction");
-    action.addComponent(UITransform).setContentSize(66, 30);
-    action.setPosition(112, 0);
-    const actionVisual = new Node("AchievementActionVisual");
-    actionVisual.addComponent(UITransform).setContentSize(78, 78);
-    ui.applyUiIcon(
-      claimed
-        ? "achievementClaimed"
-        : unlocked
-          ? "achievementClaim"
-          : "achievementLocked",
-      actionVisual,
-    );
-    action.addChild(actionVisual);
-    if (unlocked && !claimed) {
-      action.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
-        event?.stopPropagation?.();
-        if (!gm.claimAchievement(definition.id)) return;
-        ui.toast(`领取成就奖励 x${definition.reward.count}`);
-        ui.renderAchievementPanel();
-      });
-    }
-    card.addChild(action);
-    content.addChild(card);
+  let y = contentH / 2 - topPadding - cardH / 2;
+  definitions.forEach((definition, index) => {
+    drawAchievementCard(ui, gm, body, content, definition, index, y, cardH);
+    y -= cardH + gap;
   });
 
   const scrollView = viewport.addComponent(ScrollView);
@@ -2773,8 +3446,301 @@ export function renderAchievementPanel(ui: any) {
   scrollView.inertia = true;
   (scrollView as any).elastic = false;
   scrollView.content = content;
-  const maxOffset = Math.max(0, contentH - viewportH);
-  content.setPosition(0, -maxOffset / 2);
+  const rememberScroll = () => {
+    ui.achievementScrollOffset = scrollView.getScrollOffset().y;
+  };
+  scrollView.node.on(ScrollView.EventType.SCROLLING, rememberScroll);
+  scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, rememberScroll);
+  ui.scheduleOnce(() => {
+    if (!viewport.isValid || !content.isValid) return;
+    scrollView.scrollToOffset(new Vec2(0, restoredScrollOffset), 0);
+  }, 0);
+}
+
+function drawAchievementMedalWallEntry(ui: any, body: Node) {
+  const entry = new Node("AchievementMedalWallEntry");
+  entry.addComponent(UITransform).setContentSize(56, 56);
+  entry.setPosition(0, -242);
+  const icon = new Node("AchievementMedalWallEntryIcon");
+  icon.addComponent(UITransform).setContentSize(56, 56);
+  icon.setPosition(0, 0);
+  ui.applyUiIcon("achievementMedalWallEntry", icon);
+  entry.addChild(icon);
+  entry.addChild(
+    ui.makeLabel("勋章墙", 14, new Color(88, 45, 24), true, 29, 0, 78, 24),
+  );
+  entry.children.forEach((child) => {
+    if (child !== icon) child.active = false;
+  });
+  entry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    tween(icon)
+      .to(0.07, { scale: new Vec3(0.92, 0.92, 1) }, { easing: "quadOut" })
+      .to(0.11, { scale: Vec3.ONE }, { easing: "backOut" })
+      .call(() => showAchievementMedalWall(ui, body))
+      .start();
+  });
+  body.addChild(entry);
+}
+
+function showAchievementMedalWall(ui: any, body: Node) {
+  if (ui.node.getChildByName("AchievementMedalWallOverlay")) return;
+  const gm = GameManager.getInstance();
+  const visibleSize = view.getVisibleSize();
+  const overlay = new Node("AchievementMedalWallOverlay");
+  overlay
+    .addComponent(UITransform)
+    .setContentSize(visibleSize.width, visibleSize.height);
+  fillRoundRect(
+    overlay,
+    visibleSize.width,
+    visibleSize.height,
+    0,
+    new Color(68, 43, 27, 138),
+  );
+  overlay
+    .addComponent(Button)
+    .node.on(Node.EventType.TOUCH_END, (event: any) =>
+      event?.stopPropagation?.(),
+    );
+  ui.node.addChild(overlay);
+
+  const wall = new Node("AchievementMedalWallContent");
+  wall.addComponent(UITransform).setContentSize(320, 400);
+  wall.setPosition(0, -10);
+  overlay.addChild(wall);
+
+  const background = new Node("AchievementMedalWallBackground");
+  background.addComponent(UITransform).setContentSize(320, 400);
+  ui.applyUiIcon("achievementMedalWallBg", background);
+  wall.addChild(background);
+
+  const unlockedCount = ACHIEVEMENTS.filter(
+    (item) => gm.achievements.indexOf(item.id) >= 0,
+  ).length;
+  const title = ui.makeLabel(
+    "勋章墙",
+    22,
+    new Color(88, 45, 24),
+    true,
+    0,
+    176,
+    180,
+    30,
+  );
+  const titleOutline = title.addComponent(LabelOutline);
+  titleOutline.color = new Color(255, 246, 225, 255);
+  titleOutline.width = 3;
+  wall.addChild(title);
+  wall.addChild(
+    ui.makeLabel(
+      `已解锁 ${unlockedCount}/${ACHIEVEMENTS.length}`,
+      12,
+      new Color(135, 85, 45),
+      true,
+      0,
+      150,
+      180,
+      20,
+    ),
+  );
+
+  // Measured from the sixteen hanging points in the 512 x 640 background and
+  // converted to the 320 x 400 runtime wall size.
+  const columns = [-102, -34, 34, 102];
+  const rows = [98, 30, -37, -105];
+  const artworkYOffset: Record<string, number> = {
+    plant_50: 1,
+    craft_50: 1,
+    recipes_all: 3,
+    gold_10000: 1,
+    catalog_all: 3,
+  };
+  ACHIEVEMENTS.forEach((definition, index) => {
+    const unlocked = gm.achievements.indexOf(definition.id) >= 0;
+    const badge = new Node(`MedalWallBadge_${definition.id}`);
+    badge.addComponent(UITransform).setContentSize(50, 50);
+    badge.setPosition(
+      columns[index % 4],
+      rows[Math.floor(index / 4)] + (artworkYOffset[definition.id] || 0),
+    );
+    badge.addComponent(UIOpacity).opacity = unlocked ? 255 : 62;
+    ui.applyUiIcon(
+      !unlocked && definition.lockedIcon
+        ? definition.lockedIcon
+        : definition.icon,
+      badge,
+    );
+    wall.addChild(badge);
+  });
+
+  const close = new Node("AchievementMedalWallClose");
+  close.addComponent(UITransform).setContentSize(38, 38);
+  close.setPosition(145, 184);
+  close.addChild(
+    ui.makeLabel("×", 30, new Color(106, 57, 31), true, 0, 1, 38, 38),
+  );
+  close.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    tween(close)
+      .to(0.06, { scale: new Vec3(0.86, 0.86, 1) }, { easing: "quadOut" })
+      .to(0.1, { scale: Vec3.ONE }, { easing: "backOut" })
+      .call(() => {
+        tween(wall)
+          .to(0.12, { scale: new Vec3(0.88, 0.88, 1) }, { easing: "quadIn" })
+          .call(() => overlay.destroy())
+          .start();
+      })
+      .start();
+  });
+  wall.addChild(close);
+  wall.setScale(new Vec3(0.84, 0.84, 1));
+  tween(wall).to(0.18, { scale: Vec3.ONE }, { easing: "backOut" }).start();
+}
+
+function drawAchievementCard(
+  ui: any,
+  gm: GameManager,
+  panelBody: Node,
+  content: Node,
+  definition: AchievementDefinition,
+  index: number,
+  y: number,
+  cardH: number,
+) {
+  const unlocked = gm.achievements.indexOf(definition.id) >= 0;
+  const claimed = gm.claimedAchievements.indexOf(definition.id) >= 0;
+  const alternate = index % 2 === 1;
+  const card = new Node(`Achievement_${definition.id}`);
+  card.addComponent(UITransform).setContentSize(300, cardH);
+  card.setPosition(0, y);
+  const cardColor = claimed
+    ? alternate
+      ? new Color(222, 237, 196, 248)
+      : new Color(229, 242, 205, 248)
+    : unlocked
+      ? alternate
+        ? new Color(251, 231, 187, 250)
+        : new Color(255, 239, 204, 250)
+      : alternate
+        ? new Color(229, 220, 203, 238)
+        : new Color(236, 228, 213, 238);
+  fillRoundRect(card, 300, cardH, 12, cardColor);
+  strokeRoundRect(
+    card,
+    300,
+    cardH,
+    12,
+    new Color(156, 101, 57, unlocked ? 215 : 160),
+    1.7,
+  );
+
+  const icon = new Node("AchievementIcon");
+  icon.addComponent(UITransform).setContentSize(48, 48);
+  icon.setPosition(-123, 0);
+  const usesLockedArtwork =
+    !unlocked && definition.tier === "hidden" && !!definition.lockedIcon;
+  icon.addComponent(UIOpacity).opacity =
+    unlocked || usesLockedArtwork ? 255 : 125;
+  ui.applyUiIcon(
+    usesLockedArtwork ? definition.lockedIcon! : definition.icon,
+    icon,
+  );
+  card.addChild(icon);
+
+  const title = ui.makeLabel(
+    definition.title,
+    14,
+    new Color(78, 41, 24),
+    true,
+    -50,
+    20,
+    122,
+    20,
+  );
+  title.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  title.addComponent(UIOpacity).opacity = unlocked ? 255 : 175;
+  card.addChild(title);
+  const desc = ui.makeLabel(
+    definition.description,
+    11,
+    new Color(126, 82, 48),
+    false,
+    -50,
+    1,
+    122,
+    17,
+  );
+  desc.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+  desc.addComponent(UIOpacity).opacity = unlocked ? 255 : 150;
+  card.addChild(desc);
+  const progress = getAchievementProgress(gm, definition, unlocked);
+  const progressText = ui.makeLabel(
+    `进度：${progress.current}/${progress.target}`,
+    11,
+    new Color(99, 67, 43),
+    true,
+    -50,
+    -18,
+    122,
+    17,
+  );
+  progressText.getComponent(Label)!.horizontalAlign =
+    Label.HorizontalAlign.LEFT;
+  progressText.addComponent(UIOpacity).opacity = unlocked ? 255 : 175;
+  card.addChild(progressText);
+
+  const rewardIcon = new Node("AchievementRewardIcon");
+  rewardIcon.addComponent(UITransform).setContentSize(27, 27);
+  rewardIcon.setPosition(42, 8);
+  rewardIcon.addComponent(UIOpacity).opacity = unlocked ? 255 : 160;
+  ui.applyUiIcon(definition.reward.type, rewardIcon);
+  card.addChild(rewardIcon);
+  const rewardText = ui.makeLabel(
+    `x${definition.reward.count}`,
+    11,
+    new Color(80, 43, 25),
+    true,
+    44,
+    -16,
+    44,
+    16,
+  );
+  rewardText.addComponent(UIOpacity).opacity = unlocked ? 255 : 160;
+  card.addChild(rewardText);
+
+  const action = new Node("AchievementAction");
+  action.addComponent(UITransform).setContentSize(66, 34);
+  action.setPosition(112, 0);
+  const actionVisual = new Node("AchievementActionVisual");
+  actionVisual.addComponent(UITransform).setContentSize(78, 78);
+  ui.applyUiIcon(
+    claimed
+      ? "achievementClaimed"
+      : unlocked
+        ? "achievementClaim"
+        : "achievementLocked",
+    actionVisual,
+  );
+  action.addChild(actionVisual);
+  if (unlocked && !claimed) {
+    action
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        tween(actionVisual)
+          .to(0.07, { scale: new Vec3(0.92, 0.92, 1) }, { easing: "quadOut" })
+          .to(0.12, { scale: Vec3.ONE }, { easing: "backOut" })
+          .call(() => {
+            if (!gm.claimAchievement(definition.id)) return;
+            ui.toast(`领取成就奖励 x${definition.reward.count}`);
+            refreshAchievementCategoryContent(ui, panelBody);
+          })
+          .start();
+      });
+  }
+  card.addChild(action);
+  content.addChild(card);
 }
 
 type TaskCardData = {
@@ -2888,8 +3854,7 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
   const hitH = 60;
   const tabGap = 5;
   const totalW =
-    tabs.reduce((sum, tab) => sum + tab.width, 0) +
-    tabGap * (tabs.length - 1);
+    tabs.reduce((sum, tab) => sum + tab.width, 0) + tabGap * (tabs.length - 1);
   let cursorX = -totalW / 2;
   const selected = tabs.find((tab) => tab.type === ui.taskCategory) || tabs[0];
   const image = new Node("TaskCategoryTabsImage");
@@ -2900,9 +3865,7 @@ function drawTaskCategoryTabs(ui: any, body: Node) {
 
   tabs.forEach((tab, index) => {
     const icon = new Node(`TaskTabIcon_${index}`);
-    icon
-      .addComponent(UITransform)
-      .setContentSize(tab.iconSize, tab.iconSize);
+    icon.addComponent(UITransform).setContentSize(tab.iconSize, tab.iconSize);
     icon.setPosition(tab.visualX - 28 + tab.iconOffsetX, 0);
     ui.applyUiIcon(tab.icon, icon);
     image.addChild(icon);
@@ -2980,12 +3943,12 @@ function drawTaskListScroll(
   const viewportH = 358;
   const viewport = new Node("TaskListViewport");
   viewport.addComponent(UITransform).setContentSize(viewportW, viewportH);
-  viewport.setPosition(0, -62);
+  viewport.setPosition(0, -57);
 
   viewport.addComponent(Mask);
   body.addChild(viewport);
 
-  const baseGap = 9;
+  const baseGap = 6;
   const topPadding = 13;
   const bottomPadding = 3;
   const heights = cards.map((task) =>
@@ -2998,9 +3961,7 @@ function drawTaskListScroll(
   const minimumContentH =
     heightsTotal + baseGap * gapCount + topPadding + bottomPadding;
   const contentH = Math.max(viewportH, minimumContentH);
-  const gap = gapCount > 0 && minimumContentH <= viewportH
-    ? (viewportH - heightsTotal - topPadding - bottomPadding) / gapCount
-    : baseGap;
+  const gap = baseGap;
   const content = new Node("TaskListContent");
   content.addComponent(UITransform).setContentSize(viewportW, contentH);
   viewport.addChild(content);
@@ -3153,7 +4114,9 @@ function drawTaskActionButton(
 ) {
   const complete = task.progress >= task.target;
   const button = new Node("TaskGoButton");
-  button.addComponent(UITransform).setContentSize(compact ? 56 : 52, compact ? 26 : 22);
+  button
+    .addComponent(UITransform)
+    .setContentSize(compact ? 56 : 52, compact ? 26 : 22);
   button.setPosition(112, y);
   const visual = new Node("TaskGoButtonVisual");
   visual
@@ -3237,9 +4200,10 @@ function animateTaskRewardsToInventory(
     bubbleGraphics.circle(0, 0, 22);
     bubbleGraphics.stroke();
 
-    const icon = reward.iconType === "item"
-      ? ui.createItemIcon(reward.icon, 31, true)
-      : new Node("RewardFlightIcon");
+    const icon =
+      reward.iconType === "item"
+        ? ui.createItemIcon(reward.icon, 31, true)
+        : new Node("RewardFlightIcon");
     if (reward.iconType !== "item") {
       icon.addComponent(UITransform).setContentSize(31, 31);
       ui.applyUiIcon(reward.icon, icon);
@@ -3348,21 +4312,8 @@ function drawTaskRewardPanel(
     0,
     layout.cardHeight / 2 - TASK_REWARD_TOP_OFFSET - layout.panelHeight / 2,
   );
-  fillRoundRect(
-    panel,
-    284,
-    layout.panelHeight,
-    8,
-    bubbleColor,
-  );
-  strokeRoundRect(
-    panel,
-    284,
-    layout.panelHeight,
-    8,
-    bubbleBorderColor,
-    1.2,
-  );
+  fillRoundRect(panel, 284, layout.panelHeight, 8, bubbleColor);
+  strokeRoundRect(panel, 284, layout.panelHeight, 8, bubbleBorderColor, 1.2);
 
   const tail = new Node("TaskRewardBubbleTail");
   tail.setPosition(112, layout.panelHeight / 2 + 3);
@@ -3492,16 +4443,7 @@ function drawTaskRewardIcon(
     ),
   );
   item.addChild(
-    ui.makeLabel(
-      labelText,
-      10,
-      new Color(55, 30, 20),
-      true,
-      0,
-      -28,
-      54,
-      14,
-    ),
+    ui.makeLabel(labelText, 10, new Color(55, 30, 20), true, 0, -28, 54, 14),
   );
 }
 
@@ -3555,41 +4497,33 @@ export function useInventoryTool(ui: any, slotIndex: number) {
     );
     return;
   }
-  ui.showDialog(
-    `使用${item.name}`,
-    item.description,
-    [
-      { text: "取消", cb: () => {} },
-      {
-        text: "使用",
-        cb: () => {
-          const result = GameManager.getInstance().useTool(item.id);
-          ui.toast(result || "当前无法使用");
-          if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
-        },
+  ui.showDialog(`使用${item.name}`, item.description, [
+    { text: "取消", cb: () => {} },
+    {
+      text: "使用",
+      cb: () => {
+        const result = GameManager.getInstance().useTool(item.id);
+        ui.toast(result || "当前无法使用");
+        if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
       },
-    ],
-  );
+    },
+  ]);
 }
 
 export function useSpecialItem(ui: any, slotIndex: number) {
   const slot = InventorySystem.getInstance().slots[slotIndex];
   if (!slot || slot.itemId !== "mysteryBox") return;
-  ui.showDialog(
-    "开启神秘礼盒",
-    "打开后可随机获得金币、钻石或当前等级种子。",
-    [
-      { text: "取消", cb: () => {} },
-      {
-        text: "开启",
-        cb: () => {
-          const result = GameManager.getInstance().openMysteryBox();
-          ui.toast(result || "礼盒数量不足");
-          if (ui.panels.inventory?.active) ui.renderInventoryPanel();
-        },
+  ui.showDialog("开启神秘礼盒", "打开后可随机获得金币、钻石或当前等级种子。", [
+    { text: "取消", cb: () => {} },
+    {
+      text: "开启",
+      cb: () => {
+        const result = GameManager.getInstance().openMysteryBox();
+        ui.toast(result || "礼盒数量不足");
+        if (ui.panels.inventory?.active) ui.renderInventoryPanel();
       },
-    ],
-  );
+    },
+  ]);
 }
 
 export function startCraft(ui: any, recipeId: string) {

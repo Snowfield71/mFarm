@@ -10,6 +10,7 @@ import * as MainUILand from './mainui/MainUILand';
 import * as MainUIPanels from './mainui/MainUIPanels';
 import * as MainUIDialogs from './mainui/MainUIDialogs';
 import * as MainUIEvents from './mainui/MainUIEvents';
+import { ImageCache } from '../utils/ImageCache';
 import {
     applyUiIcon,
     createItemIcon,
@@ -43,6 +44,8 @@ export class MainUI extends Component {
     private suppressNextLandExpandedRefresh = false;
     private taskDetailId?: string;
     private taskCategory: "main" | "daily" | "branch" | "special" = "main";
+    private achievementCategory: "planting" | "crafting" | "growth" | "collection" = "planting";
+    private achievementScrollOffset = 0;
     private selectedCraftRecipeId = '';
     private craftRecipeScrollOffset = 0;
     private craftArrowX?: number;
@@ -50,6 +53,9 @@ export class MainUI extends Component {
     private inventoryScrollOffset = 0;
     private shopCategory: "seeds" | "tools" = "seeds";
     private shopScrollOffset = 0;
+    private titleDialogCategory: 'level' | 'achievement' = 'level';
+    private titleDialogSelectedId = '';
+    private titleDialogScrollOffsets: Record<'level' | 'achievement', number> = { level: 0, achievement: 0 };
 
     private static readonly LAND_COLS = 3;
     private static readonly LAND_ROWS = 5;
@@ -59,6 +65,13 @@ export class MainUI extends Component {
     private static readonly BOTTOM_NAV_HEIGHT = 66;
 
     start() {
+        ImageCache.getInstance().preloadUiIcons([
+            'inventorySellResultBg',
+            'inventorySellDialogBg',
+            'seedSelectorBg',
+            'btnSellCancel',
+            'btnCropSpeedUp',
+        ]);
         this.createBackground();
         this.createTopBar();
         this.createLandArea();
@@ -70,6 +83,7 @@ export class MainUI extends Component {
         this.createBubbleRoot();
         this.bindEvents();
         this.refreshAll();
+        MainUIPanels.prewarmHeavyPanelImages(this);
     }
 
     update(dt: number) {
@@ -159,6 +173,7 @@ export class MainUI extends Component {
     private renderTaskPanel() { return MainUIPanels.renderTaskPanel(this); }
     private renderDailySignInPanel() { return MainUIPanels.renderDailySignInPanel(this); }
     private renderAchievementPanel() { return MainUIPanels.renderAchievementPanel(this); }
+    private renderTitlePanel() { return MainUIPanels.renderTitlePanel(this); }
     private buySeed(crop: ItemDef) { return MainUIPanels.buySeed(this, crop); }
     private getSeedBuyPrice(crop: ItemDef): number { return MainUIPanels.getSeedBuyPrice(this, crop); }
     private startCraft(recipeId: string) { return MainUIPanels.startCraft(this, recipeId); }
@@ -169,8 +184,11 @@ export class MainUI extends Component {
     private applyEditBoxTextColor(editBox: EditBox, color: Color, placeholderColor: Color) {
         return MainUIDialogs.applyEditBoxTextColor(this, editBox, color, placeholderColor);
     }
-    private showDialog(title: string, message: string, buttons: Array<{ text: string; cb: () => void }>) {
+    private showDialog(title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>) {
         return MainUIDialogs.showDialog(this, title, message, buttons);
+    }
+    private showTitleDialog(category?: 'level' | 'achievement') {
+        return MainUIPanels.showTitlePanel(this, category);
     }
     private toast(text: string) { return MainUIDialogs.toast(this, text); }
 

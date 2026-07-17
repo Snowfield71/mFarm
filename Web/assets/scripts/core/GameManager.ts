@@ -4,6 +4,7 @@ import { EventManager } from './EventManager';
 import { GameValues, Design } from '../config/GameConfig';
 import { getPlantableCrops, ITEM_DB } from '../config/ItemConfig';
 import { getAllRecipes } from '../config/RecipeConfig';
+import { getPlayerTitle, PlayerTitleDefinition } from '../config/TitleConfig';
 import { Logger } from '../utils/Logger';
 import { ImageCache } from '../utils/ImageCache';
 import { InventorySystem } from '../systems/InventorySystem';
@@ -61,6 +62,8 @@ export class GameManager extends Component {
     doubleHarvestCharges: number = 0;
     goldBoostCharges: number = 0;
     totalCraftCount: number = 0;
+    totalPastureCollectCount: number = 0;
+    equippedTitleId: string = '';
     achievements: string[] = [];
     claimedAchievements: string[] = [];
     hasLoaded: boolean = false;
@@ -161,8 +164,12 @@ export class GameManager extends Component {
             this.doubleHarvestCharges = Math.max(0, saveData.doubleHarvestCharges || 0);
             this.goldBoostCharges = Math.max(0, saveData.goldBoostCharges || 0);
             this.totalCraftCount = saveData.totalCraftCount || 0;
+            this.totalPastureCollectCount = Math.max(0, saveData.totalPastureCollectCount || 0);
             this.achievements = saveData.achievements || [];
             this.claimedAchievements = saveData.claimedAchievements || [];
+            this.equippedTitleId = saveData.equippedTitleId || '';
+            const equippedTitle = getPlayerTitle(this.equippedTitleId);
+            if (!equippedTitle || !this.isPlayerTitleUnlocked(equippedTitle)) this.equippedTitleId = '';
             this.totalPlayTime = saveData.totalPlayTime || 0;
             this.nextLevelExp = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, this.playerLevel - 1));
 
@@ -221,6 +228,8 @@ export class GameManager extends Component {
             doubleHarvestCharges: this.doubleHarvestCharges,
             goldBoostCharges: this.goldBoostCharges,
             totalCraftCount: this.totalCraftCount,
+            totalPastureCollectCount: this.totalPastureCollectCount,
+            equippedTitleId: this.equippedTitleId,
             achievements: this.achievements,
             claimedAchievements: this.claimedAchievements,
             timestamp: Date.now(),
@@ -280,10 +289,15 @@ export class GameManager extends Component {
         evt.on('itemSold', (data: any) => { this.advanceTaskProgress('itemSold', data); this.requestSave(); });
         evt.on('landExpanded', (data: any) => { this.advanceTaskProgress('landExpanded', data); this.evaluateAchievements(); this.requestSave(); });
         evt.on('pastureExpanded', () => this.requestSave());
-        evt.on('goldChanged', () => this.requestSave());
-        evt.on('diamondChanged', () => this.requestSave());
+        evt.on('buildingCollected', () => {
+            this.totalPastureCollectCount++;
+            this.evaluateAchievements();
+            this.requestSave();
+        });
+        evt.on('goldChanged', () => { this.evaluateAchievements(); this.requestSave(); });
+        evt.on('diamondChanged', () => { this.evaluateAchievements(); this.requestSave(); });
         evt.on('experienceChanged', () => this.requestSave());
-        evt.on('levelUp', (data: any) => { this.advanceTaskProgress('levelUp', data); this.requestSave(); });
+        evt.on('levelUp', (data: any) => { this.advanceTaskProgress('levelUp', data); this.evaluateAchievements(); this.requestSave(); });
     }
 
     private requestSave() {
@@ -333,13 +347,19 @@ export class GameManager extends Component {
         if (land.getTotalPlantCount() >= 1) this.addAchievement('first_plant');
         if (land.getTotalPlantCount() >= 50) this.addAchievement('plant_50');
         if (this.gold >= 100) this.addAchievement('gold_100');
+        if (this.gold >= 10000) this.addAchievement('gold_10000');
+        if (this.diamond >= 50) this.addAchievement('diamond_50');
         if (this.playerLevel >= 10) this.addAchievement('level_10');
+        if (this.playerLevel >= 20) this.addAchievement('level_20');
         if (CraftSystem.getInstance().getAllActiveCrafts().length > 0 || inv.getItemCount('flour') > 0) {
             this.addAchievement('first_craft');
         }
         if (this.totalCraftCount >= 50) this.addAchievement('craft_50');
         if (this.unlockedRecipes.length >= getAllRecipes().length) this.addAchievement('recipes_all');
+        if (this.discoveredItems.length >= 20) this.addAchievement('catalog_20');
         if (this.discoveredItems.length >= this.getCatalogProgress().total) this.addAchievement('catalog_all');
+        if (this.totalPastureCollectCount >= 1) this.addAchievement('pasture_first');
+        if (this.totalPastureCollectCount >= 50) this.addAchievement('pasture_50');
     }
 
     private todayString(): string {
@@ -375,6 +395,28 @@ export class GameManager extends Component {
         this.eventManager.emit('achievementClaimed', id);
         this.requestSave();
         return true;
+    }
+
+    isPlayerTitleUnlocked(title: PlayerTitleDefinition): boolean {
+        if (title.requiredLevel !== undefined) return this.playerLevel >= title.requiredLevel;
+        if (title.achievementId) return this.achievements.indexOf(title.achievementId) >= 0;
+        return false;
+    }
+
+    equipPlayerTitle(id: string): boolean {
+        const title = getPlayerTitle(id);
+        if (!title || !this.isPlayerTitleUnlocked(title)) return false;
+        this.equippedTitleId = id;
+        this.eventManager.emit('playerTitleChanged', id);
+        this.requestSave();
+        return true;
+    }
+
+    unequipPlayerTitle() {
+        if (!this.equippedTitleId) return;
+        this.equippedTitleId = '';
+        this.eventManager.emit('playerTitleChanged', '');
+        this.requestSave();
     }
 
     isDailySignInClaimable(): boolean {

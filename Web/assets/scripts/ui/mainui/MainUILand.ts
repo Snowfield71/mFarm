@@ -76,8 +76,7 @@ export function createPastureTile(ui: any, slot: LandBlock): Node {
         fillRoundRect(shade, 78, 78, 14, new Color(76, 70, 56, 70));
         tile.addChild(shade);
         const billboard = createPastureExpansionBillboard(ui);
-        billboard.setScale(new Vec3(0.68, 0.68, 1));
-        billboard.setPosition(0, 1);
+        billboard.setPosition(0, 3);
         tile.addChild(billboard);
     } else if (slot.state === 'occupied') {
         drawOccupiedMarker(ui, tile, slot);
@@ -750,10 +749,13 @@ export function handleLandClick(ui: any, blockId: number) {
     if (block.state === 'growing') {
         ui.showDialog(
             '作物生长中',
-            `当前进度 ${Math.floor(block.progress)}%\n消耗 ${GameValues.SPEEDUP_DIAMOND} 钻石立即成熟`,
+            () => {
+                const current = land.getBlock(blockId);
+                return `当前进度 ${Math.floor(current?.progress || 0)}%\n消耗 ${GameValues.SPEEDUP_DIAMOND} 钻石立即成熟`;
+            },
             [
-                { text: '取消', cb: () => {} },
-                { text: '加速', cb: () => {
+                { text: '取消', image: 'btnSellCancel', cb: () => {} },
+                { text: '加速', image: 'btnCropSpeedUp', cb: () => {
                     const gm = GameManager.getInstance();
                     if (!gm.spendDiamond(GameValues.SPEEDUP_DIAMOND)) {
                         ui.toast('钻石不足');
@@ -964,47 +966,52 @@ export function openSeedBubble(ui: any, blockId: number) {
     });
     ui.bubbleRoot.addChild(mask);
 
-    const itemSize = 54;
-    const cols = Math.min(4, crops.length);
+    const itemSize = 48;
+    const cols = 4;
     const rows = Math.ceil(crops.length / cols);
-    const visibleRows = Math.min(2, rows);
-    const gap = 6;
-    const w = cols * itemSize + (cols - 1) * gap + 18;
-    const viewportH = visibleRows * itemSize + (visibleRows - 1) * gap;
-    const contentH = rows * itemSize + (rows - 1) * gap;
-    const h = viewportH + 20;
+    const visibleRows = 2;
+    const gapX = 9;
+    const gapY = 6;
+    const w = 258;
+    const viewportH = visibleRows * itemSize + (visibleRows - 1) * gapY;
+    const contentH = Math.max(viewportH, rows * itemSize + Math.max(0, rows - 1) * gapY);
+    const h = 145;
     const landPos = ui.getLandPosition(blockId);
 
     const bubble = new Node('SeedBubble');
     bubble.addComponent(UITransform).setContentSize(w, h);
     bubble.setPosition(getSeedBubblePosition(ui, landPos, w, h));
-    fillRoundRect(bubble, w, h, 12, new Color(255, 250, 231, 250));
-    strokeRoundRect(bubble, w, h, 12, new Color(118, 184, 96, 170), 2);
     bubble.on(Node.EventType.TOUCH_END, (event: any) => event?.stopPropagation?.());
     ui.bubbleRoot.addChild(bubble);
+    const background = new Node('SeedBubbleBackground');
+    background.addComponent(UITransform).setContentSize(w, h);
+    ui.applyUiIcon('seedSelectorBg', background);
+    bubble.addChild(background);
 
     const viewport = new Node('SeedViewport');
-    viewport.addComponent(UITransform).setContentSize(w - 12, viewportH);
+    viewport.addComponent(UITransform).setContentSize(w - 24, viewportH);
+    viewport.setPosition(0, 0);
     viewport.addComponent(Mask);
     bubble.addChild(viewport);
 
     const content = new Node('SeedContent');
-    content.addComponent(UITransform).setContentSize(w - 12, contentH);
+    const gridW = cols * itemSize + (cols - 1) * gapX;
+    content.addComponent(UITransform).setContentSize(gridW, contentH);
     viewport.addChild(content);
 
-    const startX = -(w - 18) / 2 + itemSize / 2;
+    const startX = -gridW / 2 + itemSize / 2;
     const startY = contentH / 2 - itemSize / 2;
     crops.forEach((crop, index) => {
         const cell = new Node(`Seed_${crop.id}`);
         cell.addComponent(UITransform).setContentSize(itemSize, itemSize);
-        cell.setPosition(startX + (index % cols) * (itemSize + gap), startY - Math.floor(index / cols) * (itemSize + gap));
-        fillRoundRect(cell, itemSize, itemSize, 10, new Color(236, 247, 226, 245));
-        strokeRoundRect(cell, itemSize, itemSize, 10, new Color(140, 200, 120, 120), 1);
+        cell.setPosition(startX + (index % cols) * (itemSize + gapX), startY - Math.floor(index / cols) * (itemSize + gapY));
+        fillRoundRect(cell, 46, 46, 10, new Color(255, 252, 235, 244));
+        strokeRoundRect(cell, 46, 46, 10, new Color(173, 112, 62, 180), 1.4);
 
-        const icon = ui.createItemIcon(crop.id, 38);
-        icon.setPosition(0, 6);
+        const icon = ui.createItemIcon(crop.id, 33);
+        icon.setPosition(0, 5);
         cell.addChild(icon);
-        cell.addChild(ui.makeLabel(ui.itemName(crop.id), 9, new Color(50, 78, 44), false, 0, -20, itemSize - 4, 12));
+        cell.addChild(ui.makeLabel(ui.itemName(crop.id), 8, new Color(78, 50, 30), false, 0, -17, itemSize - 4, 11));
 
         cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
             const target = ui.activeBubbleLandId;

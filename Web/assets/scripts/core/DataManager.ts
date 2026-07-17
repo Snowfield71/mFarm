@@ -29,6 +29,8 @@ export interface SaveData {
     doubleHarvestCharges?: number;
     goldBoostCharges?: number;
     totalCraftCount?: number;
+    totalPastureCollectCount?: number;
+    equippedTitleId?: string;
     achievements: string[];
     claimedAchievements?: string[];
     adState?: any;

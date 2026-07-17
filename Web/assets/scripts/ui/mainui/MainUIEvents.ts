@@ -38,6 +38,7 @@ import {
   strokeRoundRect,
 } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
+import { getPlayerTitle } from "../../config/TitleConfig";
 
 export function bindEvents(ui: any) {
   const evt = EventManager.getInstance();
@@ -45,6 +46,7 @@ export function bindEvents(ui: any) {
   evt.on("diamondChanged", () => ui.refreshTopBar());
   evt.on("experienceChanged", () => ui.refreshTopBar());
   evt.on("levelUp", () => ui.refreshAll());
+  evt.on("playerTitleChanged", () => ui.refreshTopBar());
   evt.on("inventoryChanged", () => {
     if (ui.panels.inventory?.active) ui.renderInventoryPanel();
     if (ui.panels.quest?.active) ui.renderQuestPanel();
@@ -112,7 +114,18 @@ export function refreshTopBar(ui: any) {
   const level = ui.topBar
     .getChildByName("LevelBadge")
     ?.getChildByName("LevelText");
-  if (level) level.getComponent(Label)!.string = `Lv.${gm.playerLevel} 农场`;
+  const levelBadge = ui.topBar.getChildByName("LevelBadge");
+  const equippedTitle = getPlayerTitle(gm.equippedTitleId);
+  const sceneName = ui.activeWorld === "pasture" ? "牧场" : "农场";
+  if (level) {
+    level.getComponent(Label)!.string = `Lv.${gm.playerLevel} ${sceneName}`;
+    level.setPosition(0, equippedTitle ? 6 : 0);
+  }
+  const playerTitle = levelBadge?.getChildByName("PlayerTitleText");
+  if (playerTitle) {
+    playerTitle.active = !!equippedTitle;
+    if (equippedTitle) playerTitle.getComponent(Label)!.string = `【${equippedTitle.fullName}】`;
+  }
   const currencyArea = ui.topBar.getChildByName("CurrencyArea");
   const gold = findNode(currencyArea, "GoldDisplay");
   const diamond = findNode(currencyArea, "DiamondDisplay");
