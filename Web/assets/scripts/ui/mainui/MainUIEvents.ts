@@ -39,6 +39,8 @@ import {
 } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
 import { getPlayerTitle } from "../../config/TitleConfig";
+import { getSeasonInfo, SEASON_LABELS } from "../../config/SeasonConfig";
+import { animateItemToInventory } from "./MainUIRewardAnimation";
 
 export function bindEvents(ui: any) {
   const evt = EventManager.getInstance();
@@ -48,28 +50,44 @@ export function bindEvents(ui: any) {
   evt.on("levelUp", () => ui.refreshAll());
   evt.on("playerTitleChanged", () => ui.refreshTopBar());
   evt.on("inventoryChanged", () => {
-    if (ui.panels.inventory?.active) ui.renderInventoryPanel();
-    if (ui.panels.quest?.active) ui.renderQuestPanel();
+    if (ui.panels.inventory?.active) ui.refreshInventoryGrid();
+    const catalogUnlocked = GameManager.getInstance().getCatalogProgress().unlocked;
+    if (
+      ui.panels.quest?.active &&
+      ui.catalogRenderedUnlocked !== catalogUnlocked
+    ) {
+      ui.renderQuestPanel();
+    }
     updateTaskNavBadge(ui);
   });
   evt.on("craftStarted", () => {
     if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
   });
   evt.on("craftCompleted", (data: any) => {
-    ui.toast(`${ui.recipeName(data.recipe)} 完成`);
+    const craftBody = ui.panels.craft?.getChildByName("Body");
+    const progressSection = craftBody?.children.find((child: Node) =>
+      child.name.startsWith("Crafting_"),
+    );
+    const rewardAnimated =
+      !!ui.panels.craft?.active &&
+      !!progressSection &&
+      animateItemToInventory(
+        ui,
+        data.recipe.product.itemId,
+        data.recipe.product.count,
+        progressSection.worldPosition.clone(),
+      );
+    if (!rewardAnimated) ui.toast(`${ui.recipeName(data.recipe)} 完成`);
     if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
-    if (ui.panels.inventory?.active) ui.renderInventoryPanel();
-    if (ui.panels.quest?.active) ui.renderQuestPanel();
     updateTaskNavBadge(ui);
   });
   evt.on("achievementUnlocked", () => {
-    if (ui.panels.quest?.active) ui.renderQuestPanel();
-    if (ui.panels.achievement?.active) ui.renderAchievementPanel();
+    if (ui.panels.achievement?.active) ui.refreshAchievementCategoryContent();
     updateAchievementEntryState(ui);
   });
   evt.on("achievementClaimed", () => updateAchievementEntryState(ui));
   evt.on("taskChanged", () => {
-    if (ui.panels.task?.active) ui.renderTaskPanel();
+    if (ui.panels.task?.active) ui.refreshTaskCategoryContent();
     updateTaskNavBadge(ui);
   });
   evt.on("craftTablesChanged", () => {
@@ -117,6 +135,11 @@ export function refreshTopBar(ui: any) {
   const levelBadge = ui.topBar.getChildByName("LevelBadge");
   const equippedTitle = getPlayerTitle(gm.equippedTitleId);
   const sceneName = ui.activeWorld === "pasture" ? "牧场" : "农场";
+  const seasonInfo = getSeasonInfo();
+  const seasonLabel = ui.topBar.getChildByName("SeasonLabel");
+  if (seasonLabel) {
+    seasonLabel.getComponent(Label)!.string = `${SEASON_LABELS[seasonInfo.season]} · 第${seasonInfo.dayInSeason}天`;
+  }
   if (level) {
     level.getComponent(Label)!.string = `Lv.${gm.playerLevel} ${sceneName}`;
     level.setPosition(0, equippedTitle ? 6 : 0);

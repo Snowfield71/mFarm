@@ -29,10 +29,6 @@ export const RECIPE_DB: Record<string, RecipeDef> = {
     R006: { id: 'R006', name: '玉米片制作', materials: [{ itemId: 'corn', count: 3 }], product: { itemId: 'cornFlakes', count: 1 }, craftTime: 12, cost: 22, exp: 11, requiredLevel: 3, tier: 1 },
     R004: { id: 'R004', name: '胡萝卜泥制作', materials: [{ itemId: 'carrot', count: 2 }], product: { itemId: 'carrotPuree', count: 1 }, craftTime: 8, cost: 18, exp: 9, requiredLevel: 4, tier: 1 },
     R005: { id: 'R005', name: '蜂蜜采集', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'honey', count: 1 }, craftTime: 20, cost: 30, exp: 15, requiredLevel: 15, tier: 1 },
-    R007: { id: 'R007', name: '向日葵培育', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'sunflower', count: 1 }, craftTime: 12, cost: 18, exp: 8, requiredLevel: 15, tier: 1 },
-    R008: { id: 'R008', name: '郁金香培育', materials: [{ itemId: 'flower', count: 2 }], product: { itemId: 'tulip', count: 1 }, craftTime: 12, cost: 18, exp: 8, requiredLevel: 15, tier: 1 },
-    R009: { id: 'R009', name: '玫瑰培育', materials: [{ itemId: 'flower', count: 3 }], product: { itemId: 'rose', count: 1 }, craftTime: 16, cost: 24, exp: 10, requiredLevel: 15, tier: 1 },
-
     // === 二级配方 (Lv.3-4): 面包和简单料理 ===
     R010: { id: 'R010', name: '面包烘焙', materials: [{ itemId: 'flour', count: 2 }, { itemId: 'butter', count: 1 }], product: { itemId: 'bread', count: 1 }, craftTime: 30, cost: 50, exp: 25, requiredLevel: 7, tier: 2 },
     R011: { id: 'R011', name: '牛角面包', materials: [{ itemId: 'flour', count: 3 }, { itemId: 'butter', count: 2 }], product: { itemId: 'croissant', count: 1 }, craftTime: 35, cost: 60, exp: 30, requiredLevel: 9, tier: 2 },

@@ -8,6 +8,7 @@ export interface SaveData {
     experience: number;
     landBlocks: any[];
     buildingSlots?: any[];
+    greenhouseBlocks?: any[];
     pastureUnlockedSlots?: number[];
     plantCounts?: Record<string, number>;
     inventory: Array<{ itemId: string; count: number }>;
@@ -33,6 +34,12 @@ export interface SaveData {
     equippedTitleId?: string;
     achievements: string[];
     claimedAchievements?: string[];
+    seasonalPlanting?: Record<string, string[]>;
+    seasonRuleBreaks?: Record<string, number>;
+    seasonalGreenhouseCardPurchaseKey?: string;
+    seasonCompliantTitleUnlocked?: boolean;
+    seasonalNativePlantCount?: number;
+    seasonalCrossSeasonPlantCount?: number;
     adState?: any;
     timestamp: number;
 }

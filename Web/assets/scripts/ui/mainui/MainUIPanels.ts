@@ -57,6 +57,8 @@ import {
   TaskCategory,
 } from "../../config/TaskConfig";
 import { PLAYER_TITLES, PlayerTitleCategory } from "../../config/TitleConfig";
+import { isSeasonAllowed, SEASONS } from "../../config/SeasonConfig";
+import { animateRewardsToInventory } from "./MainUIRewardAnimation";
 
 export function showPanel(ui: any, name: PanelName) {
   ui.closeSeedBubble();
@@ -117,6 +119,10 @@ export function showPanel(ui: any, name: PanelName) {
       "shopSeeds",
       "shopTools",
       "btnBuy",
+      "seasonSpring",
+      "seasonSummer",
+      "seasonAutumn",
+      "seasonWinter",
     ]);
     ui.renderShopPanel();
   }
@@ -172,6 +178,9 @@ export function showPanel(ui: any, name: PanelName) {
       "achievementCategoryCollection",
       "achievementMedalWallEntry",
       "achievementMedalWallBg",
+      "achievementMedalSlot",
+      "achievementMedalWallOrnamentLeft",
+      "achievementMedalWallOrnamentRight",
       ...ACHIEVEMENTS.map((item) => item.icon),
       ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
         (icon): icon is string => !!icon,
@@ -218,6 +227,10 @@ export function prewarmHeavyPanelImages(ui: any) {
       "shopTabsTools",
       "shopSeeds",
       "shopTools",
+      "seasonSpring",
+      "seasonSummer",
+      "seasonAutumn",
+      "seasonWinter",
       "craftChefTools",
       "craftArrow",
       "btnCraft",
@@ -240,6 +253,9 @@ export function prewarmHeavyPanelImages(ui: any) {
       "achievementCategoryCollection",
       "achievementMedalWallEntry",
       "achievementMedalWallBg",
+      "achievementMedalSlot",
+      "achievementMedalWallOrnamentLeft",
+      "achievementMedalWallOrnamentRight",
       ...ACHIEVEMENTS.map((item) => item.icon),
       ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
         (icon): icon is string => !!icon,
@@ -388,6 +404,25 @@ export function renderInventoryPanel(ui: any) {
   body.addChild(frame);
   drawInventoryCategoryTabs(ui, body);
 
+  drawInventoryGridContent(ui, body, inv);
+}
+
+export function refreshInventoryGrid(ui: any) {
+  const body = ui.panels.inventory?.getChildByName("Body");
+  if (!body) return;
+  const viewport = body.getChildByName("InventoryViewport");
+  if (viewport) {
+    viewport.removeFromParent();
+    viewport.destroy();
+  }
+  drawInventoryGridContent(ui, body, InventorySystem.getInstance());
+}
+
+function drawInventoryGridContent(
+  ui: any,
+  body: Node,
+  inv: InventorySystem,
+) {
   const entries = inv.slots
     .map((slot, slotIndex) => ({ slot, slotIndex }))
     .filter(({ slot }) =>
@@ -510,8 +545,7 @@ function inventorySlotMatchesCategory(itemId: string, category: string) {
   if (category === "materials") {
     return (
       (item.category === ItemCategory.CROP && !item.isCrop) ||
-      item.category === ItemCategory.PROCESSED ||
-      item.category === ItemCategory.TOOL
+      item.category === ItemCategory.PROCESSED
     );
   }
   return (
@@ -519,6 +553,7 @@ function inventorySlotMatchesCategory(itemId: string, category: string) {
     item.category === ItemCategory.BUILDING ||
     item.category === ItemCategory.DECORATION ||
     item.category === ItemCategory.SPECIAL ||
+    item.category === ItemCategory.TOOL ||
     item.category === ItemCategory.AD_REWARD
   );
 }
@@ -626,7 +661,8 @@ function drawInventoryGrid(
           ui.useInventoryTool(slotIndex);
         else if (item?.category === ItemCategory.BUILDING)
           ui.openSellDialog(slotIndex);
-        else if (item?.id === "mysteryBox") ui.useSpecialItem(slotIndex);
+        else if (item?.category === ItemCategory.SPECIAL)
+          ui.useSpecialItem(slotIndex);
         else ui.openSellDialog(slotIndex);
       });
     }
@@ -870,10 +906,10 @@ export function renderTitlePanel(ui: any) {
 
   drawTitleCategoryTabs(ui, body, category);
 
-  const viewportH = 260;
+  const viewportH = 270;
   const viewport = new Node("TitleListViewport");
   viewport.addComponent(UITransform).setContentSize(278, viewportH);
-  viewport.setPosition(0, 25);
+  viewport.setPosition(0, 20);
   viewport.addComponent(Mask);
   frame.addChild(viewport);
   const rowH = 70;
@@ -916,18 +952,25 @@ export function renderTitlePanel(ui: any) {
     name.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
     name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
     row.addChild(name);
+    const conditionText =
+      title.condition.length > 16
+        ? `${title.condition.slice(0, 15)}…`
+        : title.condition;
     const condition = ui.makeLabel(
-      title.condition,
+      conditionText,
       12,
       unlocked ? new Color(155, 105, 68) : new Color(145, 136, 123),
       false,
       -122,
       -14,
-      178,
+      165,
       19,
     );
     condition.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
-    condition.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    const conditionLabel = condition.getComponent(Label)!;
+    conditionLabel.horizontalAlign = Label.HorizontalAlign.LEFT;
+    conditionLabel.overflow = Label.Overflow.SHRINK;
+    conditionLabel.enableWrapText = false;
     row.addChild(condition);
     const status = new Node("TitleStatusVisual");
     status.addComponent(UITransform).setContentSize(78, 78);
@@ -974,13 +1017,13 @@ export function renderTitlePanel(ui: any) {
     onTap: () => void,
   ) => {
     const art = new Node(`${name}Art`);
-    art.addComponent(UITransform).setContentSize(104, 104);
-    art.setPosition(x, -154);
+    art.addComponent(UITransform).setContentSize(96, 96);
+    art.setPosition(x, -149);
     ui.applyUiIcon(icon, art);
     frame.addChild(art);
     const hit = new Node(name);
-    hit.addComponent(UITransform).setContentSize(90, 42);
-    hit.setPosition(x, -146);
+    hit.addComponent(UITransform).setContentSize(88, 40);
+    hit.setPosition(x, -149);
     hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       tween(art)
@@ -1243,7 +1286,7 @@ function drawMarketplaceGrid(
   const gridW = cols * cellW + (cols - 1) * gapX;
   const gridH = rows * cellH + Math.max(0, rows - 1) * gapY;
   const contentH = Math.max(viewportH, gridH + 16);
-  const paddingY = (contentH - gridH) / 2;
+  const topPadding = 8;
   const content = new Node("MarketplaceContent");
   content.addComponent(UITransform).setContentSize(viewportW, contentH);
   viewport.addChild(content);
@@ -1257,13 +1300,16 @@ function drawMarketplaceGrid(
 
   items.forEach((item, index) => {
     const unlocked = item.unlockLevel <= gm.playerLevel;
+    const marketplaceName = item.isCrop
+      ? ui.itemName(item.id).replace(/(?:种子|种薯)$/u, "")
+      : ui.itemName(item.id);
     const col = index % cols;
     const row = Math.floor(index / cols);
     const card = new Node(`MarketplaceItem_${item.id}`);
     card.addComponent(UITransform).setContentSize(cellW, cellH);
     card.setPosition(
       -gridW / 2 + cellW / 2 + col * (cellW + gapX),
-      contentH / 2 - paddingY - cellH / 2 - row * (cellH + gapY),
+      contentH / 2 - topPadding - cellH / 2 - row * (cellH + gapY),
     );
     fillRoundRect(
       card,
@@ -1279,10 +1325,31 @@ function drawMarketplaceGrid(
     fillRoundRect(iconPlate, 66, 60, 9, new Color(239, 207, 159, 215));
     const icon = ui.createItemIcon(item.id, 50, true);
     iconPlate.addChild(icon);
+    if (unlocked && item.isCrop && item.seasons?.length) {
+      const seasonIcons: Record<string, string> = {
+        spring: "seasonSpring",
+        summer: "seasonSummer",
+        autumn: "seasonAutumn",
+        winter: "seasonWinter",
+      };
+      const orderedSeasons = SEASONS.filter(
+        (season) => item.seasons!.indexOf(season) >= 0,
+      );
+      const seasonStep = 18;
+      const seasonRightX = 25;
+      const seasonLeftX = seasonRightX - (orderedSeasons.length - 1) * seasonStep;
+      orderedSeasons.forEach((season, seasonIndex) => {
+        const seasonBadge = new Node(`MarketplaceSeason_${season}`);
+        seasonBadge.addComponent(UITransform).setContentSize(20, 20);
+        seasonBadge.setPosition(seasonLeftX + seasonIndex * seasonStep, 23);
+        ui.applyUiIcon(seasonIcons[season], seasonBadge);
+        iconPlate.addChild(seasonBadge);
+      });
+    }
     card.addChild(iconPlate);
     card.addChild(
       ui.makeLabel(
-        unlocked ? ui.itemName(item.id) : `Lv.${item.unlockLevel}`,
+        unlocked ? marketplaceName : `Lv.${item.unlockLevel}`,
         12,
         new Color(65, 34, 21),
         true,
@@ -1295,7 +1362,7 @@ function drawMarketplaceGrid(
     const price = ui.getSeedBuyPrice(item);
     card.addChild(
       ui.makeLabel(
-        `${price}\u91d1`,
+        item.id === "greenhouseCard" ? `${price}钻` : `${price}金`,
         10,
         new Color(113, 65, 26),
         true,
@@ -1333,7 +1400,9 @@ function drawMarketplaceGrid(
     }
     buy
       .addComponent(Button)
-      .node.on(Node.EventType.TOUCH_END, () => ui.buySeed(item));
+      .node.on(Node.EventType.TOUCH_END, () =>
+        ui.buySeed(item, buy.worldPosition.clone()),
+      );
     card.addChild(buy);
     if (!unlocked) card.addComponent(UIOpacity).opacity = 160;
     content.addChild(card);
@@ -1866,7 +1935,7 @@ function drawCraftProgressSection(
         26,
       ),
     );
-    drawCraftChefIcon(ui, section, 120, -4);
+    drawCraftChefIcon(ui, section, 112, -2);
     return;
   }
 
@@ -1943,7 +2012,7 @@ function drawCraftProgressSection(
       .node.on(Node.EventType.TOUCH_END, (event: any) => {
         event?.stopPropagation?.();
         if (!CraftSystem.getInstance().useSpeedTicket(process.craftId)) {
-          ui.toast("当前无法使用加速券");
+          ui.toast("当前无法使用合成加速券");
           return;
         }
         ui.toast("制作时间减少30秒");
@@ -2200,6 +2269,7 @@ export function renderQuestPanel(ui: any, enterDirection = 0) {
   });
 
   const progress = gm.getCatalogProgress();
+  ui.catalogRenderedUnlocked = progress.unlocked;
   const pageSize = 9;
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
   ui.catalogPage = Math.max(0, Math.min(pageCount - 1, ui.catalogPage || 0));
@@ -2772,7 +2842,9 @@ export function renderTaskPanel(ui: any) {
   refreshTaskCategoryContent(ui, body);
 }
 
-function refreshTaskCategoryContent(ui: any, body: Node) {
+export function refreshTaskCategoryContent(ui: any, body?: Node) {
+  body = body || ui.panels.task?.getChildByName("Body");
+  if (!body) return;
   const removable = body.children.filter(
     (child) =>
       child.name === "TaskCategoryTabsImage" ||
@@ -2858,9 +2930,11 @@ export function renderDailySignInPanel(ui: any) {
     const x = -rowWidth / 2 + 36 + col * 80;
     const y = row === 0 ? 58 : -69;
     const claimed = claimable
-      ? reward.day < (missedDay || displayDay)
+      ? displayDay === 1
+        ? false
+        : reward.day < (missedDay || displayDay)
       : reward.day <= gm.dailySignInDay;
-    const current = reward.day === (missedDay || displayDay);
+    const current = reward.day === displayDay;
     body.addChild(
       createDailySignInCard(
         ui,
@@ -2870,6 +2944,7 @@ export function renderDailySignInPanel(ui: any) {
         claimed,
         current,
         claimable && current,
+        reward.day === missedDay,
       ),
     );
   });
@@ -2886,13 +2961,30 @@ export function renderDailySignInPanel(ui: any) {
       .addComponent(Button)
       .node.on(Node.EventType.TOUCH_END, (event: any) => {
         event?.stopPropagation?.();
+        const rewardStartWorld = button.worldPosition.clone();
         const reward = gm.claimDailySignIn();
         if (!reward) return;
+        const rewardAnimated = animateRewardsToInventory(
+          ui,
+          [
+            {
+              icon:
+                reward.type === "item" && reward.itemId
+                  ? reward.itemId
+                  : reward.type,
+              iconType: reward.type === "item" ? "item" : "ui",
+              count: reward.count,
+            },
+          ],
+          rewardStartWorld,
+        );
         tween(button)
           .to(0.08, { scale: new Vec3(0.94, 0.94, 1) }, { easing: "quadOut" })
           .to(0.16, { scale: new Vec3(1.06, 1.06, 1) }, { easing: "backOut" })
           .call(() => {
-            ui.toast(`签到成功：${reward.label} x${reward.count}`);
+            if (!rewardAnimated) {
+              ui.toast(`签到成功：${reward.label} x${reward.count}`);
+            }
             updateDailySignInClaimedState(ui, body, reward.day, button);
           })
           .start();
@@ -2933,20 +3025,25 @@ function createDailySignInCard(
   claimed: boolean,
   current: boolean,
   animateCurrent: boolean,
+  missed = false,
 ): Node {
   const card = new Node(`SignInDay_${reward.day}`);
   card.setPosition(x, y);
   (card as any).restingX = x;
   (card as any).restingY = y;
   card.addComponent(UITransform).setContentSize(72, 116);
-  const fill = claimed
-    ? new Color(225, 240, 191, 250)
+  const fill = missed
+    ? new Color(218, 215, 207, 245)
+    : claimed
+      ? new Color(225, 240, 191, 250)
+      : current
+        ? new Color(255, 225, 153, 255)
+        : new Color(247, 218, 169, 245);
+  const border = missed
+    ? new Color(149, 143, 134, 205)
     : current
-      ? new Color(255, 225, 153, 255)
-      : new Color(247, 218, 169, 245);
-  const border = current
-    ? new Color(205, 126, 48, 255)
-    : new Color(201, 151, 83, 220);
+      ? new Color(205, 126, 48, 255)
+      : new Color(201, 151, 83, 220);
   fillRoundRect(card, 72, 112, 9, fill);
   strokeRoundRect(card, 72, 112, 9, border, current ? 2.6 : 1.8);
 
@@ -2954,7 +3051,7 @@ function createDailySignInCard(
     ui.makeLabel(
       `第${reward.day}天`,
       13,
-      new Color(102, 55, 30),
+      missed ? new Color(126, 121, 114) : new Color(102, 55, 30),
       true,
       0,
       42,
@@ -2975,13 +3072,17 @@ function createDailySignInCard(
     icon.addComponent(UITransform).setContentSize(38, 38);
     ui.applyUiIcon(reward.type, icon);
   }
+  if (missed) {
+    const opacity = icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
+    opacity.opacity = 135;
+  }
   iconFrame.addChild(icon);
 
   card.addChild(
     ui.makeLabel(
       `${reward.label} x${reward.count}`,
       12,
-      new Color(91, 49, 29),
+      missed ? new Color(126, 121, 114) : new Color(91, 49, 29),
       true,
       0,
       -40,
@@ -3083,7 +3184,23 @@ function addDailySignInMakeUpAction(
       }
       const reward = gm.claimMissedDailySignIn();
       if (!reward) return;
-      ui.toast(`补签成功：${reward.label} x${reward.count}`);
+      const rewardAnimated = animateRewardsToInventory(
+        ui,
+        [
+          {
+            icon:
+              reward.type === "item" && reward.itemId
+                ? reward.itemId
+                : reward.type,
+            iconType: reward.type === "item" ? "item" : "ui",
+            count: reward.count,
+          },
+        ],
+        action.worldPosition.clone(),
+      );
+      if (!rewardAnimated) {
+        ui.toast(`补签成功：${reward.label} x${reward.count}`);
+      }
       updateDailySignInAfterMakeUp(ui, body, summary, missedDay);
     });
   summary.addChild(action);
@@ -3267,6 +3384,12 @@ function getAchievementProgress(
     case "plants":
       current = LandSystem.getInstance().getTotalPlantCount();
       break;
+    case "seasonalPlants": {
+      const progress = gm.getSeasonalPlantingProgress(definition.season!);
+      current = progress.current;
+      target = progress.target;
+      break;
+    }
     case "crafts":
       current = gm.totalCraftCount;
       break;
@@ -3312,7 +3435,9 @@ export function renderAchievementPanel(ui: any) {
   drawAchievementMedalWallEntry(ui, body);
 }
 
-function refreshAchievementCategoryContent(ui: any, body: Node) {
+export function refreshAchievementCategoryContent(ui: any, body?: Node) {
+  body = body || ui.panels.achievement?.getChildByName("Body");
+  if (!body) return;
   body.children
     .filter(
       (child) =>
@@ -3459,19 +3584,23 @@ function drawAchievementList(ui: any, body: Node) {
 
 function drawAchievementMedalWallEntry(ui: any, body: Node) {
   const entry = new Node("AchievementMedalWallEntry");
-  entry.addComponent(UITransform).setContentSize(56, 56);
+  entry.addComponent(UITransform).setContentSize(280, 56);
   entry.setPosition(0, -242);
+  const leftOrnament = new Node("AchievementMedalWallOrnamentLeft");
+  leftOrnament.addComponent(UITransform).setContentSize(96, 36);
+  leftOrnament.setPosition(-86, 0);
+  ui.applyUiIcon("achievementMedalWallOrnamentLeft", leftOrnament);
+  entry.addChild(leftOrnament);
   const icon = new Node("AchievementMedalWallEntryIcon");
   icon.addComponent(UITransform).setContentSize(56, 56);
   icon.setPosition(0, 0);
   ui.applyUiIcon("achievementMedalWallEntry", icon);
   entry.addChild(icon);
-  entry.addChild(
-    ui.makeLabel("勋章墙", 14, new Color(88, 45, 24), true, 29, 0, 78, 24),
-  );
-  entry.children.forEach((child) => {
-    if (child !== icon) child.active = false;
-  });
+  const rightOrnament = new Node("AchievementMedalWallOrnamentRight");
+  rightOrnament.addComponent(UITransform).setContentSize(96, 36);
+  rightOrnament.setPosition(86, 0);
+  ui.applyUiIcon("achievementMedalWallOrnamentRight", rightOrnament);
+  entry.addChild(rightOrnament);
   entry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
     event?.stopPropagation?.();
     tween(icon)
@@ -3515,7 +3644,8 @@ function showAchievementMedalWall(ui: any, body: Node) {
   ui.applyUiIcon("achievementMedalWallBg", background);
   wall.addChild(background);
 
-  const unlockedCount = ACHIEVEMENTS.filter(
+  const wallAchievements = ACHIEVEMENTS.filter((item) => !item.seasonal);
+  const unlockedCount = wallAchievements.filter(
     (item) => gm.achievements.indexOf(item.id) >= 0,
   ).length;
   const title = ui.makeLabel(
@@ -3534,7 +3664,7 @@ function showAchievementMedalWall(ui: any, body: Node) {
   wall.addChild(title);
   wall.addChild(
     ui.makeLabel(
-      `已解锁 ${unlockedCount}/${ACHIEVEMENTS.length}`,
+      `已解锁 ${unlockedCount}/${wallAchievements.length}`,
       12,
       new Color(135, 85, 45),
       true,
@@ -3545,10 +3675,34 @@ function showAchievementMedalWall(ui: any, body: Node) {
     ),
   );
 
-  // Measured from the sixteen hanging points in the 512 x 640 background and
-  // converted to the 320 x 400 runtime wall size.
+  const gridViewport = new Node("MedalWallGridViewport");
+  gridViewport.addComponent(UITransform).setContentSize(284, 270);
+  gridViewport.setPosition(0, -3);
+  gridViewport.addComponent(Mask);
+  wall.addChild(gridViewport);
+
   const columns = [-102, -34, 34, 102];
-  const rows = [98, 30, -37, -105];
+  const rowCount = Math.ceil(wallAchievements.length / columns.length);
+  const rowHeight = 60;
+  const rowGap = 7;
+  const contentH = Math.max(
+    270,
+    rowCount * rowHeight + Math.max(0, rowCount - 1) * rowGap + 8,
+  );
+  const gridContent = new Node("MedalWallGridContent");
+  gridContent.addComponent(UITransform).setContentSize(284, contentH);
+  gridViewport.addChild(gridContent);
+  if (contentH > 270) {
+    const scroll = gridViewport.addComponent(ScrollView);
+    scroll.horizontal = false;
+    scroll.vertical = true;
+    scroll.inertia = true;
+    (scroll as any).elastic = false;
+    scroll.content = gridContent;
+    ui.scheduleOnce(() => {
+      if (gridViewport.isValid && gridContent.isValid) scroll.scrollToTop(0);
+    }, 0);
+  }
   const artworkYOffset: Record<string, number> = {
     plant_50: 1,
     craft_50: 1,
@@ -3556,14 +3710,20 @@ function showAchievementMedalWall(ui: any, body: Node) {
     gold_10000: 1,
     catalog_all: 3,
   };
-  ACHIEVEMENTS.forEach((definition, index) => {
+  wallAchievements.forEach((definition, index) => {
     const unlocked = gm.achievements.indexOf(definition.id) >= 0;
+    const x = columns[index % columns.length];
+    const row = Math.floor(index / columns.length);
+    const y = contentH / 2 - 4 - rowHeight / 2 - row * (rowHeight + rowGap);
+    const slotBackground = new Node(`MedalWallSlot_${definition.id}`);
+    slotBackground.addComponent(UITransform).setContentSize(60, 60);
+    slotBackground.setPosition(x, y);
+    ui.applyUiIcon("achievementMedalSlot", slotBackground);
+    gridContent.addChild(slotBackground);
+
     const badge = new Node(`MedalWallBadge_${definition.id}`);
     badge.addComponent(UITransform).setContentSize(50, 50);
-    badge.setPosition(
-      columns[index % 4],
-      rows[Math.floor(index / 4)] + (artworkYOffset[definition.id] || 0),
-    );
+    badge.setPosition(x, y + (artworkYOffset[definition.id] || 0));
     badge.addComponent(UIOpacity).opacity = unlocked ? 255 : 62;
     ui.applyUiIcon(
       !unlocked && definition.lockedIcon
@@ -3571,7 +3731,7 @@ function showAchievementMedalWall(ui: any, body: Node) {
         : definition.icon,
       badge,
     );
-    wall.addChild(badge);
+    gridContent.addChild(badge);
   });
 
   const close = new Node("AchievementMedalWallClose");
@@ -3690,11 +3850,16 @@ function drawAchievementCard(
   progressText.addComponent(UIOpacity).opacity = unlocked ? 255 : 175;
   card.addChild(progressText);
 
-  const rewardIcon = new Node("AchievementRewardIcon");
-  rewardIcon.addComponent(UITransform).setContentSize(27, 27);
+  const rewardIcon =
+    definition.reward.type === "item" && definition.reward.itemId
+      ? ui.createItemIcon(definition.reward.itemId, 27, true)
+      : new Node("AchievementRewardIcon");
+  if (!rewardIcon.getComponent(UITransform))
+    rewardIcon.addComponent(UITransform).setContentSize(27, 27);
   rewardIcon.setPosition(42, 8);
   rewardIcon.addComponent(UIOpacity).opacity = unlocked ? 255 : 160;
-  ui.applyUiIcon(definition.reward.type, rewardIcon);
+  if (definition.reward.type !== "item")
+    ui.applyUiIcon(definition.reward.type, rewardIcon);
   card.addChild(rewardIcon);
   const rewardText = ui.makeLabel(
     `x${definition.reward.count}`,
@@ -3732,9 +3897,51 @@ function drawAchievementCard(
           .to(0.07, { scale: new Vec3(0.92, 0.92, 1) }, { easing: "quadOut" })
           .to(0.12, { scale: Vec3.ONE }, { easing: "backOut" })
           .call(() => {
+            const rewardStartWorld = action.worldPosition.clone();
             if (!gm.claimAchievement(definition.id)) return;
-            ui.toast(`领取成就奖励 x${definition.reward.count}`);
-            refreshAchievementCategoryContent(ui, panelBody);
+            const rewardAnimated = animateRewardsToInventory(
+              ui,
+              [
+                {
+                  icon:
+                    definition.reward.type === "item" &&
+                    definition.reward.itemId
+                      ? definition.reward.itemId
+                      : definition.reward.type,
+                  iconType: definition.reward.type === "item" ? "item" : "ui",
+                  count: definition.reward.count,
+                },
+              ],
+              rewardStartWorld,
+            );
+            if (!rewardAnimated) {
+              ui.toast(`领取成就奖励 x${definition.reward.count}`);
+            }
+            ui.applyUiIcon("achievementClaimed", actionVisual);
+            const actionButton = action.getComponent(Button);
+            if (actionButton) actionButton.interactable = false;
+            action.off(Node.EventType.TOUCH_START);
+            action.off(Node.EventType.TOUCH_END);
+            action.off(Node.EventType.TOUCH_CANCEL);
+            const cardGraphics = card.getComponent(Graphics);
+            cardGraphics?.clear();
+            fillRoundRect(
+              card,
+              300,
+              cardH,
+              12,
+              alternate
+                ? new Color(222, 237, 196, 248)
+                : new Color(229, 242, 205, 248),
+            );
+            strokeRoundRect(
+              card,
+              300,
+              cardH,
+              12,
+              new Color(156, 101, 57, 215),
+              1.7,
+            );
           })
           .start();
       });
@@ -3963,14 +4170,19 @@ function drawTaskListScroll(
   const contentH = Math.max(viewportH, minimumContentH);
   const gap = baseGap;
   const content = new Node("TaskListContent");
-  content.addComponent(UITransform).setContentSize(viewportW, contentH);
+  const contentTransform = content.addComponent(UITransform);
+  contentTransform.setContentSize(viewportW, contentH);
+  // Reward details change a card's height. Pinning the content to the top
+  // prevents that height change from vertically re-centering the whole list.
+  contentTransform.setAnchorPoint(0.5, 1);
+  content.setPosition(0, viewportH / 2);
   viewport.addChild(content);
 
-  let y = contentH / 2 - topPadding;
+  let y = -topPadding;
   cards.forEach((task, index) => {
     const h = heights[index];
     y -= h / 2;
-    drawTaskCard(ui, gm, content, task, index, y);
+    drawTaskCard(ui, gm, content, task, index, y, body);
     y -= h / 2 + gap;
   });
 
@@ -4001,6 +4213,7 @@ function drawTaskCard(
   task: TaskCardData,
   index: number,
   yOverride?: number,
+  panelBody?: Node,
 ) {
   const expanded = ui.taskDetailId === task.id;
   const collapsedH = TASK_CARD_COLLAPSED_HEIGHT;
@@ -4061,7 +4274,7 @@ function drawTaskCard(
   drawTaskProgress(ui, card, task, progressY, false);
   drawTaskActionButton(ui, gm, card, task, 8 + contentOffsetY, false);
   if (expanded) drawTaskRewardPanel(ui, card, rewardLayout);
-  drawTaskDetailButton(ui, card, task, progressY);
+  drawTaskDetailButton(ui, card, task, progressY, panelBody);
   drawTaskCardFlower(card, w / 2 - 1, h / 2 - 4);
 
   body.addChild(card);
@@ -4142,12 +4355,12 @@ function drawTaskActionButton(
       if (complete && task.realQuestId) {
         const rewardStartWorld = button.worldPosition.clone();
         if (gm.claimTask(task.realQuestId)) {
-          ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
-          animateTaskRewardsToInventory(
+          const rewardAnimated = animateRewardsToInventory(
             ui,
             task.rewards || [],
             rewardStartWorld,
           );
+          if (!rewardAnimated) ui.toast("\u5956\u52b1\u5df2\u9886\u53d6");
         } else {
           ui.toast("\u80cc\u5305\u7a7a\u95f4\u4e0d\u8db3");
         }
@@ -4156,115 +4369,6 @@ function drawTaskActionButton(
       navigateToTaskAction(ui, task.action || "farm");
     });
   parent.addChild(button);
-}
-
-function animateTaskRewardsToInventory(
-  ui: any,
-  rewards: TaskRewardData[],
-  startWorld: Vec3,
-) {
-  const root: Node | undefined = ui.bubbleRoot;
-  const navTarget = ui.node
-    .getChildByName("BottomNav")
-    ?.getChildByName("Nav_inventory")
-    ?.getChildByName("Icon");
-  if (!root || !root.isValid || !navTarget || rewards.length === 0) return;
-
-  root.active = true;
-  root.setSiblingIndex(ui.node.children.length - 1);
-  const rootTransform =
-    root.getComponent(UITransform) || root.addComponent(UITransform);
-  const visible = view.getVisibleSize();
-  rootTransform.setContentSize(visible.width, visible.height);
-
-  const start = rootTransform.convertToNodeSpaceAR(startWorld);
-  const target = rootTransform.convertToNodeSpaceAR(navTarget.worldPosition);
-  const visibleRewards = rewards.slice(0, 12);
-
-  visibleRewards.forEach((reward, index) => {
-    const bubble = new Node(`TaskRewardFlight_${index}`);
-    bubble.addComponent(UITransform).setContentSize(48, 48);
-    const col = index % 4;
-    const row = Math.floor(index / 4);
-    const spreadX = (col - (Math.min(4, visibleRewards.length) - 1) / 2) * 42;
-    const spreadY = row * 44;
-    const origin = new Vec3(start.x + spreadX, start.y + 30 + spreadY, 0);
-    bubble.setPosition(origin);
-    bubble.setScale(new Vec3(0.15, 0.15, 1));
-    const bubbleGraphics = bubble.addComponent(Graphics);
-    bubbleGraphics.fillColor = new Color(255, 240, 191, 250);
-    bubbleGraphics.circle(0, 0, 22);
-    bubbleGraphics.fill();
-    bubbleGraphics.strokeColor = new Color(181, 119, 58, 235);
-    bubbleGraphics.lineWidth = 2;
-    bubbleGraphics.circle(0, 0, 22);
-    bubbleGraphics.stroke();
-
-    const icon =
-      reward.iconType === "item"
-        ? ui.createItemIcon(reward.icon, 31, true)
-        : new Node("RewardFlightIcon");
-    if (reward.iconType !== "item") {
-      icon.addComponent(UITransform).setContentSize(31, 31);
-      ui.applyUiIcon(reward.icon, icon);
-    }
-    icon.setPosition(0, 4);
-    bubble.addChild(icon);
-
-    const count = ui.makeLabel(
-      `x${reward.count}`,
-      10,
-      new Color(72, 39, 20),
-      true,
-      9,
-      -13,
-      28,
-      14,
-    );
-    bubble.addChild(count);
-    const opacity = bubble.addComponent(UIOpacity);
-    root.addChild(bubble);
-
-    tween(bubble)
-      .to(0.2, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" })
-      .start();
-
-    const state = { t: 0 };
-    const control = new Vec3(
-      origin.x + (target.x - origin.x) * 0.32 - 42 - index * 2,
-      Math.max(origin.y, target.y) + 82 + row * 12,
-      0,
-    );
-    tween(state)
-      .delay(1 + index * 0.035)
-      .to(
-        0.78,
-        { t: 1 },
-        {
-          easing: "quadIn",
-          onUpdate: () => {
-            if (!bubble.isValid) return;
-            const t = state.t;
-            const oneMinusT = 1 - t;
-            bubble.setPosition(
-              oneMinusT * oneMinusT * origin.x +
-                2 * oneMinusT * t * control.x +
-                t * t * target.x,
-              oneMinusT * oneMinusT * origin.y +
-                2 * oneMinusT * t * control.y +
-                t * t * target.y,
-            );
-            const scale = Math.max(0.28, 1 - t * 0.72);
-            bubble.setScale(new Vec3(scale, scale, 1));
-            opacity.opacity = Math.round(255 * Math.min(1, (1 - t) * 1.8));
-          },
-        },
-      )
-      .call(() => {
-        if (bubble.isValid) bubble.destroy();
-      })
-      .start();
-  });
 }
 
 function navigateToTaskAction(ui: any, action: TaskAction) {
@@ -4280,6 +4384,7 @@ function drawTaskDetailButton(
   parent: Node,
   task: TaskCardData,
   y = -3,
+  panelBody?: Node,
 ) {
   const button = new Node("TaskDetailButton");
   button.addComponent(UITransform).setContentSize(52, 18);
@@ -4293,8 +4398,12 @@ function drawTaskDetailButton(
     .addComponent(Button)
     .node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
+      const viewport = panelBody?.getChildByName("TaskListViewport");
+      const scroll = viewport?.getComponent(ScrollView);
+      if (scroll) ui.taskScrollOffset = scroll.getScrollOffset().y;
       ui.taskDetailId = ui.taskDetailId === task.id ? "" : task.id;
-      ui.renderTaskPanel();
+      if (panelBody) refreshTaskCategoryContent(ui, panelBody);
+      else ui.renderTaskPanel();
     });
   parent.addChild(button);
 }
@@ -4447,10 +4556,70 @@ function drawTaskRewardIcon(
   );
 }
 
-export function buySeed(ui: any, crop: ItemDef) {
+export function buySeed(ui: any, crop: ItemDef, startWorld?: Vec3) {
   const gm = GameManager.getInstance();
   if (crop.unlockLevel > gm.playerLevel) {
     ui.toast(`Lv.${crop.unlockLevel} 解锁`);
+    return;
+  }
+  if (crop.id === "greenhouseCard") {
+    if (!gm.canBuySeasonalGreenhouseCard()) {
+      ui.toast("本季温室卡已达限购数量");
+      return;
+    }
+    if (!gm.spendDiamond(30)) {
+      ui.toast("钻石不足");
+      return;
+    }
+    InventorySystem.getInstance().addItem(crop.id, 1);
+    const rewardAnimated = startWorld
+      ? animateRewardsToInventory(
+        ui,
+        [{ icon: crop.id, iconType: "item", count: 1 }],
+        startWorld,
+      )
+      : false;
+    gm.markSeasonalGreenhouseCardPurchased();
+    if (!rewardAnimated) ui.toast("购买 温室卡 x1");
+    ui.refreshTopBar();
+    return;
+  }
+  if (crop.id === "fourSeasonGreenhouse") {
+    const requiredCrops = [
+      "wheat",
+      "corn",
+      "tomato",
+      "carrot",
+      "lettuce",
+      "pumpkin",
+      "banana",
+      "strawberry",
+      "apple",
+      "cherry",
+    ];
+    if (!requiredCrops.every((id) => gm.hasDiscoveredItem(id))) {
+      ui.toast("需先集齐四季全部基础作物图鉴");
+      return;
+    }
+    const inventory = InventorySystem.getInstance();
+    if (!requiredCrops.every((id) => inventory.hasItems(id, 5))) {
+      ui.toast("建造需要每种四季基础作物 x5");
+      return;
+    }
+    if (!gm.spendGold(20000)) {
+      ui.toast("金币不足");
+      return;
+    }
+    requiredCrops.forEach((id) => inventory.removeItem(id, 5));
+    inventory.addItem(crop.id, 1);
+    const rewardAnimated = startWorld
+      ? animateRewardsToInventory(
+        ui,
+        [{ icon: crop.id, iconType: "item", count: 1 }],
+        startWorld,
+      )
+      : false;
+    if (!rewardAnimated) ui.toast("四季恒温温室已放入背包");
     return;
   }
   const price = ui.getSeedBuyPrice(crop);
@@ -4459,17 +4628,27 @@ export function buySeed(ui: any, crop: ItemDef) {
     return;
   }
   InventorySystem.getInstance().addItem(crop.id, 1);
-  ui.toast(`购买 ${ui.itemName(crop.id)} x1`);
-  if (ui.panels.shop?.active) ui.renderShopPanel();
+  const rewardAnimated = startWorld
+    ? animateRewardsToInventory(
+      ui,
+      [{ icon: crop.id, iconType: "item", count: 1 }],
+      startWorld,
+    )
+    : false;
+  if (!rewardAnimated) ui.toast(`购买 ${ui.itemName(crop.id)} x1`);
 }
 
 export function getSeedBuyPrice(ui: any, crop: ItemDef): number {
+  if (crop.buyPrice !== undefined) return crop.buyPrice;
   const fixedPrices: Record<string, number> = {
     speedTicket: 120,
+    cropSpeedTicket: 100,
     doubleHarvestCard: 280,
     goldBoostCard: 280,
     universalSeed: 180,
     makeUpSignInCard: 200,
+    greenhouseCard: 30,
+    fourSeasonGreenhouse: 20000,
   };
   if (fixedPrices[crop.id] !== undefined) return fixedPrices[crop.id];
   return Math.max(crop.sellPrice, Math.ceil(crop.sellPrice * 1.2));
@@ -4484,8 +4663,12 @@ export function useInventoryTool(ui: any, slotIndex: number) {
     ui.toast(
       CraftSystem.getInstance().getActiveCraftCount() > 0
         ? "请在制作队列中选择加速"
-        : "开始合成后可在制作队列中使用加速券",
+        : "开始合成后可在制作队列中使用合成加速券",
     );
+    return;
+  }
+  if (item.id === "cropSpeedTicket") {
+    ui.toast("请点击生长中的农作物使用农作物加速券");
     return;
   }
   if (item.id === "makeUpSignInCard") {
@@ -4512,15 +4695,37 @@ export function useInventoryTool(ui: any, slotIndex: number) {
 
 export function useSpecialItem(ui: any, slotIndex: number) {
   const slot = InventorySystem.getInstance().slots[slotIndex];
-  if (!slot || slot.itemId !== "mysteryBox") return;
-  ui.showDialog("开启神秘礼盒", "打开后可随机获得金币、钻石或当前等级种子。", [
+  if (!slot) return;
+  const actions: Record<
+    string,
+    { title: string; message: string; action: () => string | null }
+  > = {
+    mysteryBox: {
+      title: "开启神秘礼盒",
+      message: "打开后可随机获得金币、钻石或当前等级种子。",
+      action: () => GameManager.getInstance().openMysteryBox(),
+    },
+    luckyStar: {
+      title: "幸运祈愿",
+      message: "消耗1颗幸运星，随机获得600~1000金币或8~12钻石。",
+      action: () => GameManager.getInstance().useLuckyStar(),
+    },
+    jade: {
+      title: "翡翠兑换",
+      message: "消耗1块翡翠，兑换20钻石。",
+      action: () => GameManager.getInstance().exchangeJade(),
+    },
+  };
+  const itemId = slot.itemId;
+  const config = actions[itemId];
+  if (!config) return;
+  ui.showDialog(config.title, config.message, [
     { text: "取消", cb: () => {} },
     {
-      text: "开启",
+      text: itemId === "mysteryBox" ? "开启" : "使用",
       cb: () => {
-        const result = GameManager.getInstance().openMysteryBox();
-        ui.toast(result || "礼盒数量不足");
-        if (ui.panels.inventory?.active) ui.renderInventoryPanel();
+        const result = config.action();
+        ui.toast(result || `${ui.itemName(itemId)}数量不足`);
       },
     },
   ]);

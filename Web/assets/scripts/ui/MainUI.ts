@@ -1,4 +1,4 @@
-import { _decorator, Color, Component, EditBox, Label, Node } from 'cc';
+import { _decorator, Color, Component, EditBox, Label, Node, Vec3 } from 'cc';
 import { GameManager } from '../core/GameManager';
 import { CraftSystem } from '../systems/CraftSystem';
 import { LandBlock, LandSystem } from '../systems/LandSystem';
@@ -26,6 +26,9 @@ const { ccclass } = _decorator;
 export class MainUI extends Component {
     private topBar!: Node;
     private artBackground!: Node;
+    private seasonEffectLayer!: Node;
+    private seasonVisualKey = '';
+    private seasonEffectTimer = 0;
     private landRoot!: Node;
     private pastureRoot!: Node;
     private bubbleRoot!: Node;
@@ -56,6 +59,11 @@ export class MainUI extends Component {
     private titleDialogCategory: 'level' | 'achievement' = 'level';
     private titleDialogSelectedId = '';
     private titleDialogScrollOffsets: Record<'level' | 'achievement', number> = { level: 0, achievement: 0 };
+    private greenhouseSelectedSeedId = '';
+    private activeGreenhouseBuildingSlotId = -1;
+    private greenhouseDemolitionMode = false;
+    private demolitionMode = false;
+    private shovelEntry!: Node;
 
     private static readonly LAND_COLS = 3;
     private static readonly LAND_ROWS = 5;
@@ -71,10 +79,15 @@ export class MainUI extends Component {
             'seedSelectorBg',
             'btnSellCancel',
             'btnCropSpeedUp',
+            'greenhouseDialogBg',
+            'greenhousePot',
+            'entryShovel',
         ]);
         this.createBackground();
         this.createTopBar();
         this.createLandArea();
+        this.createShovelEntry();
+        this.createSeasonalEffectLayer();
         this.createBottomNav();
         this.createPanels();
         this.createShopEntry();
@@ -87,6 +100,7 @@ export class MainUI extends Component {
     }
 
     update(dt: number) {
+        this.updateSeasonPresentation(dt);
         this.progressRefreshTimer += dt;
         if (this.progressRefreshTimer < 0.16) return;
         this.progressRefreshTimer = 0;
@@ -95,6 +109,7 @@ export class MainUI extends Component {
             .getAllBlocks()
             .filter(block => block.state === 'growing')
             .forEach(block => this.updateGrowingProgress(block.id, block.progress));
+        this.updateGreenhouseDialogProgress();
 
         if (this.panels.craft?.active && CraftSystem.getInstance().getActiveCraftCount() > 0) {
             this.updateCraftProgressViews();
@@ -103,6 +118,8 @@ export class MainUI extends Component {
     }
 
     private createBackground() { return MainUIScene.createBackground(this); }
+    private createSeasonalEffectLayer() { return MainUIScene.createSeasonalEffectLayer(this); }
+    private updateSeasonPresentation(dt: number) { return MainUIScene.updateSeasonPresentation(this, dt); }
     private createGrassPatches(parent: Node, viewWidth: number, grassHeight: number, grassTop: number, patchTop?: number) {
         return MainUIScene.createGrassPatches(this, parent, viewWidth, grassHeight, grassTop, patchTop);
     }
@@ -117,6 +134,8 @@ export class MainUI extends Component {
         return MainUIScene.createCurrencyEntry(this, parent, icon, labelName, value, y, color, iconSize, pillW, iconOffsetY);
     }
     private createLandArea() { return MainUIScene.createLandArea(this); }
+    private createShovelEntry() { return MainUIScene.createShovelEntry(this); }
+    private setShovelMode(active: boolean) { return MainUIScene.setShovelMode(this, active); }
     private switchWorld(target?: 'farm' | 'pasture') { return MainUIScene.switchWorld(this, target); }
     private layoutLandArea() { return MainUIScene.layoutLandArea(this); }
     private getLandGridSize(): { width: number; height: number } { return MainUIScene.getLandGridSize(this); }
@@ -158,6 +177,8 @@ export class MainUI extends Component {
     private plantUniversalSeed(blockId: number) { return MainUILand.plantUniversalSeed(this, blockId); }
     private placeBuilding(blockId: number, buildingId: string) { return MainUILand.placeBuilding(this, blockId, buildingId); }
     private handleOccupiedBuilding(blockId: number) { return MainUILand.handleOccupiedBuilding(this, blockId); }
+    private refreshGreenhouseDialog() { return MainUILand.refreshGreenhouseDialog(this); }
+    private updateGreenhouseDialogProgress() { return MainUILand.updateGreenhouseDialogProgress(this); }
     private ownedPlantableCrops(): ItemDef[] { return MainUILand.ownedPlantableCrops(this); }
     private openSeedBubble(blockId: number) { return MainUILand.openSeedBubble(this, blockId); }
     private closeSeedBubble() { return MainUILand.closeSeedBubble(this); }
@@ -165,16 +186,19 @@ export class MainUI extends Component {
     private showPanel(name: PanelName) { return MainUIPanels.showPanel(this, name); }
     private clearPanelBody(panel: Node): Node { return MainUIPanels.clearPanelBody(this, panel); }
     private renderInventoryPanel() { return MainUIPanels.renderInventoryPanel(this); }
+    private refreshInventoryGrid() { return MainUIPanels.refreshInventoryGrid(this); }
     private renderShopPanel() { return MainUIPanels.renderShopPanel(this); }
     private renderShopPanelScrollable() { return MainUIPanels.renderShopPanelScrollable(this); }
     private renderCraftPanel() { return MainUIPanels.renderCraftPanel(this); }
     private refreshCraftPanelDynamicSections() { return MainUIPanels.refreshCraftPanelDynamicSections(this); }
     private renderQuestPanel(enterDirection = 0) { return MainUIPanels.renderQuestPanel(this, enterDirection); }
     private renderTaskPanel() { return MainUIPanels.renderTaskPanel(this); }
+    private refreshTaskCategoryContent() { return MainUIPanels.refreshTaskCategoryContent(this); }
     private renderDailySignInPanel() { return MainUIPanels.renderDailySignInPanel(this); }
     private renderAchievementPanel() { return MainUIPanels.renderAchievementPanel(this); }
+    private refreshAchievementCategoryContent() { return MainUIPanels.refreshAchievementCategoryContent(this); }
     private renderTitlePanel() { return MainUIPanels.renderTitlePanel(this); }
-    private buySeed(crop: ItemDef) { return MainUIPanels.buySeed(this, crop); }
+    private buySeed(crop: ItemDef, startWorld?: Vec3) { return MainUIPanels.buySeed(this, crop, startWorld); }
     private getSeedBuyPrice(crop: ItemDef): number { return MainUIPanels.getSeedBuyPrice(this, crop); }
     private startCraft(recipeId: string) { return MainUIPanels.startCraft(this, recipeId); }
     private useInventoryTool(slotIndex: number) { return MainUIPanels.useInventoryTool(this, slotIndex); }
@@ -184,8 +208,8 @@ export class MainUI extends Component {
     private applyEditBoxTextColor(editBox: EditBox, color: Color, placeholderColor: Color) {
         return MainUIDialogs.applyEditBoxTextColor(this, editBox, color, placeholderColor);
     }
-    private showDialog(title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>) {
-        return MainUIDialogs.showDialog(this, title, message, buttons);
+    private showDialog(title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>, showMask = true, preserveExisting = false) {
+        return MainUIDialogs.showDialog(this, title, message, buttons, showMask, preserveExisting);
     }
     private showTitleDialog(category?: 'level' | 'achievement') {
         return MainUIPanels.showTitlePanel(this, category);

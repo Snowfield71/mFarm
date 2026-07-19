@@ -160,10 +160,10 @@ no placeholder symbols, no text, no watermark.
 #### 硬性规则
 
 - 每种农作物分别生成发芽期、成长期、完全成熟期三张独立图片，统一为 `256 x 256`，禁止先生成合图再裁切。
-- 三阶段使用同一画布中心线和同一底部基线；土壤最底部建议固定在 `y=232` 附近，横向中心固定在 `x=128`。
-- 土壤必须与植物作为一个完整画面生成，不允许后期把植物和通用土壤两层简单叠加。
-- 三阶段土壤的颜色、描边、明暗、纹理和不规则轮廓必须完全一致；只能根据植物实际根部宽度做轻微横向变化。
-- 土壤使用温暖中棕色、短而轻的内部明暗，不使用深黑投影，不与植物根部上下分离。
+- 三阶段使用同一画布中心线和同一底部基线；底部只使用贴地椭圆阴影，不再绘制土壤或土丘。
+- 阴影必须紧贴植株根部，横向宽度跟随各阶段物体实际接地宽度变化，不允许三个阶段复用同一尺寸的通用阴影。
+- 阴影使用柔和中棕色、短而轻的两级明暗；阴影外描边与对应植株外描边保持相同的相对粗细，不使用深黑投影。
+- 收获物图标只展示实际可收获主体，不绘制任何贴地阴影；黄瓜、马铃薯、甘薯等果实或块根图禁止附加叶片、藤条、枝条或装饰性花朵。
 - 发芽期必须参考该作物现实中的幼苗形态，不能所有作物都画成相同的对称双叶。
 - 避免笔直的茎、叶脉和机械对称轮廓；使用自然弧线与少量不对称变化。
 - 使用简单色块和两级明暗表现体积，减少叶脉、纹理线和写实细节。
@@ -184,9 +184,10 @@ contact shadow directly beneath the plant or fruit. Never use low-angle sunset b
 cast shadows, long side shadows, heavy black shade or inconsistent light directions between crops.
 Design this stage from the real germination and growth structure of [CROP NAME]. Do not reuse a generic
 two-leaf seedling. Keep the three stages on one shared x=256 center line and one shared bottom baseline
-near y=480. The plant and its irregular warm-brown soil/contact patch must read as one grounded unit.
-Use the same soil color, outline, highlight, texture and bottom silhouette throughout all three stages.
-Heavy produce such as pumpkin or cabbage rests naturally on the soil; root crops remain partly buried.
+near y=480. Use only a compact grounded oval shadow beneath the plant, never a soil mound or soil patch.
+Match each stage shadow width to that stage's actual contact footprint; do not reuse one generic shadow size.
+Keep the shadow outline at the same relative visual weight as the plant outline. Harvested produce icons must
+show only the edible harvested body, with no shadow and no decorative leaves, vines, branches or flowers.
 Match apparent visible size by the opaque artwork bounds rather than canvas size or node size. Crops of
 similar mass, such as mature tomato and strawberry groups, must have comparable perceived scale.
 For fruit trees, preserve species-specific structure: apple uses a dense broad cohesive rounded crown;
@@ -261,6 +262,8 @@ transparent background outside the badge and no white, gray or magenta fringe.
 - “统一风格”只统一描边、色彩、光照、视角、留白和环境层，不得复用其他建筑的标志性结构。
 
 #### 建筑辨识规则
+
+- 所有新建筑必须沿用现有房屋、鸡舍的同一组三分之四视角与朝向：正面和可见侧面必须位于同一侧，屋顶退线方向、地面椭圆和投影方向保持一致；禁止水平镜像、反向透视或单独改变俯视角。仓库、温室等后续建筑也必须遵守本规则。
 
 - 牛棚：红色立面、弧形深色屋顶、白色 X 形大门。
 - 鸡舍：小型红瓦坡顶、鸡形入口、木坡道与围栏。
@@ -337,7 +340,7 @@ Canvas 256 by 256, centered, true transparent background, no disconnected pixels
 - [ ] 花朵和叶片只有一次清晰轮廓，无重影。
 - [ ] 透明区 Alpha 为 0，不存在白边、灰边或金棕色残留。
 - [ ] 图鉴对折轮廓完整，对折外部真透明。
-- [ ] 农作物三阶段使用同一土壤材质、中心线和底部基线，植物与土壤为一体绘制。
+- [ ] 农作物三阶段使用同一中心线和底部基线，底部仅有与物体接地宽度匹配、描边粗细一致的贴地阴影。
 - [ ] 建筑物共享画风但轮廓与功能结构互不混用；仓库不得出现牛棚弧顶和 X 形大门。
 - [ ] 农田与牧场扩建牌尺寸和支撑完全一致，仅底部草丛与贴地阴影不同。
 - [ ] 导入 Cocos 后按实际尺寸显示仍清晰。

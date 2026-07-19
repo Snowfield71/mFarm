@@ -8,6 +8,7 @@ export type PlayerTitleDefinition = {
     condition: string;
     requiredLevel?: number;
     achievementId?: string;
+    seasonCompliant?: boolean;
 };
 
 export const PLAYER_TITLES: PlayerTitleDefinition[] = [
@@ -22,6 +23,7 @@ export const PLAYER_TITLES: PlayerTitleDefinition[] = [
     { id: 'achievement_recipes_all', fullName: '配方贤者', shortName: '贤者', category: 'achievement', condition: '完成成就「配方专家」', achievementId: 'recipes_all' },
     { id: 'achievement_catalog_all', fullName: '万物收藏家', shortName: '收藏家', category: 'achievement', condition: '完成成就「收藏家」', achievementId: 'catalog_all' },
     { id: 'achievement_pasture_50', fullName: '金牌牧场主', shortName: '牧场主', category: 'achievement', condition: '完成成就「牧场管家」', achievementId: 'pasture_50' },
+    { id: 'season_compliant', fullName: '守时耕农', shortName: '守时耕农', category: 'achievement', condition: '完成一季全部时令种植且未进行跨季种植', seasonCompliant: true },
 ];
 
 export function getPlayerTitle(id: string): PlayerTitleDefinition | undefined {

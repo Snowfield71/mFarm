@@ -1,7 +1,9 @@
-export type AchievementReward = { type: 'gold' | 'diamond'; count: number };
+import type { Season } from './SeasonConfig';
+
+export type AchievementReward = { type: 'gold' | 'diamond' | 'item'; count: number; itemId?: string };
 export type AchievementTier = 'normal' | 'rare' | 'hidden';
 export type AchievementCategory = 'planting' | 'crafting' | 'growth' | 'collection';
-export type AchievementProgressKind = 'plants' | 'crafts' | 'gold' | 'diamonds' | 'level' | 'recipes' | 'catalog' | 'pastureCollections';
+export type AchievementProgressKind = 'plants' | 'seasonalPlants' | 'crafts' | 'gold' | 'diamonds' | 'level' | 'recipes' | 'catalog' | 'pastureCollections';
 
 export type AchievementDefinition = {
     id: string;
@@ -14,6 +16,8 @@ export type AchievementDefinition = {
     target?: number;
     lockedIcon?: string;
     reward: AchievementReward;
+    season?: Season;
+    seasonal?: boolean;
 };
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [
@@ -31,4 +35,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     { id: 'catalog_all', title: '收藏家', description: '完成全部图鉴收集', icon: 'achievementCatalogAll', tier: 'hidden', category: 'collection', progressKind: 'catalog', lockedIcon: 'achievementCatalogAllLocked', reward: { type: 'diamond', count: 50 } },
     { id: 'pasture_first', title: '牧场初收', description: '首次收取牧场产物', icon: 'achievementPastureFirst', tier: 'normal', category: 'collection', progressKind: 'pastureCollections', target: 1, reward: { type: 'gold', count: 300 } },
     { id: 'pasture_50', title: '牧场管家', description: '累计收取牧场产物50次', icon: 'achievementPasture50', tier: 'rare', category: 'collection', progressKind: 'pastureCollections', target: 50, reward: { type: 'diamond', count: 25 } },
+    { id: 'season_spring_master', title: '春耕全收集', description: '种植全部春季基础作物', icon: 'achievementFirstPlant', tier: 'rare', category: 'planting', progressKind: 'seasonalPlants', season: 'spring', seasonal: true, reward: { type: 'item', itemId: 'greenhouseCard', count: 1 } },
+    { id: 'season_summer_master', title: '夏耘全收集', description: '种植全部夏季基础作物', icon: 'achievementPlant50', tier: 'rare', category: 'planting', progressKind: 'seasonalPlants', season: 'summer', seasonal: true, reward: { type: 'item', itemId: 'greenhouseCard', count: 1 } },
+    { id: 'season_autumn_master', title: '秋获全收集', description: '种植全部秋季基础作物', icon: 'achievementGold100', tier: 'rare', category: 'planting', progressKind: 'seasonalPlants', season: 'autumn', seasonal: true, reward: { type: 'item', itemId: 'greenhouseCard', count: 1 } },
+    { id: 'season_winter_master', title: '冬藏全收集', description: '种植全部冬季基础作物', icon: 'achievementCatalog20', tier: 'rare', category: 'planting', progressKind: 'seasonalPlants', season: 'winter', seasonal: true, reward: { type: 'item', itemId: 'greenhouseCard', count: 1 } },
 ];

@@ -34,6 +34,12 @@ export class InventorySystem extends Component {
 
     loadFromSave(slots: InventorySlot[] = []) {
         this.slots = slots
+            .map(source => ({
+                ...source,
+                itemId: source?.itemId?.startsWith('offSeasonSeed')
+                    ? `seed${source.itemId.slice('offSeasonSeed'.length)}`
+                    : source?.itemId,
+            }))
             .filter(source => source?.itemId && source.count > 0 && !!getItem(source.itemId))
             .map(source => ({
                 itemId: source.itemId,

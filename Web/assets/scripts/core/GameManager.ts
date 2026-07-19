@@ -2,7 +2,8 @@ import { _decorator, Component, Node, view, ResolutionPolicy } from 'cc';
 import { DataManager, SaveData } from './DataManager';
 import { EventManager } from './EventManager';
 import { GameValues, Design } from '../config/GameConfig';
-import { getPlantableCrops, ITEM_DB } from '../config/ItemConfig';
+import { getPlantableCrops, ITEM_DB, ItemCategory } from '../config/ItemConfig';
+import { getSeasonInfo, Season } from '../config/SeasonConfig';
 import { getAllRecipes } from '../config/RecipeConfig';
 import { getPlayerTitle, PlayerTitleDefinition } from '../config/TitleConfig';
 import { Logger } from '../utils/Logger';
@@ -66,6 +67,12 @@ export class GameManager extends Component {
     equippedTitleId: string = '';
     achievements: string[] = [];
     claimedAchievements: string[] = [];
+    seasonalPlanting: Record<string, string[]> = {};
+    seasonRuleBreaks: Record<string, number> = {};
+    seasonalGreenhouseCardPurchaseKey: string = '';
+    seasonCompliantTitleUnlocked: boolean = false;
+    seasonalNativePlantCount: number = 0;
+    seasonalCrossSeasonPlantCount: number = 0;
     hasLoaded: boolean = false;
     private saveQueued = false;
 
@@ -146,9 +153,11 @@ export class GameManager extends Component {
                 GameValues.INITIAL_DIAMOND,
             );
             this.experience = saveData.experience || 0;
+            const allRecipes = getAllRecipes();
+            const validRecipeIds = new Set(allRecipes.map(recipe => recipe.id));
             this.unlockedRecipes = Array.from(new Set([
-                ...(saveData.unlockedRecipes || []),
-                ...getAllRecipes()
+                ...(saveData.unlockedRecipes || []).filter(id => validRecipeIds.has(id)),
+                ...allRecipes
                     .filter(recipe => recipe.requiredLevel <= this.playerLevel)
                     .map(recipe => recipe.id),
             ]));
@@ -167,6 +176,12 @@ export class GameManager extends Component {
             this.totalPastureCollectCount = Math.max(0, saveData.totalPastureCollectCount || 0);
             this.achievements = saveData.achievements || [];
             this.claimedAchievements = saveData.claimedAchievements || [];
+            this.seasonalPlanting = saveData.seasonalPlanting || {};
+            this.seasonRuleBreaks = saveData.seasonRuleBreaks || {};
+            this.seasonalGreenhouseCardPurchaseKey = saveData.seasonalGreenhouseCardPurchaseKey || '';
+            this.seasonCompliantTitleUnlocked = !!saveData.seasonCompliantTitleUnlocked;
+            this.seasonalNativePlantCount = Math.max(0, saveData.seasonalNativePlantCount || 0);
+            this.seasonalCrossSeasonPlantCount = Math.max(0, saveData.seasonalCrossSeasonPlantCount || 0);
             this.equippedTitleId = saveData.equippedTitleId || '';
             const equippedTitle = getPlayerTitle(this.equippedTitleId);
             if (!equippedTitle || !this.isPlayerTitleUnlocked(equippedTitle)) this.equippedTitleId = '';
@@ -179,6 +194,7 @@ export class GameManager extends Component {
                 saveData.plantCounts || {},
                 saveData.buildingSlots || [],
                 saveData.pastureUnlockedSlots,
+                saveData.greenhouseBlocks || [],
             );
             CraftSystem.getInstance().loadFromSave(
                 saveData.activeCrafts || [],
@@ -207,6 +223,7 @@ export class GameManager extends Component {
             experience: this.experience,
             landBlocks: landSave.blocks,
             buildingSlots: landSave.buildingSlots,
+            greenhouseBlocks: landSave.greenhouseBlocks,
             pastureUnlockedSlots: landSave.pastureUnlockedSlots,
             plantCounts: landSave.plantCounts,
             inventory: inventorySave.slots,
@@ -232,6 +249,12 @@ export class GameManager extends Component {
             equippedTitleId: this.equippedTitleId,
             achievements: this.achievements,
             claimedAchievements: this.claimedAchievements,
+            seasonalPlanting: this.seasonalPlanting,
+            seasonRuleBreaks: this.seasonRuleBreaks,
+            seasonalGreenhouseCardPurchaseKey: this.seasonalGreenhouseCardPurchaseKey,
+            seasonCompliantTitleUnlocked: this.seasonCompliantTitleUnlocked,
+            seasonalNativePlantCount: this.seasonalNativePlantCount,
+            seasonalCrossSeasonPlantCount: this.seasonalCrossSeasonPlantCount,
             timestamp: Date.now(),
         };
         this.dataManager.saveGame(data);
@@ -277,7 +300,12 @@ export class GameManager extends Component {
             this.evaluateAchievements();
             this.requestSave();
         });
-        evt.on('cropPlanted', (data: any) => { this.advanceTaskProgress('cropPlanted', data); this.evaluateAchievements(); this.requestSave(); });
+        evt.on('cropPlanted', (data: any) => {
+            this.advanceTaskProgress('cropPlanted', data);
+            this.recordSeasonalPlanting(data);
+            this.evaluateAchievements();
+            this.requestSave();
+        });
         evt.on('cropHarvested', (data: any) => { this.advanceTaskProgress('cropHarvested', data); this.evaluateAchievements(); this.requestSave(); });
         evt.on('craftStarted', () => this.requestSave());
         evt.on('craftCompleted', (data: any) => {
@@ -317,6 +345,9 @@ export class GameManager extends Component {
         for (const block of LandSystem.getInstance().getAllBlocks()) {
             if (block.cropType) seen.add(block.cropType);
         }
+        for (const block of LandSystem.getInstance().getGreenhouseBlocks()) {
+            if (block.cropType) seen.add(block.cropType);
+        }
         for (const slot of LandSystem.getInstance().getBuildingSlots()) {
             if (slot.buildingId) seen.add(slot.buildingId);
         }
@@ -332,7 +363,56 @@ export class GameManager extends Component {
         for (const id in ITEM_DB) {
             if (Object.prototype.hasOwnProperty.call(ITEM_DB, id)) total++;
         }
-        return { unlocked: this.discoveredItems.length, total };
+        const unlocked = this.discoveredItems.filter(id => !!ITEM_DB[id]).length;
+        return { unlocked, total };
+    }
+
+    private currentSeasonKey(): string {
+        const info = getSeasonInfo();
+        return `${info.cycle}:${info.season}`;
+    }
+
+    private recordSeasonalPlanting(data: any) {
+        const cropType = data?.cropType as string | undefined;
+        if (!cropType) return;
+        const info = getSeasonInfo();
+        const crop = ITEM_DB[cropType];
+        const isNativeSeason = !!crop?.seasons?.length && crop.seasons.indexOf(info.season) >= 0;
+        const key = this.currentSeasonKey();
+        if (!isNativeSeason) {
+            this.seasonalCrossSeasonPlantCount++;
+            this.seasonRuleBreaks[key] = (this.seasonRuleBreaks[key] || 0) + 1;
+            return;
+        }
+        this.seasonalNativePlantCount++;
+        const planted = new Set(this.seasonalPlanting[key] || []);
+        planted.add(cropType);
+        this.seasonalPlanting[key] = Array.from(planted);
+    }
+
+    getSeasonalPlantingProgress(season: Season): { current: number; target: number } {
+        const targets = Object.keys(ITEM_DB).filter(id => {
+            const item = ITEM_DB[id];
+            return item.category === ItemCategory.CROP && !item.isCrop && item.seasons?.indexOf(season) >= 0;
+        });
+        const info = getSeasonInfo();
+        const planted = info.season === season
+            ? new Set(this.seasonalPlanting[this.currentSeasonKey()] || [])
+            : new Set<string>();
+        return { current: targets.filter(id => planted.has(id)).length, target: targets.length };
+    }
+
+    hasKeptCurrentSeasonRules(): boolean {
+        return (this.seasonRuleBreaks[this.currentSeasonKey()] || 0) === 0;
+    }
+
+    canBuySeasonalGreenhouseCard(): boolean {
+        return this.seasonalGreenhouseCardPurchaseKey !== this.currentSeasonKey();
+    }
+
+    markSeasonalGreenhouseCardPurchased() {
+        this.seasonalGreenhouseCardPurchaseKey = this.currentSeasonKey();
+        this.requestSave();
     }
 
     private addAchievement(id: string) {
@@ -360,6 +440,15 @@ export class GameManager extends Component {
         if (this.discoveredItems.length >= this.getCatalogProgress().total) this.addAchievement('catalog_all');
         if (this.totalPastureCollectCount >= 1) this.addAchievement('pasture_first');
         if (this.totalPastureCollectCount >= 50) this.addAchievement('pasture_50');
+        const currentSeason = getSeasonInfo().season;
+        const seasonalAchievement = ACHIEVEMENTS.find(item => item.seasonal && item.season === currentSeason);
+        if (seasonalAchievement) {
+            const progress = this.getSeasonalPlantingProgress(currentSeason);
+            if (progress.target > 0 && progress.current >= progress.target) {
+                this.addAchievement(seasonalAchievement.id);
+                if (this.hasKeptCurrentSeasonRules()) this.seasonCompliantTitleUnlocked = true;
+            }
+        }
     }
 
     private todayString(): string {
@@ -390,7 +479,8 @@ export class GameManager extends Component {
         if (!definition || this.achievements.indexOf(id) < 0) return false;
         if (this.claimedAchievements.indexOf(id) >= 0) return false;
         if (definition.reward.type === 'gold') this.addGold(definition.reward.count);
-        else this.addDiamond(definition.reward.count);
+        else if (definition.reward.type === 'diamond') this.addDiamond(definition.reward.count);
+        else if (definition.reward.itemId) InventorySystem.getInstance().addItem(definition.reward.itemId, definition.reward.count);
         this.claimedAchievements.push(id);
         this.eventManager.emit('achievementClaimed', id);
         this.requestSave();
@@ -400,6 +490,7 @@ export class GameManager extends Component {
     isPlayerTitleUnlocked(title: PlayerTitleDefinition): boolean {
         if (title.requiredLevel !== undefined) return this.playerLevel >= title.requiredLevel;
         if (title.achievementId) return this.achievements.indexOf(title.achievementId) >= 0;
+        if (title.seasonCompliant) return this.seasonCompliantTitleUnlocked;
         return false;
     }
 
@@ -425,9 +516,14 @@ export class GameManager extends Component {
 
     getDailySignInDisplayDay(): number {
         if (!this.isDailySignInClaimable()) return Math.max(1, this.dailySignInDay);
-        return this.isYesterday(this.lastDailySignInDate) && this.dailySignInDay < 7
-            ? this.dailySignInDay + 1
-            : 1;
+        if (this.isYesterday(this.lastDailySignInDate) && this.dailySignInDay < 7) {
+            return this.dailySignInDay + 1;
+        }
+        // Keep a missed reward available for the make-up card, but move today's
+        // claim target to the following day instead of highlighting the missed day.
+        const missedDay = this.getMissedDailySignInDay();
+        if (missedDay) return missedDay >= 7 ? 1 : missedDay + 1;
+        return 1;
     }
 
     claimDailySignIn(): DailySignInReward | null {
@@ -474,7 +570,7 @@ export class GameManager extends Component {
             const harvest = Math.random() < 0.5;
             const itemId = harvest ? 'doubleHarvestCard' : 'speedTicket';
             const count = harvest ? 1 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 3);
-            const label = harvest ? '双倍收获卡' : '加速券';
+            const label = harvest ? '双倍收获卡' : '合成加速券';
             InventorySystem.getInstance().addItem(itemId, count);
             return { day: reward.day, type: 'item', itemId, count, label };
         }
@@ -496,8 +592,11 @@ export class GameManager extends Component {
 
         if (itemId === 'speedTicket') {
             return CraftSystem.getInstance().getActiveCraftCount() > 0
-                ? '请在合成工坊的制作队列中使用加速券'
-                : '开始合成后，可在制作队列中使用加速券';
+                ? '请在合成工坊的制作队列中使用合成加速券'
+                : '开始合成后，可在制作队列中使用合成加速券';
+        }
+        if (itemId === 'cropSpeedTicket') {
+            return '请点击农场或温室中生长中的作物使用农作物加速券';
         }
         if (itemId === 'doubleHarvestCard') {
             inventory.removeItem(itemId, 1);
@@ -529,6 +628,16 @@ export class GameManager extends Component {
         if (!inventory.hasItems('mysteryBox', 1)) return null;
         inventory.removeItem('mysteryBox', 1);
         const roll = Math.random();
+        // High-grade materials remain deliberately scarce. The task system is
+        // their reliable long-term source; mystery boxes are only a rare bonus.
+        if (roll < 0.01) {
+            inventory.addItem('jade', 1);
+            return '神秘礼盒开出翡翠 x1';
+        }
+        if (roll < 0.05) {
+            inventory.addItem('luckyStar', 1);
+            return '神秘礼盒开出幸运星 x1';
+        }
         if (roll < 0.45) {
             const gold = 400 + Math.floor(Math.random() * 5) * 100;
             this.addGold(gold);
@@ -547,6 +656,28 @@ export class GameManager extends Component {
         }
         inventory.addItem(seed.id, 5);
         return `礼盒开出${seed.name} x5`;
+    }
+
+    useLuckyStar(): string | null {
+        const inventory = InventorySystem.getInstance();
+        if (!inventory.hasItems('luckyStar', 1)) return null;
+        inventory.removeItem('luckyStar', 1);
+        if (Math.random() < 0.65) {
+            const gold = 600 + Math.floor(Math.random() * 5) * 100;
+            this.addGold(gold);
+            return `幸运祈愿获得金币 x${gold}`;
+        }
+        const diamonds = 8 + Math.floor(Math.random() * 5);
+        this.addDiamond(diamonds);
+        return `幸运祈愿获得钻石 x${diamonds}`;
+    }
+
+    exchangeJade(): string | null {
+        const inventory = InventorySystem.getInstance();
+        if (!inventory.hasItems('jade', 1)) return null;
+        inventory.removeItem('jade', 1);
+        this.addDiamond(20);
+        return '翡翠兑换获得钻石 x20';
     }
 
     consumeHarvestMultiplier(): number {

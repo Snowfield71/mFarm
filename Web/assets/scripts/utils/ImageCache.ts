@@ -9,36 +9,60 @@
 
 import { SpriteFrame, Texture2D, ImageAsset, assetManager, Color } from "cc";
 import { ServerConfig } from "./ServerConfig";
+import { getSeasonInfo } from "../config/SeasonConfig";
 
 const TAG = "[ImageCache]";
+// Bump when item PNGs are replaced. This versions both remote URLs and local
+// SpriteFrame cache keys so hot reloads cannot reuse stale artwork.
+const ITEM_ASSET_REVISION = "20260718-6";
+// UI backgrounds are served from the same static server and are also cached
+// by both the browser and this SpriteFrame cache. Version them independently
+// so replacing a dialog PNG is visible without clearing site data.
+const UI_ASSET_REVISION = "20260719-2";
 
 /** 物品 ID -> 静态资源分类目录 */
 const CATEGORY_MAP: Record<string, string> = {
   // Vegetables
-  wheat: "Vegetables",
-  corn: "Vegetables",
-  tomato: "Vegetables",
-  wheat_stage_1: "Vegetables",
-  wheat_stage_2: "Vegetables",
-  wheat_stage_3: "Vegetables",
-  corn_stage_1: "Vegetables",
-  corn_stage_2: "Vegetables",
-  corn_stage_3: "Vegetables",
-  tomato_stage_1: "Vegetables",
-  tomato_stage_2: "Vegetables",
-  tomato_stage_3: "Vegetables",
-  carrot_stage_1: "Vegetables",
-  carrot_stage_2: "Vegetables",
-  carrot_stage_3: "Vegetables",
-  lettuce_stage_1: "Vegetables",
-  lettuce_stage_2: "Vegetables",
-  lettuce_stage_3: "Vegetables",
-  pumpkin_stage_1: "Vegetables",
-  pumpkin_stage_2: "Vegetables",
-  pumpkin_stage_3: "Vegetables",
-  carrot: "Vegetables",
-  pumpkin: "Vegetables",
-  lettuce: "Vegetables",
+  wheat: "Vegetables/wheat",
+  corn: "Vegetables/corn",
+  tomato: "Vegetables/tomato",
+  wheat_stage_1: "Vegetables/wheat",
+  wheat_stage_2: "Vegetables/wheat",
+  wheat_stage_3: "Vegetables/wheat",
+  corn_stage_1: "Vegetables/corn",
+  corn_stage_2: "Vegetables/corn",
+  corn_stage_3: "Vegetables/corn",
+  tomato_stage_1: "Vegetables/tomato",
+  tomato_stage_2: "Vegetables/tomato",
+  tomato_stage_3: "Vegetables/tomato",
+  carrot_stage_1: "Vegetables/carrot",
+  carrot_stage_2: "Vegetables/carrot",
+  carrot_stage_3: "Vegetables/carrot",
+  lettuce_stage_1: "Vegetables/lettuce",
+  lettuce_stage_2: "Vegetables/lettuce",
+  lettuce_stage_3: "Vegetables/lettuce",
+  pumpkin_stage_1: "Vegetables/pumpkin",
+  pumpkin_stage_2: "Vegetables/pumpkin",
+  pumpkin_stage_3: "Vegetables/pumpkin",
+  carrot: "Vegetables/carrot",
+  pumpkin: "Vegetables/pumpkin",
+  lettuce: "Vegetables/lettuce",
+  potato: "Vegetables/potato",
+  potato_stage_1: "Vegetables/potato",
+  potato_stage_2: "Vegetables/potato",
+  potato_stage_3: "Vegetables/potato",
+  cucumber: "Vegetables/cucumber",
+  cucumber_stage_1: "Vegetables/cucumber",
+  cucumber_stage_2: "Vegetables/cucumber",
+  cucumber_stage_3: "Vegetables/cucumber",
+  sweetPotato: "Vegetables/sweetPotato",
+  sweetPotato_stage_1: "Vegetables/sweetPotato",
+  sweetPotato_stage_2: "Vegetables/sweetPotato",
+  sweetPotato_stage_3: "Vegetables/sweetPotato",
+  spinach: "Vegetables/spinach",
+  spinach_stage_1: "Vegetables/spinach",
+  spinach_stage_2: "Vegetables/spinach",
+  spinach_stage_3: "Vegetables/spinach",
   // Seeds
   seedWheat: "Seeds",
   seedCorn: "Seeds",
@@ -50,23 +74,27 @@ const CATEGORY_MAP: Record<string, string> = {
   seedStrawberry: "Seeds",
   seedApple: "Seeds",
   seedCherry: "Seeds",
+  seedPotato: "Seeds",
+  seedCucumber: "Seeds",
+  seedSweetPotato: "Seeds",
+  seedSpinach: "Seeds",
   // Fruits
-  strawberry: "Fruits",
-  cherry: "Fruits",
-  banana: "Fruits",
-  apple: "Fruits",
-  strawberry_stage_1: "Fruits",
-  strawberry_stage_2: "Fruits",
-  strawberry_stage_3: "Fruits",
-  cherry_stage_1: "Fruits",
-  cherry_stage_2: "Fruits",
-  cherry_stage_3: "Fruits",
-  banana_stage_1: "Fruits",
-  banana_stage_2: "Fruits",
-  banana_stage_3: "Fruits",
-  apple_stage_1: "Fruits",
-  apple_stage_2: "Fruits",
-  apple_stage_3: "Fruits",
+  strawberry: "Fruits/strawberry",
+  cherry: "Fruits/cherry",
+  banana: "Fruits/banana",
+  apple: "Fruits/apple",
+  strawberry_stage_1: "Fruits/strawberry",
+  strawberry_stage_2: "Fruits/strawberry",
+  strawberry_stage_3: "Fruits/strawberry",
+  cherry_stage_1: "Fruits/cherry",
+  cherry_stage_2: "Fruits/cherry",
+  cherry_stage_3: "Fruits/cherry",
+  banana_stage_1: "Fruits/banana",
+  banana_stage_2: "Fruits/banana",
+  banana_stage_3: "Fruits/banana",
+  apple_stage_1: "Fruits/apple",
+  apple_stage_2: "Fruits/apple",
+  apple_stage_3: "Fruits/apple",
   // Processed
   flour: "Processed",
   butter: "Processed",
@@ -105,6 +133,7 @@ const CATEGORY_MAP: Record<string, string> = {
   house: "Buildings",
   well: "Buildings",
   garden: "Buildings",
+  fourSeasonGreenhouse: "Buildings",
   beehive: "Buildings",
   // Decorations
   sunflower: "Decorations",
@@ -124,11 +153,17 @@ const CATEGORY_MAP: Record<string, string> = {
   jade: "Special",
   // Tools
   speedTicket: "Tools",
+  cropSpeedTicket: "Tools",
   doubleHarvestCard: "Tools",
   goldBoostCard: "Tools",
   universalSeed: "Tools",
   makeUpSignInCard: "Tools",
+  greenhouseCard: "Tools",
 };
+
+function resolveItemImageId(itemId: string): string {
+  return itemId;
+}
 
 /** UI 图标 -> 文件名映射 */
 const UI_ICON_MAP: Record<string, string> = {
@@ -138,18 +173,55 @@ const UI_ICON_MAP: Record<string, string> = {
   gear: "common/navigation/icon_gear",
   quest: "common/navigation/icon_quest",
   catalog: "common/navigation/icon_catalog",
+  bagSpring: "common/navigation/seasons/spring/icon_bag",
+  bagSummer: "common/navigation/seasons/summer/icon_bag",
+  bagAutumn: "common/navigation/seasons/autumn/icon_bag",
+  bagWinter: "common/navigation/seasons/winter/icon_bag",
+  gearSpring: "common/navigation/seasons/spring/icon_gear",
+  gearSummer: "common/navigation/seasons/summer/icon_gear",
+  gearAutumn: "common/navigation/seasons/autumn/icon_gear",
+  gearWinter: "common/navigation/seasons/winter/icon_gear",
+  questSpring: "common/navigation/seasons/spring/icon_quest",
+  questSummer: "common/navigation/seasons/summer/icon_quest",
+  questAutumn: "common/navigation/seasons/autumn/icon_quest",
+  questWinter: "common/navigation/seasons/winter/icon_quest",
+  catalogSpring: "common/navigation/seasons/spring/icon_catalog",
+  catalogSummer: "common/navigation/seasons/summer/icon_catalog",
+  catalogAutumn: "common/navigation/seasons/autumn/icon_catalog",
+  catalogWinter: "common/navigation/seasons/winter/icon_catalog",
   entryShop: "common/entries/icon_entry_shop",
   entryHarvest: "common/entries/icon_entry_harvest",
+  entryShovel: "farm/icon_shovel",
   billboard: "farm/icon_billboard",
   pastureBillboard: "farm/icon_pasture_billboard",
   field: "farm/icon_field",
+  fieldSpring: "farm/seasons/spring/icon_field",
+  fieldSummer: "farm/seasons/summer/icon_field",
+  fieldAutumn: "farm/seasons/autumn/icon_field",
+  fieldWinter: "farm/seasons/winter/icon_field",
   greenField: "farm/icon_green_field",
   seedSelectorBg: "farm/dialogs/bg_seed_selector",
   btnCropSpeedUp: "farm/dialogs/btn_crop_speedup",
+  greenhouseDialogBg: "farm/greenhouse/bg_greenhouse_dialog",
+  greenhousePot: "farm/greenhouse/pot_greenhouse",
   avatarFarmgirl: "../avatar/avatar_farmgirl",
+  avatarFarmgirlSpring: "../avatar/seasons/spring/avatar_farmgirl",
+  avatarFarmgirlSummer: "../avatar/seasons/summer/avatar_farmgirl",
+  avatarFarmgirlAutumn: "../avatar/seasons/autumn/avatar_farmgirl",
+  avatarFarmgirlWinter: "../avatar/seasons/winter/avatar_farmgirl",
   bgFarmSkyHills: "farm/bg_farm_sky_hills",
   bgPastureFence: "farm/bg_pasture_fence",
+  bgFarmSummer: "farm/bg_farm_summer",
+  bgFarmAutumn: "farm/bg_farm_autumn",
+  bgFarmWinter: "farm/bg_farm_winter",
+  bgPastureSummer: "farm/bg_pasture_summer",
+  bgPastureAutumn: "farm/bg_pasture_autumn",
+  bgPastureWinter: "farm/bg_pasture_winter",
   buildingPad: "farm/icon_building_pad",
+  buildingPadSpring: "farm/seasons/spring/icon_building_pad",
+  buildingPadSummer: "farm/seasons/summer/icon_building_pad",
+  buildingPadAutumn: "farm/seasons/autumn/icon_building_pad",
+  buildingPadWinter: "farm/seasons/winter/icon_building_pad",
   // Legacy aliases point at the current arrow billboards so old callers never request removed files.
   entryPasture: "farm/icon_entry_pasture_arrow",
   entryFarm: "farm/icon_entry_farm_arrow",
@@ -214,6 +286,15 @@ const UI_ICON_MAP: Record<string, string> = {
   achievementCategoryCollection: "achievement/categories/icon_achievement_category_collection",
   achievementMedalWallEntry: "achievement/medal_wall/icon_medal_wall_entry",
   achievementMedalWallBg: "achievement/medal_wall/bg_medal_wall",
+  achievementMedalSlot: "achievement/medal_wall/bg_medal_slot",
+  achievementMedalWallOrnamentLeft:
+    "achievement/medal_wall/ornament_medal_wall_left",
+  achievementMedalWallOrnamentRight:
+    "achievement/medal_wall/ornament_medal_wall_right",
+  seasonSpring: "shop/seasons/icon_season_spring",
+  seasonSummer: "shop/seasons/icon_season_summer",
+  seasonAutumn: "shop/seasons/icon_season_autumn",
+  seasonWinter: "shop/seasons/icon_season_winter",
   btnTitleEquip: "title/buttons/btn_title_equip",
   btnTitleUnequip: "title/buttons/btn_title_unequip",
   titleCategoryLevel: "title/categories/icon_title_category_level",
@@ -250,16 +331,17 @@ export class ImageCache {
 
   /** 获取物品图片 URL */
   getItemUrl(itemId: string): string {
-    const cat = CATEGORY_MAP[itemId] || "Vegetables";
-    const url = ServerConfig.getItemImageUrl(cat, itemId);
-    if (!itemId.startsWith("seed")) return url;
-    return `${url}${url.includes("?") ? "&" : "?"}`;
+    const imageId = resolveItemImageId(itemId);
+    const cat = CATEGORY_MAP[imageId] || "Vegetables";
+    const url = ServerConfig.getItemImageUrl(cat, imageId);
+    return `${url}${url.includes("?") ? "&" : "?"}v=${ITEM_ASSET_REVISION}`;
   }
 
   /** 获取 UI 图标 URL */
   getUiIconUrl(iconName: string): string {
     const filename = UI_ICON_MAP[iconName] || iconName;
-    return ServerConfig.getUiImageUrl(filename);
+    const url = ServerConfig.getUiImageUrl(filename);
+    return `${url}${url.includes("?") ? "&" : "?"}v=${UI_ASSET_REVISION}`;
   }
 
   /** 加载 UI 图标，带缓存和并发去重 */
@@ -267,7 +349,7 @@ export class ImageCache {
     iconName: string,
     timeout = 8000,
   ): Promise<SpriteFrame | null> {
-    const cacheKey = `_ui_${iconName}`;
+    const cacheKey = `_ui_${iconName}@${UI_ASSET_REVISION}`;
     const cached = this.cache.get(cacheKey);
     if (cached) return cached;
     if (this.failed.has(cacheKey)) return null;
@@ -301,35 +383,36 @@ export class ImageCache {
   }
 
   async load(itemId: string, timeout = 8000): Promise<SpriteFrame | null> {
+    const cacheKey = this.getItemCacheKey(itemId);
     // 内存缓存
-    const cached = this.cache.get(itemId);
+    const cached = this.cache.get(cacheKey);
     if (cached) return cached;
 
     // 防止并发重复请求
-    const pending = this.pending.get(itemId);
+    const pending = this.pending.get(cacheKey);
     if (pending) return pending;
 
     const url = this.getItemUrl(itemId);
     const promise = this.downloadSpriteFrame(url, timeout)
       .then((sf) => {
-        if (sf) this.cache.set(itemId, sf);
-        this.pending.delete(itemId);
+        if (sf) this.cache.set(cacheKey, sf);
+        this.pending.delete(cacheKey);
         return sf;
       })
       .catch((err) => {
         console.warn(`${TAG} ${itemId} 加载失败:`, err);
-        this.pending.delete(itemId);
+        this.pending.delete(cacheKey);
         return null;
       });
 
-    this.pending.set(itemId, promise);
+    this.pending.set(cacheKey, promise);
     return promise;
   }
 
   /** 批量预加载，只加载已映射到静态资源目录的物品 */
   async preload(itemIds: string[]): Promise<number> {
     // 只预加载 CATEGORY_MAP 中存在的物品。
-    const realIds = itemIds.filter((id) => CATEGORY_MAP[id]);
+    const realIds = itemIds.filter((id) => CATEGORY_MAP[resolveItemImageId(id)]);
     const results = await Promise.all(realIds.map((id) => this.load(id)));
     const loaded = results.filter(Boolean).length;
     return loaded;
@@ -338,8 +421,50 @@ export class ImageCache {
   /** 初始化阶段一次性预加载所有运行时会使用的物品与 UI 图片。 */
   async preloadAllRequired(): Promise<{ items: number; ui: number }> {
     const itemIds = Object.keys(CATEGORY_MAP);
+    const activeSeason = getSeasonInfo().season;
+    const seasonalBackgrounds = new Set([
+      "bgFarmSkyHills", "bgPastureFence",
+      "bgFarmSummer", "bgPastureSummer",
+      "bgFarmAutumn", "bgPastureAutumn",
+      "bgFarmWinter", "bgPastureWinter",
+    ]);
+    const activeBackgrounds: Record<string, string[]> = {
+      spring: ["bgFarmSkyHills", "bgPastureFence"],
+      summer: ["bgFarmSummer", "bgPastureSummer"],
+      autumn: ["bgFarmAutumn", "bgPastureAutumn"],
+      winter: ["bgFarmWinter", "bgPastureWinter"],
+    };
+    const activeSeasonBackgrounds = new Set(activeBackgrounds[activeSeason]);
+    const seasonSuffix: Record<string, string> = {
+      spring: "Spring",
+      summer: "Summer",
+      autumn: "Autumn",
+      winter: "Winter",
+    };
+    const seasonalFamilies = [
+      "avatarFarmgirl",
+      "bag",
+      "gear",
+      "quest",
+      "catalog",
+      "field",
+      "buildingPad",
+    ];
+    const allSeasonalVariants = new Set<string>();
+    for (const family of seasonalFamilies) {
+      for (const suffix of ["Spring", "Summer", "Autumn", "Winter"]) {
+        allSeasonalVariants.add(`${family}${suffix}`);
+      }
+    }
+    const activeSeasonalVariants = new Set(
+      seasonalFamilies.map((family) => `${family}${seasonSuffix[activeSeason]}`),
+    );
     const uiNames = Object.keys(UI_ICON_MAP).filter(
-      (name) => name !== "entryFarm" && name !== "entryPasture",
+      (name) =>
+        name !== "entryFarm" &&
+        name !== "entryPasture" &&
+        (!seasonalBackgrounds.has(name) || activeSeasonBackgrounds.has(name)) &&
+        (!allSeasonalVariants.has(name) || activeSeasonalVariants.has(name)),
     );
     const [items, ui] = await Promise.all([
       this.preload(itemIds),
@@ -349,11 +474,11 @@ export class ImageCache {
   }
 
   getCachedItem(itemId: string): SpriteFrame | null {
-    return this.cache.get(itemId) || null;
+    return this.cache.get(this.getItemCacheKey(itemId)) || null;
   }
 
   getCachedUiIcon(iconName: string): SpriteFrame | null {
-    return this.cache.get(`_ui_${iconName}`) || null;
+    return this.cache.get(`_ui_${iconName}@${UI_ASSET_REVISION}`) || null;
   }
 
   /** 将 SpriteFrame 应用到 Sprite 组件，加载失败时允许外层自行 fallback */
@@ -474,7 +599,11 @@ export class ImageCache {
 
   /** 检查是否已缓存 */
   has(itemId: string): boolean {
-    return this.cache.has(itemId);
+    return this.cache.has(this.getItemCacheKey(itemId));
+  }
+
+  private getItemCacheKey(itemId: string): string {
+    return `${itemId}@${ITEM_ASSET_REVISION}`;
   }
 }
 

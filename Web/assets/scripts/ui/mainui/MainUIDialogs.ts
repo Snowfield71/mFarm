@@ -207,8 +207,13 @@ function showStyledToast(ui: any, text: string, name = 'Toast', holdDuration = 0
     background.addComponent(UITransform).setContentSize(250, 70.3125);
     ui.applyUiIcon('inventorySellResultBg', background);
     node.addChild(background);
-    const message = ui.makeLabel(text, 13, new Color(88, 45, 24), true, 0, 0, 210, 28);
-    message.getComponent(Label)!.overflow = Label.Overflow.SHRINK;
+    const message = ui.makeLabel(text, 12, new Color(88, 45, 24), true, 0, 0, 176, 42);
+    const messageLabel = message.getComponent(Label)!;
+    messageLabel.overflow = Label.Overflow.CLAMP;
+    messageLabel.enableWrapText = true;
+    messageLabel.lineHeight = 17;
+    messageLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
+    messageLabel.verticalAlign = Label.VerticalAlign.CENTER;
     node.addChild(message);
     ui.node.addChild(node);
     node.setScale(0.9, 0.9, 1);
@@ -248,18 +253,27 @@ export function applyEditBoxTextColor(ui: any, editBox: EditBox, color: Color, p
 
 }
 
-export function showDialog(ui: any, title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>) {
-    ui.dialogRoot.removeAllChildren();
+export function showDialog(ui: any, title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>, showMask = true, preserveExisting = false) {
+    if (!preserveExisting) ui.dialogRoot.removeAllChildren();
     ui.dialogRoot.active = true;
 
     const vs = view.getVisibleSize();
-    const mask = new Node('Mask');
-    mask.addComponent(UITransform).setContentSize(Design.WIDTH, vs.height);
-    fillRect(mask, Design.WIDTH, vs.height, new Color(0, 0, 0, 120));
-    mask.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => { ui.dialogRoot.active = false; });
-    ui.dialogRoot.addChild(mask);
+    const blocker = new Node(showMask ? 'Mask' : 'DialogInputBlocker');
+    blocker.addComponent(UITransform).setContentSize(Design.WIDTH, vs.height);
+    if (showMask) fillRect(blocker, Design.WIDTH, vs.height, new Color(0, 0, 0, 120));
+    let dialog: Node;
+    const dismiss = () => {
+        if (preserveExisting) {
+            if (dialog?.isValid) dialog.destroy();
+            if (blocker.isValid) blocker.destroy();
+            return;
+        }
+        ui.dialogRoot.active = false;
+    };
+    blocker.addComponent(Button).node.on(Node.EventType.TOUCH_END, dismiss);
+    ui.dialogRoot.addChild(blocker);
 
-    const dialog = new Node('Dialog');
+    dialog = new Node(preserveExisting ? 'DialogOverlay' : 'Dialog');
     dialog.addComponent(UITransform).setContentSize(274, 192);
     ui.dialogRoot.addChild(dialog);
     const background = new Node('DialogBackground');
@@ -306,7 +320,7 @@ export function showDialog(ui: any, title: string, message: string | (() => stri
                     .to(0.07, { scale: new Vec3(0.93, 0.93, 1) }, { easing: 'quadOut' })
                     .to(0.11, { scale: Vec3.ONE }, { easing: 'backOut' })
                     .call(() => {
-                        ui.dialogRoot.active = false;
+                        dismiss();
                         button.cb();
                     })
                     .start();
@@ -320,7 +334,7 @@ export function showDialog(ui: any, title: string, message: string | (() => stri
         fillRoundRect(node, 88, 34, 10, index === buttons.length - 1 ? new Color(76, 188, 83) : new Color(185, 190, 178));
         node.addChild(ui.makeLabel(button.text, 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
         node.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
-            ui.dialogRoot.active = false;
+            dismiss();
             button.cb();
         });
         dialog.addChild(node);
@@ -331,6 +345,10 @@ export function showDialog(ui: any, title: string, message: string | (() => stri
 }
 
 export function toast(ui: any, text: string) {
+    if (Date.now() <= (ui.__rewardAnimationToastSuppressUntil || 0)) {
+        ui.__rewardAnimationToastSuppressUntil = 0;
+        return;
+    }
     showStyledToast(ui, text);
 
 }

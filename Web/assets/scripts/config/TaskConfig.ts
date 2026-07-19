@@ -93,7 +93,7 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     target: 1,
     action: "farm",
     trigger: { event: "landExpanded" },
-    rewards: [gold(180), item("speedTicket", 1, "\u52a0\u901f\u5238")],
+    rewards: [gold(180), item("speedTicket", 1, "\u5408\u6210\u52a0\u901f\u5238")],
   },
   {
     id: "plant_5",
@@ -166,10 +166,10 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     no: 1,
     category: "special",
     title: "\u5e78\u8fd0\u6536\u83b7",
-    description: "\u5728\u6d3b\u52a8\u671f\u95f4\u6536\u83b730\u4efd\u4f5c\u7269",
-    target: 30,
+    description: "\u5728\u6d3b\u52a8\u671f\u95f4\u6536\u83b7150\u4efd\u4f5c\u7269",
+    target: 150,
     action: "farm",
-    trigger: { event: "cropHarvested" },
+    trigger: { event: "cropHarvested", useEventCount: true },
     rewards: [gold(200), item("luckyStar", 1, "\u5e78\u8fd0\u661f")],
   },
   {
@@ -193,6 +193,17 @@ export const TASK_DEFINITIONS: TaskDefinition[] = [
     action: "farm",
     trigger: { event: "levelUp" },
     rewards: [gold(300), item("mysteryBox", 1, "\u795e\u79d8\u793c\u76d2")],
+  },
+  {
+    id: "special_jade_trade",
+    no: 4,
+    category: "special",
+    title: "\u7fe1\u7fe0\u5546\u8def",
+    description: "\u7d2f\u8ba1\u51fa\u552e100\u4ef6\u7269\u54c1\uff0c\u83b7\u5f97\u7a00\u6709\u7fe1\u7fe0",
+    target: 100,
+    action: "inventory",
+    trigger: { event: "itemSold", useEventCount: true },
+    rewards: [gold(500), item("jade", 1, "\u7fe1\u7fe0")],
   },
 ];
 

@@ -4,6 +4,7 @@ import {
   EditBox,
   Graphics,
   Label,
+  LabelOutline,
   Mask,
   Node,
   ScrollView,
@@ -33,6 +34,103 @@ import {
 } from "../../config/RecipeConfig";
 import { fillRoundRect, strokeRoundRect } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
+import { getSeasonInfo, SEASON_LABELS, Season } from "../../config/SeasonConfig";
+
+function getSeasonBackgroundIcon(world: "farm" | "pasture", season: Season): string {
+  const backgrounds: Record<Season, { farm: string; pasture: string }> = {
+    spring: { farm: "bgFarmSkyHills", pasture: "bgPastureFence" },
+    summer: { farm: "bgFarmSummer", pasture: "bgPastureSummer" },
+    autumn: { farm: "bgFarmAutumn", pasture: "bgPastureAutumn" },
+    winter: { farm: "bgFarmWinter", pasture: "bgPastureWinter" },
+  };
+  return backgrounds[season][world];
+}
+
+const SEASON_SUFFIX: Record<Season, string> = {
+  spring: "Spring",
+  summer: "Summer",
+  autumn: "Autumn",
+  winter: "Winter",
+};
+
+function getSeasonAvatarIcon(season: Season): string {
+  return `avatarFarmgirl${SEASON_SUFFIX[season]}`;
+}
+
+function getSeasonNavIcon(
+  icon: "bag" | "gear" | "quest" | "catalog",
+  season: Season,
+): string {
+  return `${icon}${SEASON_SUFFIX[season]}`;
+}
+
+function applySeasonCharacterAndNavArt(ui: any, season: Season) {
+  const avatarImage = ui.topBar
+    ?.getChildByName("Avatar")
+    ?.getChildByName("AvatarImage");
+  if (avatarImage) ui.applyUiIcon(getSeasonAvatarIcon(season), avatarImage);
+
+  const nav = ui.node?.getChildByName("BottomNav");
+  const icons: Array<[string, "bag" | "gear" | "quest" | "catalog"]> = [
+    ["inventory", "bag"],
+    ["craft", "gear"],
+    ["task", "quest"],
+    ["quest", "catalog"],
+  ];
+  for (const [panel, iconName] of icons) {
+    const icon = nav?.getChildByName(`Nav_${panel}`)?.getChildByName("Icon");
+    if (icon) ui.applyUiIcon(getSeasonNavIcon(iconName, season), icon);
+  }
+}
+
+const SEASON_TEXT_STYLES: Record<
+  Season,
+  { title: Color; secondary: Color; outline: Color }
+> = {
+  spring: {
+    title: new Color(76, 104, 42),
+    secondary: new Color(95, 126, 57),
+    outline: new Color(240, 249, 211),
+  },
+  summer: {
+    title: new Color(137, 75, 25),
+    secondary: new Color(161, 101, 35),
+    outline: new Color(255, 239, 170),
+  },
+  autumn: {
+    title: new Color(132, 58, 27),
+    secondary: new Color(166, 87, 35),
+    outline: new Color(255, 224, 157),
+  },
+  winter: {
+    title: new Color(55, 88, 118),
+    secondary: new Color(73, 111, 139),
+    outline: new Color(239, 251, 255),
+  },
+};
+
+function applySeasonTextStyle(ui: any, season: Season) {
+  const style = SEASON_TEXT_STYLES[season];
+  const title = ui.topBar?.getChildByName("FarmTitle");
+  const seasonLabel = ui.topBar?.getChildByName("SeasonLabel");
+  const level = ui.topBar
+    ?.getChildByName("LevelBadge")
+    ?.getChildByName("LevelText");
+  const levelLabel = level?.getComponent(Label);
+  if (levelLabel) levelLabel.color = new Color(88, 45, 24);
+  level?.getComponent(LabelOutline)?.destroy();
+  for (const [node, color, width] of [
+    [title, style.title, 2],
+    [seasonLabel, style.secondary, 1.2],
+  ] as Array<[Node | null | undefined, Color, number]>) {
+    if (!node?.isValid) continue;
+    const label = node.getComponent(Label);
+    if (label) label.color = color;
+    const outline = node.getComponent(LabelOutline) ?? node.addComponent(LabelOutline);
+    outline.color = style.outline;
+    outline.width = width;
+  }
+}
 
 export function createBackground(ui: any) {
   const vs = view.getVisibleSize();
@@ -172,10 +270,159 @@ export function createBackground(ui: any) {
   const artBg = new Node("ArtBackground");
   artBg.addComponent(UITransform).setContentSize(vs.width, vs.height);
   artBg.setPosition(0, 0);
-  ui.applyUiIcon("bgFarmSkyHills", artBg);
+  ui.applyUiIcon(getSeasonBackgroundIcon("farm", getSeasonInfo().season), artBg);
   ui.node.addChild(artBg);
   artBg.setSiblingIndex(ui.node.children.length - 1);
   ui.artBackground = artBg;
+}
+
+export function createSeasonalEffectLayer(ui: any) {
+  const vs = view.getVisibleSize();
+  const layer = new Node("SeasonalScreenEffects");
+  layer.addComponent(UITransform).setContentSize(vs.width, vs.height);
+  layer.setPosition(0, 0);
+  ui.node.addChild(layer);
+  ui.seasonEffectLayer = layer;
+  ui.topBar?.setSiblingIndex(ui.node.children.length - 1);
+  ui.seasonVisualKey = "";
+  syncSeasonPresentation(ui, true);
+}
+
+function syncSeasonPresentation(ui: any, force = false) {
+  const season = getSeasonInfo().season;
+  const key = `${ui.activeWorld}:${season}`;
+  if (!force && ui.seasonVisualKey === key) return season;
+  const previousSeason = ui.seasonVisualKey
+    ? ui.seasonVisualKey.split(":").pop()
+    : "";
+  ui.seasonVisualKey = key;
+  ui.applyUiIcon(getSeasonBackgroundIcon(ui.activeWorld, season), ui.artBackground);
+  applySeasonTextStyle(ui, season);
+  applySeasonCharacterAndNavArt(ui, season);
+  // Farm/pasture switches only replace the scene background. Existing seasonal
+  // particles keep moving and are rebuilt only when the season changes.
+  if (previousSeason !== season && ui.seasonEffectLayer?.isValid) {
+    ui.seasonEffectTimer = 0;
+    [...ui.seasonEffectLayer.children].forEach((child: Node) => child.destroy());
+    if (previousSeason) ui.refreshLand?.();
+  }
+  return season;
+}
+
+export function updateSeasonPresentation(ui: any, dt: number) {
+  const season = syncSeasonPresentation(ui);
+  if (!ui.seasonEffectLayer?.isValid) return;
+  ui.seasonEffectTimer += dt;
+  const intervals: Record<Season, number> = {
+    spring: 0.3,
+    summer: 0.24,
+    autumn: 0.42,
+    winter: 0.12,
+  };
+  const interval = intervals[season];
+  while (ui.seasonEffectTimer >= interval) {
+    ui.seasonEffectTimer -= interval;
+    spawnSeasonParticle(ui, season);
+    if (season === "winter" && Math.random() > 0.48)
+      spawnSeasonParticle(ui, season);
+  }
+}
+
+function spawnSeasonParticle(ui: any, season: Season) {
+  const layer = ui.seasonEffectLayer as Node;
+  if (!layer?.isValid) return;
+  const vs = view.getVisibleSize();
+  const particleNames: Record<Season, string> = {
+    spring: "SpringPetal",
+    summer: "SummerPollen",
+    autumn: "FallingLeaf",
+    winter: "Snowflake",
+  };
+  const particle = new Node(particleNames[season]);
+  particle.addComponent(UITransform).setContentSize(18, 18);
+  const startX = (Math.random() - 0.5) * (vs.width + 40);
+  const startY = vs.height / 2 + 18;
+  const driftRange =
+    season === "winter" ? 75 : season === "summer" ? 55 : 130;
+  const drift = (Math.random() - 0.5) * driftRange;
+  const duration =
+    season === "winter"
+      ? 6.5 + Math.random() * 4
+      : season === "summer"
+        ? 7 + Math.random() * 4
+        : 5 + Math.random() * 3;
+  particle.setPosition(startX, startY);
+  const opacity = particle.addComponent(UIOpacity);
+  opacity.opacity = season === "summer" ? 175 : season === "winter" ? 205 : 225;
+  const graphics = particle.addComponent(Graphics);
+  if (season === "winter") {
+    const radius = 1.8 + Math.random() * 2.2;
+    graphics.fillColor = new Color(255, 255, 255, 235);
+    graphics.circle(0, 0, radius);
+    graphics.fill();
+  } else if (season === "autumn") {
+    const colors = [
+      new Color(226, 132, 45, 245),
+      new Color(205, 94, 43, 245),
+      new Color(235, 171, 55, 245),
+      new Color(167, 112, 49, 245),
+    ];
+    graphics.fillColor = colors[Math.floor(Math.random() * colors.length)];
+    graphics.ellipse(0, 0, 5.5, 2.8);
+    graphics.fill();
+    graphics.strokeColor = new Color(120, 74, 39, 210);
+    graphics.lineWidth = 1;
+    graphics.moveTo(-4, 0);
+    graphics.lineTo(5, 0);
+    graphics.stroke();
+    particle.angle = Math.random() * 180;
+  } else if (season === "spring") {
+    const petalColors = [
+      new Color(255, 187, 205, 238),
+      new Color(255, 218, 227, 242),
+      new Color(250, 244, 229, 235),
+    ];
+    graphics.fillColor =
+      petalColors[Math.floor(Math.random() * petalColors.length)];
+    graphics.ellipse(0, 0, 4.8, 2.5);
+    graphics.fill();
+    graphics.strokeColor = new Color(205, 126, 145, 155);
+    graphics.lineWidth = 0.8;
+    graphics.ellipse(0, 0, 4.8, 2.5);
+    graphics.stroke();
+    particle.angle = Math.random() * 180;
+  } else {
+    const radius = 1.3 + Math.random() * 1.8;
+    graphics.fillColor =
+      Math.random() > 0.35
+        ? new Color(255, 229, 105, 215)
+        : new Color(191, 231, 122, 205);
+    graphics.circle(0, 0, radius);
+    graphics.fill();
+    graphics.strokeColor = new Color(255, 249, 194, 120);
+    graphics.lineWidth = 1.2;
+    graphics.circle(0, 0, radius + 1.4);
+    graphics.stroke();
+  }
+  layer.addChild(particle);
+  const target = new Vec3(startX + drift, -vs.height / 2 - 24, 0);
+  tween(particle)
+    .to(duration, {
+      position: target,
+      angle:
+        particle.angle +
+        (season === "winter"
+          ? 80
+          : season === "summer"
+            ? 120
+            : 540 + Math.random() * 360),
+    }, { easing: "linear" })
+    .call(() => particle.destroy())
+    .start();
+  tween(opacity)
+    .delay(duration * 0.72)
+    .to(duration * 0.28, { opacity: 0 }, { easing: "quadIn" })
+    .start();
 }
 
 function createSideTree(
@@ -386,7 +633,7 @@ export function createTopBar(ui: any) {
   avatarImage.addComponent(UITransform).setContentSize(88, 88);
   avatarImage.addComponent(UIOpacity).opacity = 248;
   avatarImage.setPosition(0, -12);
-  ui.applyUiIcon("avatarFarmgirl", avatarImage);
+  ui.applyUiIcon(getSeasonAvatarIcon(getSeasonInfo().season), avatarImage);
   avatar.addChild(avatarImage);
   ui.topBar.addChild(avatar);
 
@@ -427,6 +674,21 @@ export function createTopBar(ui: any) {
   title.getComponent(Label)!.fontSize = 28;
   title.getComponent(Label)!.isBold = true;
   ui.topBar.addChild(title);
+
+  const seasonInfo = getSeasonInfo();
+  const seasonLabel = ui.makeLabel(
+    `${SEASON_LABELS[seasonInfo.season]} · 第${seasonInfo.dayInSeason}天`,
+    10,
+    new Color(126, 78, 43),
+    true,
+    -3,
+    2,
+    120,
+    16,
+  );
+  title.name = "FarmTitle";
+  seasonLabel.name = "SeasonLabel";
+  ui.topBar.addChild(seasonLabel);
 
   const expW = 130;
   const expBg = new Node("ExpBg");
@@ -700,7 +962,13 @@ function createActionButtons(ui: any) {
     const icon = new Node("Icon");
     icon.addComponent(UITransform).setContentSize(34, 34);
     icon.setPosition(-28, 2);
-    ui.applyUiIcon(item.icon, icon);
+    ui.applyUiIcon(
+      getSeasonNavIcon(
+        item.icon as "bag" | "gear" | "quest" | "catalog",
+        getSeasonInfo().season,
+      ),
+      icon,
+    );
     btn.addChild(icon);
 
     const label = ui.makeLabel(
@@ -850,10 +1118,7 @@ export function switchWorld(ui: any, target?: "farm" | "pasture") {
     ui.activeWorld = next;
     ui.landRoot.active = next === "farm";
     ui.pastureRoot.active = next === "pasture";
-    ui.applyUiIcon(
-      next === "farm" ? "bgFarmSkyHills" : "bgPastureFence",
-      ui.artBackground,
-    );
+    syncSeasonPresentation(ui, true);
     drawWorldSwitchArrow(ui, ui.worldSwitchButton, next === "pasture");
     ui.worldSwitchButton.setPosition(
       next === "pasture" ? -Design.WIDTH / 2 + 20 : Design.WIDTH / 2 - 20,
@@ -1256,6 +1521,53 @@ export function createShopEntry(ui: any) {
   ]) {
     if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
   }
+}
+
+export function createShovelEntry(ui: any) {
+  const entry = new Node("ShovelEntry");
+  entry.setPosition(Design.WIDTH / 2 - 20, -160);
+  entry.addComponent(UITransform).setContentSize(38, 46);
+  fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
+  strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
+
+  const selectedGlow = new Node("SelectedGlow");
+  selectedGlow.setPosition(0, -1);
+  fillRoundRect(selectedGlow, 31, 35, 10, new Color(255, 211, 94, 210));
+  strokeRoundRect(selectedGlow, 31, 35, 10, new Color(219, 128, 42, 235), 2);
+  selectedGlow.active = false;
+  entry.addChild(selectedGlow);
+
+  const icon = new Node("ShovelEntryIcon");
+  icon.addComponent(UITransform).setContentSize(31, 31);
+  icon.setPosition(0, -1);
+  ui.applyUiIcon("entryShovel", icon);
+  entry.addChild(icon);
+
+  entry.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+    event?.stopPropagation?.();
+    const nextActive = !ui.demolitionMode;
+    setShovelMode(ui, nextActive);
+    tween(entry).stop();
+    entry.setScale(new Vec3(0.91, 0.91, 1));
+    tween(entry)
+      .to(0.12, { scale: new Vec3(nextActive ? 1.08 : 1, nextActive ? 1.08 : 1, 1) }, { easing: "backOut" })
+      .start();
+    ui.toast(nextActive ? "铲子已选中，点击目标拆除" : "已退出铲子模式");
+  });
+  ui.shovelEntry = entry;
+  ui.node.addChild(entry);
+}
+
+export function setShovelMode(ui: any, active: boolean) {
+  ui.demolitionMode = active;
+  ui.selectedSeedId = null;
+  ui.closeSeedBubble?.();
+  ui.closeBuildingBubble?.();
+  const entry = ui.shovelEntry || ui.node.getChildByName("ShovelEntry");
+  if (!entry) return;
+  const glow = entry.getChildByName("SelectedGlow");
+  if (glow) glow.active = active;
+  entry.setScale(new Vec3(active ? 1.08 : 1, active ? 1.08 : 1, 1));
 }
 
 export function createPanel(
