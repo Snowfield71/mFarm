@@ -427,6 +427,16 @@ const STAGED_CROPS = new Set([
   "cucumber",
   "sweetPotato",
   "spinach",
+  "pea",
+  "asparagus",
+  "rhubarb",
+  "fennel",
+  "artichoke",
+  "eggplant",
+  "sweetPepper",
+  "watermelon",
+  "okra",
+  "peanut",
 ]);
 
 const CROP_STAGE_VISUAL: Record<
@@ -499,6 +509,56 @@ const CROP_STAGE_VISUAL: Record<
     mature: { size: 104, y: 0 },
   },
   spinach: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  pea: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  asparagus: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  rhubarb: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  fennel: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  artichoke: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  eggplant: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  sweetPepper: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  watermelon: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  okra: {
+    seed: { size: 96, y: 0 },
+    middle: { size: 100, y: 0 },
+    mature: { size: 104, y: 0 },
+  },
+  peanut: {
     seed: { size: 96, y: 0 },
     middle: { size: 100, y: 0 },
     mature: { size: 104, y: 0 },
@@ -2019,21 +2079,41 @@ function renderGreenhouseDialogContent(ui: any, content: Node) {
     const row = Math.floor(index / 3);
     const slot = new Node(`GreenhouseSlot_${block.id}`);
     slot.addComponent(UITransform).setContentSize(78, 72);
-    // Match the visual centres of the six floor mats in the background.
-    slot.setPosition(-78 + col * 79, 80 - row * 131);
+    // Pixel-calibrated centres of the six perspective mats in the 752x1359
+    // background, converted into the dialog content coordinate system.
+    const matX = [-76, 1, 77];
+    const matY = [78, -52];
+    // Pot, crop and unlock marker all inherit this shared anchor.
+    slot.setPosition(matX[col], matY[row]);
     (slot as any).__greenhouseState = block.state;
     (slot as any).__greenhouseVisualId = block.cropType
       ? getCropVisualId(block)
       : "";
 
+    if (!land.isGreenhouseSlotUnlocked(block.id)) {
+      const unlockMarker = new Node("LockedPot");
+      unlockMarker.addComponent(UITransform).setContentSize(58, 44);
+      unlockMarker.setPosition(0, 0);
+      ui.applyUiIcon("greenhouseSlotUnlock", unlockMarker);
+      slot.addChild(unlockMarker);
+      slot
+        .addComponent(Button)
+        .node.on(Node.EventType.TOUCH_END, (event: any) => {
+          event?.stopPropagation?.();
+          handleGreenhouseSlotUnlock(ui, block.id);
+        });
+      content.addChild(slot);
+      return;
+    }
+
     const pot = new Node("FlowerPot");
     pot.addComponent(UITransform).setContentSize(56, 42);
-    pot.setPosition(0, 0);
+    pot.setPosition(0, 5);
     ui.applyUiIcon("greenhousePot", pot);
     slot.addChild(pot);
     if (block.cropType) {
       const cropIcon = ui.createItemIcon(getCropVisualId(block), 40);
-      cropIcon.setPosition(0, 27);
+      cropIcon.setPosition(0, 32);
       slot.addChild(cropIcon);
     }
     const status =
@@ -2048,7 +2128,7 @@ function renderGreenhouseDialogContent(ui: any, content: Node) {
       new Color(255, 246, 211),
       true,
       0,
-      -36,
+      -31,
       68,
       14,
     );
@@ -2207,18 +2287,51 @@ function createGreenhouseSeedStrip(ui: any, parent: Node, y: number) {
   viewport.addComponent(Mask);
   parent.addChild(viewport);
   if (seeds.length === 0) {
-    viewport.addChild(
-      ui.makeLabel(
-        "背包中没有可用的非当季种子",
-        12,
-        new Color(143, 103, 68),
-        true,
-        0,
-        0,
-        250,
-        26,
-      ),
+    const emptyLabel = ui.makeLabel(
+      "背包中没有可用的非当季种子",
+      11,
+      new Color(143, 103, 68),
+      true,
+      -28,
+      0,
+      190,
+      26,
     );
+    viewport.addChild(emptyLabel);
+    const goButton = new Node("GreenhouseSeedShopButton");
+    goButton.addComponent(UITransform).setContentSize(56, 28);
+    goButton.setPosition(98, 0);
+    const goVisual = new Node("GreenhouseSeedShopVisual");
+    goVisual.addComponent(UITransform).setContentSize(62, 62);
+    // The opaque artwork sits 5.5px above the source canvas centre.
+    goVisual.setPosition(0, -2);
+    ui.applyUiIcon("btnGo", goVisual);
+    goButton.addChild(goVisual);
+    goButton.on(Node.EventType.TOUCH_START, () => {
+      tween(goVisual).stop();
+      tween(goVisual)
+        .to(0.06, { scale: new Vec3(0.9, 0.9, 1) }, { easing: "quadOut" })
+        .start();
+    });
+    const restoreGoButton = () => {
+      tween(goVisual).stop();
+      tween(goVisual)
+        .to(0.1, { scale: Vec3.ONE }, { easing: "backOut" })
+        .start();
+    };
+    goButton.on(Node.EventType.TOUCH_CANCEL, restoreGoButton);
+    goButton
+      .addComponent(Button)
+      .node.on(Node.EventType.TOUCH_END, (event: any) => {
+        event?.stopPropagation?.();
+        restoreGoButton();
+        closeGreenhouseDialog(ui);
+        ui.scheduleOnce(() => {
+          ui.nextShopCategory = "seeds";
+          ui.showPanel("shop");
+        }, 0.16);
+      });
+    viewport.addChild(goButton);
     return;
   }
   const cellW = 52;
@@ -2387,6 +2500,39 @@ function handleGreenhouseSlotClick(ui: any, slotId: number) {
     if (!rewardAnimated) ui.toast(`收获 ${ui.itemName(cropId)} x${count}`);
     refreshGreenhouseDialog(ui);
   }
+}
+
+function handleGreenhouseSlotUnlock(ui: any, slotId: number) {
+  const land = LandSystem.getInstance();
+  if (land.isGreenhouseSlotUnlocked(slotId)) return;
+  const cost = land.getGreenhouseSlotUnlockCost(slotId);
+  ui.showDialog(
+    "解锁温室花盆",
+    `消耗 ${cost} 金币解锁这个花盆位置`,
+    [
+      { text: "稍后", cb: () => {} },
+      {
+        text: "解锁",
+        cb: () => {
+          const gm = GameManager.getInstance();
+          if (!gm.spendGold(cost)) {
+            ui.toast("金币不足");
+            return;
+          }
+          if (!land.unlockGreenhouseSlot(slotId)) {
+            gm.addGold(cost);
+            ui.toast("请先解锁前一个花盆");
+            return;
+          }
+          ui.refreshTopBar();
+          refreshGreenhouseDialog(ui);
+          ui.toast("温室花盆已解锁");
+        },
+      },
+    ],
+    true,
+    true,
+  );
 }
 
 export function refreshGreenhouseDialog(ui: any) {

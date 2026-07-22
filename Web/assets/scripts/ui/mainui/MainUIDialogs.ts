@@ -197,6 +197,36 @@ function showSellResultToast(ui: any, text: string) {
     showStyledToast(ui, text, 'SellResultToast', 1.05);
 }
 
+function formatToastText(text: string): { text: string; fontSize: number; lineHeight: number } {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    const singleLineLimit = 15;
+    const totalLimit = 30;
+    if (normalized.length <= singleLineLimit) {
+        return { text: normalized, fontSize: 12, lineHeight: 17 };
+    }
+
+    const clipped = normalized.length > totalLimit
+        ? `${normalized.slice(0, totalLimit - 1)}…`
+        : normalized;
+    const middle = Math.ceil(clipped.length / 2);
+    const candidates: number[] = [];
+    for (let index = 3; index < clipped.length - 3; index++) {
+        if ('，、；：,; '.includes(clipped[index])) candidates.push(index + 1);
+    }
+    const splitAt = candidates.length > 0
+        ? candidates.reduce((best, value) =>
+            Math.abs(value - middle) < Math.abs(best - middle) ? value : best,
+        candidates[0])
+        : middle;
+    const firstLine = clipped.slice(0, splitAt).trim();
+    const secondLine = clipped.slice(splitAt).trim();
+    return {
+        text: `${firstLine}\n${secondLine}`,
+        fontSize: clipped.length > 24 ? 10 : 11,
+        lineHeight: 16,
+    };
+}
+
 function showStyledToast(ui: any, text: string, name = 'Toast', holdDuration = 0.9) {
     const vs = view.getVisibleSize();
     const targetY = vs.height * 0.39 - 30;
@@ -207,11 +237,12 @@ function showStyledToast(ui: any, text: string, name = 'Toast', holdDuration = 0
     background.addComponent(UITransform).setContentSize(250, 70.3125);
     ui.applyUiIcon('inventorySellResultBg', background);
     node.addChild(background);
-    const message = ui.makeLabel(text, 12, new Color(88, 45, 24), true, 0, 0, 176, 42);
+    const formatted = formatToastText(text);
+    const message = ui.makeLabel(formatted.text, formatted.fontSize, new Color(88, 45, 24), true, 0, 0, 204, 42);
     const messageLabel = message.getComponent(Label)!;
     messageLabel.overflow = Label.Overflow.CLAMP;
     messageLabel.enableWrapText = true;
-    messageLabel.lineHeight = 17;
+    messageLabel.lineHeight = formatted.lineHeight;
     messageLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
     messageLabel.verticalAlign = Label.VerticalAlign.CENTER;
     node.addChild(message);

@@ -12,7 +12,7 @@ import { fillRoundRect } from './UIDraw';
 
 const ITEM_NAMES: Record<string, string> = {
     wheat: '小麦', corn: '玉米', tomato: '番茄', carrot: '胡萝卜', pumpkin: '南瓜',
-    strawberry: '草莓', cherry: '樱桃', banana: '香蕉', apple: '苹果', lettuce: '生菜',
+    strawberry: '草莓', cherry: '樱桃', banana: '香蕉', apple: '苹果', lettuce: '莴笋',
     egg: '鸡蛋', milk: '牛奶', flour: '面粉', butter: '黄油', honey: '蜂蜜', sugar: '糖',
     oatmeal: '燕麦', jam: '果酱', cheese: '奶酪', ketchup: '番茄酱',
     bread: '面包', croissant: '牛角包', cake: '蛋糕', cupcake: '杯子蛋糕', cookie: '饼干',

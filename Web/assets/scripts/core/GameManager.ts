@@ -40,6 +40,7 @@ function localDateKey(date: Date): string {
 @ccclass('GameManager')
 export class GameManager extends Component {
     private static instance: GameManager;
+    private static readonly GREENHOUSE_UNLOCK_DATA_VERSION = 1;
 
     // 玩家数据
     playerLevel: number = GameValues.INITIAL_LEVEL;
@@ -75,6 +76,7 @@ export class GameManager extends Component {
     seasonalCrossSeasonPlantCount: number = 0;
     hasLoaded: boolean = false;
     private saveQueued = false;
+    private pendingGreenhouseUnlockMigration = false;
 
     static getInstance(): GameManager {
         return GameManager.instance;
@@ -105,6 +107,10 @@ export class GameManager extends Component {
             Logger.info(TAG, `🖼️ 初始化资源完成：物品 ${loaded.items}，UI ${loaded.ui}`);
             this.createMainUI();
             this.hasLoaded = true;
+            if (this.pendingGreenhouseUnlockMigration) {
+                this.pendingGreenhouseUnlockMigration = false;
+                this.saveGame();
+            }
             Logger.info(TAG, '✅ 萌田农场启动完成');
         }, 0.15);
     }
@@ -189,13 +195,18 @@ export class GameManager extends Component {
             this.nextLevelExp = Math.floor(GameValues.EXP_PER_LEVEL * Math.pow(GameValues.EXP_GROWTH_RATE, this.playerLevel - 1));
 
             InventorySystem.getInstance().loadFromSave(saveData.inventory || []);
+            const resetGreenhouseUnlocks =
+                (saveData.greenhouseUnlockDataVersion || 0)
+                < GameManager.GREENHOUSE_UNLOCK_DATA_VERSION;
             LandSystem.getInstance().loadFromSave(
                 saveData.landBlocks || [],
                 saveData.plantCounts || {},
                 saveData.buildingSlots || [],
                 saveData.pastureUnlockedSlots,
                 saveData.greenhouseBlocks || [],
+                resetGreenhouseUnlocks,
             );
+            this.pendingGreenhouseUnlockMigration = resetGreenhouseUnlocks;
             CraftSystem.getInstance().loadFromSave(
                 saveData.activeCrafts || [],
                 saveData.nextCraftId || 0,
@@ -224,6 +235,7 @@ export class GameManager extends Component {
             landBlocks: landSave.blocks,
             buildingSlots: landSave.buildingSlots,
             greenhouseBlocks: landSave.greenhouseBlocks,
+            greenhouseUnlockDataVersion: GameManager.GREENHOUSE_UNLOCK_DATA_VERSION,
             pastureUnlockedSlots: landSave.pastureUnlockedSlots,
             plantCounts: landSave.plantCounts,
             inventory: inventorySave.slots,

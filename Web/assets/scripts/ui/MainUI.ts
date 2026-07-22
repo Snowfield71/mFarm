@@ -81,6 +81,8 @@ export class MainUI extends Component {
             'btnCropSpeedUp',
             'greenhouseDialogBg',
             'greenhousePot',
+            'greenhouseSlotUnlock',
+            'btnGo',
             'entryShovel',
         ]);
         this.createBackground();

@@ -67,7 +67,9 @@ export function showPanel(ui: any, name: PanelName) {
     return;
   }
   if (name === "shop") {
-    ui.shopCategory = ui.activeWorld === "pasture" ? "tools" : "seeds";
+    ui.shopCategory = ui.nextShopCategory
+      || (ui.activeWorld === "pasture" ? "tools" : "seeds");
+    ui.nextShopCategory = undefined;
     ui.shopScrollOffset = 0;
   }
   if (ui.panels.inventory) ui.panels.inventory.active = name === "inventory";
@@ -4585,32 +4587,17 @@ export function buySeed(ui: any, crop: ItemDef, startWorld?: Vec3) {
     return;
   }
   if (crop.id === "fourSeasonGreenhouse") {
-    const requiredCrops = [
-      "wheat",
-      "corn",
-      "tomato",
-      "carrot",
-      "lettuce",
-      "pumpkin",
-      "banana",
-      "strawberry",
-      "apple",
-      "cherry",
-    ];
-    if (!requiredCrops.every((id) => gm.hasDiscoveredItem(id))) {
-      ui.toast("需先集齐四季全部基础作物图鉴");
-      return;
-    }
+    const requiredCrops = ["wheat", "corn", "tomato", "carrot"];
     const inventory = InventorySystem.getInstance();
-    if (!requiredCrops.every((id) => inventory.hasItems(id, 5))) {
-      ui.toast("建造需要每种四季基础作物 x5");
+    if (!requiredCrops.every((id) => inventory.hasItems(id, 2))) {
+      ui.toast("材料不足：小麦、玉米、番茄、胡萝卜各2份");
       return;
     }
-    if (!gm.spendGold(20000)) {
+    if (!gm.spendGold(8000)) {
       ui.toast("金币不足");
       return;
     }
-    requiredCrops.forEach((id) => inventory.removeItem(id, 5));
+    requiredCrops.forEach((id) => inventory.removeItem(id, 2));
     inventory.addItem(crop.id, 1);
     const rewardAnimated = startWorld
       ? animateRewardsToInventory(
@@ -4648,7 +4635,7 @@ export function getSeedBuyPrice(ui: any, crop: ItemDef): number {
     universalSeed: 180,
     makeUpSignInCard: 200,
     greenhouseCard: 30,
-    fourSeasonGreenhouse: 20000,
+    fourSeasonGreenhouse: 8000,
   };
   if (fixedPrices[crop.id] !== undefined) return fixedPrices[crop.id];
   return Math.max(crop.sellPrice, Math.ceil(crop.sellPrice * 1.2));

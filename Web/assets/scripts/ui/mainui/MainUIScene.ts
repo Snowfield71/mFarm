@@ -1260,7 +1260,13 @@ export function createBottomNav(ui: any) {
     icon.addComponent(UITransform).setContentSize(iconSize, iconSize);
     icon.setPosition(0, iconY);
     (icon as any).__bottomNavBaseY = iconY;
-    ui.applyUiIcon(item.icon, icon);
+    ui.applyUiIcon(
+      getSeasonNavIcon(
+        item.icon as "bag" | "gear" | "quest" | "catalog",
+        getSeasonInfo().season,
+      ),
+      icon,
+    );
     btn.addChild(icon);
 
     const label = ui.makeLabel(

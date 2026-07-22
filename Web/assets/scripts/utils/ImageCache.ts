@@ -14,11 +14,11 @@ import { getSeasonInfo } from "../config/SeasonConfig";
 const TAG = "[ImageCache]";
 // Bump when item PNGs are replaced. This versions both remote URLs and local
 // SpriteFrame cache keys so hot reloads cannot reuse stale artwork.
-const ITEM_ASSET_REVISION = "20260718-6";
+const ITEM_ASSET_REVISION = "20260723-3";
 // UI backgrounds are served from the same static server and are also cached
 // by both the browser and this SpriteFrame cache. Version them independently
 // so replacing a dialog PNG is visible without clearing site data.
-const UI_ASSET_REVISION = "20260719-2";
+const UI_ASSET_REVISION = "20260719-3";
 
 /** 物品 ID -> 静态资源分类目录 */
 const CATEGORY_MAP: Record<string, string> = {
@@ -63,6 +63,42 @@ const CATEGORY_MAP: Record<string, string> = {
   spinach_stage_1: "Vegetables/spinach",
   spinach_stage_2: "Vegetables/spinach",
   spinach_stage_3: "Vegetables/spinach",
+  pea: "Vegetables/pea",
+  pea_stage_1: "Vegetables/pea",
+  pea_stage_2: "Vegetables/pea",
+  pea_stage_3: "Vegetables/pea",
+  asparagus: "Vegetables/asparagus",
+  asparagus_stage_1: "Vegetables/asparagus",
+  asparagus_stage_2: "Vegetables/asparagus",
+  asparagus_stage_3: "Vegetables/asparagus",
+  rhubarb: "Vegetables/rhubarb",
+  rhubarb_stage_1: "Vegetables/rhubarb",
+  rhubarb_stage_2: "Vegetables/rhubarb",
+  rhubarb_stage_3: "Vegetables/rhubarb",
+  fennel: "Vegetables/fennel",
+  fennel_stage_1: "Vegetables/fennel",
+  fennel_stage_2: "Vegetables/fennel",
+  fennel_stage_3: "Vegetables/fennel",
+  artichoke: "Vegetables/artichoke",
+  artichoke_stage_1: "Vegetables/artichoke",
+  artichoke_stage_2: "Vegetables/artichoke",
+  artichoke_stage_3: "Vegetables/artichoke",
+  eggplant: "Vegetables/eggplant",
+  eggplant_stage_1: "Vegetables/eggplant",
+  eggplant_stage_2: "Vegetables/eggplant",
+  eggplant_stage_3: "Vegetables/eggplant",
+  sweetPepper: "Vegetables/sweetPepper",
+  sweetPepper_stage_1: "Vegetables/sweetPepper",
+  sweetPepper_stage_2: "Vegetables/sweetPepper",
+  sweetPepper_stage_3: "Vegetables/sweetPepper",
+  okra: "Vegetables/okra",
+  okra_stage_1: "Vegetables/okra",
+  okra_stage_2: "Vegetables/okra",
+  okra_stage_3: "Vegetables/okra",
+  peanut: "Vegetables/peanut",
+  peanut_stage_1: "Vegetables/peanut",
+  peanut_stage_2: "Vegetables/peanut",
+  peanut_stage_3: "Vegetables/peanut",
   // Seeds
   seedWheat: "Seeds",
   seedCorn: "Seeds",
@@ -78,6 +114,16 @@ const CATEGORY_MAP: Record<string, string> = {
   seedCucumber: "Seeds",
   seedSweetPotato: "Seeds",
   seedSpinach: "Seeds",
+  seedPea: "Seeds",
+  seedAsparagus: "Seeds",
+  seedRhubarb: "Seeds",
+  seedFennel: "Seeds",
+  seedArtichoke: "Seeds",
+  seedEggplant: "Seeds",
+  seedSweetPepper: "Seeds",
+  seedWatermelon: "Seeds",
+  seedOkra: "Seeds",
+  seedPeanut: "Seeds",
   // Fruits
   strawberry: "Fruits/strawberry",
   cherry: "Fruits/cherry",
@@ -95,6 +141,10 @@ const CATEGORY_MAP: Record<string, string> = {
   apple_stage_1: "Fruits/apple",
   apple_stage_2: "Fruits/apple",
   apple_stage_3: "Fruits/apple",
+  watermelon: "Fruits/watermelon",
+  watermelon_stage_1: "Fruits/watermelon",
+  watermelon_stage_2: "Fruits/watermelon",
+  watermelon_stage_3: "Fruits/watermelon",
   // Processed
   flour: "Processed",
   butter: "Processed",
@@ -204,6 +254,7 @@ const UI_ICON_MAP: Record<string, string> = {
   btnCropSpeedUp: "farm/dialogs/btn_crop_speedup",
   greenhouseDialogBg: "farm/greenhouse/bg_greenhouse_dialog",
   greenhousePot: "farm/greenhouse/pot_greenhouse",
+  greenhouseSlotUnlock: "farm/greenhouse/icon_greenhouse_slot_unlock",
   avatarFarmgirl: "../avatar/avatar_farmgirl",
   avatarFarmgirlSpring: "../avatar/seasons/spring/avatar_farmgirl",
   avatarFarmgirlSummer: "../avatar/seasons/summer/avatar_farmgirl",
@@ -316,7 +367,7 @@ const UI_ICON_MAP: Record<string, string> = {
 };
 
 /** 后端当前应存在的物品图片数量 */
-const TOTAL_REAL_IMAGES = 62;
+const TOTAL_REAL_IMAGES = 92;
 
 export class ImageCache {
   private static instance: ImageCache;

@@ -23,6 +23,7 @@ export interface LandBlock {
     buildingReadyNotified?: boolean;
     buildingCollectCount?: number;
     greenhouseUntil?: number;
+    greenhouseUnlocked?: boolean;
 }
 
 type BuildingProductionDefinition = {
@@ -97,6 +98,7 @@ export class LandSystem extends Component {
         savedBuildingSlots: LandBlock[] = [],
         savedPastureUnlockedSlots?: number[],
         savedGreenhouseBlocks: LandBlock[] = [],
+        resetGreenhouseUnlocks = false,
     ) {
         const count = Math.min(
             Math.max(blocks.length || GameValues.INITIAL_LAND, GameValues.INITIAL_LAND),
@@ -134,7 +136,7 @@ export class LandSystem extends Component {
                 buildingCollectCount: Math.max(0, source.buildingCollectCount || 0),
             });
         }
-        this.syncGreenhouseBlocks(savedGreenhouseBlocks);
+        this.syncGreenhouseBlocks(savedGreenhouseBlocks, resetGreenhouseUnlocks);
 
         for (let i = 0; i < count; i++) {
             const source = blocks[i];
@@ -202,7 +204,26 @@ export class LandSystem extends Component {
     }
 
     getGreenhouseCapacity(): number {
-        return this.countPlacedById('fourSeasonGreenhouse') * 6;
+        return this.getGreenhouseBlocks().filter(block => block.greenhouseUnlocked).length;
+    }
+
+    isGreenhouseSlotUnlocked(slotId: number): boolean {
+        return this.greenhouseBlocks.get(slotId)?.greenhouseUnlocked === true;
+    }
+
+    getGreenhouseSlotUnlockCost(slotId: number): number {
+        const localIndex = ((slotId % 6) + 6) % 6;
+        return [0, 800, 1600, 3000, 5000, 8000][localIndex];
+    }
+
+    unlockGreenhouseSlot(slotId: number): boolean {
+        const block = this.greenhouseBlocks.get(slotId);
+        if (!block || block.greenhouseUnlocked) return false;
+        const localIndex = ((slotId % 6) + 6) % 6;
+        if (localIndex > 0 && !this.isGreenhouseSlotUnlocked(slotId - 1)) return false;
+        block.greenhouseUnlocked = true;
+        EventManager.getInstance().emit('greenhouseChanged');
+        return true;
     }
 
     isPastureSlotUnlocked(slotId: number): boolean {
@@ -366,7 +387,7 @@ export class LandSystem extends Component {
         const seed = getItem(seedId);
         const cropType = seed?.cropId;
         const baseGrowthDuration = seed?.growthTime || (cropType ? CropGrowthTimes[cropType] : undefined);
-        if (!block || block.state !== 'empty' || !seed?.isCrop || !cropType || !baseGrowthDuration) return false;
+        if (!block || !block.greenhouseUnlocked || block.state !== 'empty' || !seed?.isCrop || !cropType || !baseGrowthDuration) return false;
         block.state = 'growing';
         block.cropType = cropType;
         block.progress = 0;
@@ -389,7 +410,7 @@ export class LandSystem extends Component {
         const block = this.greenhouseBlocks.get(slotId);
         if (!block || block.state !== 'harvesting' || !block.cropType) return null;
         const cropType = block.cropType;
-        this.greenhouseBlocks.set(slotId, this.createEmptyBlock(slotId));
+        this.greenhouseBlocks.set(slotId, { ...this.createEmptyBlock(slotId), greenhouseUnlocked: true });
         EventManager.getInstance().emit('cropHarvested', { blockId: 1000 + slotId, greenhouseSlotId: slotId, cropType });
         EventManager.getInstance().emit('greenhouseChanged');
         return cropType;
@@ -399,7 +420,7 @@ export class LandSystem extends Component {
         const block = this.greenhouseBlocks.get(slotId);
         if (!block?.cropType || (block.state !== 'growing' && block.state !== 'harvesting')) return false;
         const cropType = block.cropType;
-        this.greenhouseBlocks.set(slotId, this.createEmptyBlock(slotId));
+        this.greenhouseBlocks.set(slotId, { ...this.createEmptyBlock(slotId), greenhouseUnlocked: true });
         EventManager.getInstance().emit('cropRemoved', { blockId: 1000 + slotId, greenhouseSlotId: slotId, cropType });
         EventManager.getInstance().emit('greenhouseChanged');
         return true;
@@ -479,7 +500,7 @@ export class LandSystem extends Component {
         if (production?.itemId) return `定时产出 ${getItem(production.itemId)?.name || production.itemId} x${production.count}`;
         if (itemId === 'warehouse') return '所有牧场生产耗时缩短10%，最多叠加30%';
         if (itemId === 'house') return '每次收获农作物额外获得1经验';
-        if (itemId === 'fourSeasonGreenhouse') return '点击建筑进入独立的 6 个恒温花盆，可种植全部季节作物';
+        if (itemId === 'fourSeasonGreenhouse') return '初始开放 1 个恒温花盆，其余位置可逐步解锁';
         if (getItem(itemId)?.category === ItemCategory.DECORATION) {
             return '农作物生长时间缩短1%，装饰总加成最多15%';
         }
@@ -587,7 +608,7 @@ export class LandSystem extends Component {
         return { id, state: 'empty', progress: 0 };
     }
 
-    private syncGreenhouseBlocks(savedBlocks: LandBlock[] = []) {
+    private syncGreenhouseBlocks(savedBlocks: LandBlock[] = [], resetUnlocks = false) {
         const greenhouseBuildingSlotIds = this.getBuildingSlots()
             .filter(slot => slot.state === 'occupied' && slot.buildingId === 'fourSeasonGreenhouse')
             .map(slot => slot.id);
@@ -610,6 +631,11 @@ export class LandSystem extends Component {
         const nextBlocks = new Map<number, LandBlock>();
         validIds.forEach(id => {
             const source = sourceById.get(id);
+            const localIndex = ((id % 6) + 6) % 6;
+            const greenhouseUnlocked = resetUnlocks
+                ? localIndex === 0 || (!!source && source.state !== 'empty')
+                : source?.greenhouseUnlocked
+                    ?? (localIndex === 0 || (!!source && source.state !== 'empty'));
             nextBlocks.set(id, source ? {
                 id,
                 state: source.state || 'empty',
@@ -617,7 +643,8 @@ export class LandSystem extends Component {
                 progress: source.progress || 0,
                 plantTime: source.plantTime,
                 growthDuration: source.growthDuration,
-            } : this.createEmptyBlock(id));
+                greenhouseUnlocked,
+            } : { ...this.createEmptyBlock(id), greenhouseUnlocked });
         });
         this.greenhouseBlocks = nextBlocks;
     }

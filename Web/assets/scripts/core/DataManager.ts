@@ -9,6 +9,7 @@ export interface SaveData {
     landBlocks: any[];
     buildingSlots?: any[];
     greenhouseBlocks?: any[];
+    greenhouseUnlockDataVersion?: number;
     pastureUnlockedSlots?: number[];
     plantCounts?: Record<string, number>;
     inventory: Array<{ itemId: string; count: number }>;
