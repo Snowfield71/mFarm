@@ -1,7 +1,6 @@
 import {
   Button,
   Color,
-  EditBox,
   Graphics,
   Label,
   LabelOutline,
@@ -18,9 +17,8 @@ import {
 } from "cc";
 import { Design, GameValues } from "../../config/GameConfig";
 import { GameManager } from "../../core/GameManager";
-import { EventManager } from "../../core/EventManager";
 import { InventorySystem } from "../../systems/InventorySystem";
-import { LandBlock, LandSystem } from "../../systems/LandSystem";
+import { LandSystem } from "../../systems/LandSystem";
 import { CraftSystem } from "../../systems/CraftSystem";
 import {
   getItem,
@@ -29,19 +27,14 @@ import {
   ItemCategory,
   ItemDef,
 } from "../../config/ItemConfig";
-import {
-  getAllRecipes,
-  getRecipe,
-  getRecipesByLevel,
-  RecipeDef,
-} from "../../config/RecipeConfig";
+import { getAllRecipes, getRecipe, RecipeDef } from "../../config/RecipeConfig";
+import { isSeasonAllowed } from "../../config/SeasonConfig";
 import {
   drawCatalogStyleProgress,
   fillRoundRect,
   strokeRoundRect,
 } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
-import { ImageCache } from "../../utils/ImageCache";
 import {
   DAILY_SIGN_IN_REWARDS,
   DailySignInReward,
@@ -57,7 +50,7 @@ import {
   TaskCategory,
 } from "../../config/TaskConfig";
 import { PLAYER_TITLES, PlayerTitleCategory } from "../../config/TitleConfig";
-import { isSeasonAllowed, SEASONS } from "../../config/SeasonConfig";
+import { SEASONS } from "../../config/SeasonConfig";
 import { animateRewardsToInventory } from "./MainUIRewardAnimation";
 
 export function showPanel(ui: any, name: PanelName) {
@@ -67,8 +60,8 @@ export function showPanel(ui: any, name: PanelName) {
     return;
   }
   if (name === "shop") {
-    ui.shopCategory = ui.nextShopCategory
-      || (ui.activeWorld === "pasture" ? "tools" : "seeds");
+    ui.shopCategory =
+      ui.nextShopCategory || (ui.activeWorld === "pasture" ? "buildings" : "seeds");
     ui.nextShopCategory = undefined;
     ui.shopScrollOffset = 0;
   }
@@ -84,124 +77,27 @@ export function showPanel(ui: any, name: PanelName) {
   updateBottomNavState(ui, name);
 
   if (name === "inventory") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "taskTabsMain",
-      "taskTabsDaily",
-      "taskTabsBranch",
-      "taskTabsSpecial",
-      "inventoryAll",
-      "inventorySeeds",
-      "inventoryMaterials",
-      "inventoryProducts",
-      "inventorySellDialogBg",
-      "inventorySellResultBg",
-      "btnSellCancel",
-      "btnSellConfirm",
-      "btnSellMinus",
-      "btnSellPlus",
-      "btnSellMax",
-    ]);
     ui.renderInventoryPanel();
   }
   if (name === "craft") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "craftChefTools",
-      "craftArrow",
-      "btnCraft",
-    ]);
     ui.renderCraftPanel();
   }
   if (name === "shop") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "shopTabsSeeds",
-      "shopTabsTools",
-      "shopSeeds",
-      "shopTools",
-      "btnBuy",
-      "seasonSpring",
-      "seasonSummer",
-      "seasonAutumn",
-      "seasonWinter",
-    ]);
     ui.renderShopPanel();
   }
   if (name === "quest") {
-    ImageCache.getInstance().preloadUiIcons(["catalogBg"]);
     ui.renderQuestPanel();
   }
   if (name === "task") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "taskMain",
-      "taskDaily",
-      "taskBranch",
-      "taskSpecial",
-      "taskTabsMain",
-      "taskTabsDaily",
-      "taskTabsBranch",
-      "taskTabsSpecial",
-      "btnGo",
-      "btnDetail",
-      "btnClaim",
-      "btnClaimed",
-      "task1",
-      "task2",
-      "task3",
-      "rewardGold",
-      "rewardSeed",
-    ]);
     ui.renderTaskPanel();
   }
   if (name === "signIn") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "gold",
-      "diamond",
-      "signInClaim",
-      "signInClaimed",
-    ]);
     ui.renderDailySignInPanel();
   }
   if (name === "achievement") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "gold",
-      "diamond",
-      "taskTabsMain",
-      "taskTabsDaily",
-      "taskTabsBranch",
-      "taskTabsSpecial",
-      "achievementCategoryPlanting",
-      "achievementCategoryCrafting",
-      "achievementCategoryGrowth",
-      "achievementCategoryCollection",
-      "achievementMedalWallEntry",
-      "achievementMedalWallBg",
-      "achievementMedalSlot",
-      "achievementMedalWallOrnamentLeft",
-      "achievementMedalWallOrnamentRight",
-      ...ACHIEVEMENTS.map((item) => item.icon),
-      ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
-        (icon): icon is string => !!icon,
-      ),
-    ]);
     ui.renderAchievementPanel();
   }
   if (name === "title") {
-    ImageCache.getInstance().preloadUiIcons([
-      "panelBg",
-      "shopTabsSeeds",
-      "shopTabsTools",
-      "btnTitleEquip",
-      "btnTitleUnequip",
-      "titleCategoryLevel",
-      "titleCategoryAchievement",
-      "titleUnlocked",
-      "titleLocked",
-    ]);
     ui.renderTitlePanel();
   }
 }
@@ -209,81 +105,6 @@ export function showPanel(ui: any, name: PanelName) {
 function closeActivePanel(ui: any, name: PanelName) {
   const panel = ui.panels[name];
   if (panel) ui.closePanelWithAnimation(panel);
-}
-
-/** Preload image-heavy panel assets in small batches after the main scene settles. */
-export function prewarmHeavyPanelImages(ui: any) {
-  const cache = ImageCache.getInstance();
-  const uiIcons = Array.from(
-    new Set([
-      "panelBg",
-      "taskTabsMain",
-      "taskTabsDaily",
-      "taskTabsBranch",
-      "taskTabsSpecial",
-      "inventoryAll",
-      "inventorySeeds",
-      "inventoryMaterials",
-      "inventoryProducts",
-      "shopTabsSeeds",
-      "shopTabsTools",
-      "shopSeeds",
-      "shopTools",
-      "seasonSpring",
-      "seasonSummer",
-      "seasonAutumn",
-      "seasonWinter",
-      "craftChefTools",
-      "craftArrow",
-      "btnCraft",
-      "taskMain",
-      "taskDaily",
-      "taskBranch",
-      "taskSpecial",
-      "btnGo",
-      "btnDetail",
-      "btnClaim",
-      "btnClaimed",
-      "task1",
-      "task2",
-      "task3",
-      "rewardGold",
-      "rewardSeed",
-      "achievementCategoryPlanting",
-      "achievementCategoryCrafting",
-      "achievementCategoryGrowth",
-      "achievementCategoryCollection",
-      "achievementMedalWallEntry",
-      "achievementMedalWallBg",
-      "achievementMedalSlot",
-      "achievementMedalWallOrnamentLeft",
-      "achievementMedalWallOrnamentRight",
-      ...ACHIEVEMENTS.map((item) => item.icon),
-      ...ACHIEVEMENTS.map((item) => item.lockedIcon).filter(
-        (icon): icon is string => !!icon,
-      ),
-    ]),
-  );
-  const itemIds = Object.keys(ITEM_DB);
-  const jobs: Array<() => Promise<number>> = [];
-  for (let i = 0; i < uiIcons.length; i += 6) {
-    const batch = uiIcons.slice(i, i + 6);
-    jobs.push(() => cache.preloadUiIcons(batch));
-  }
-  for (let i = 0; i < itemIds.length; i += 6) {
-    const batch = itemIds.slice(i, i + 6);
-    jobs.push(() => cache.preload(batch));
-  }
-
-  let jobIndex = 0;
-  const runNext = () => {
-    if (!ui.node?.isValid || jobIndex >= jobs.length) return;
-    const scheduleNext = () => {
-      if (ui.node?.isValid) ui.scheduleOnce(runNext, 0.03);
-    };
-    jobs[jobIndex++]().then(scheduleNext, scheduleNext);
-  };
-  ui.scheduleOnce(runNext, 0.25);
 }
 
 function updateBottomNavState(ui: any, active: PanelName) {
@@ -348,26 +169,7 @@ function updateBottomNavState(ui: any, active: PanelName) {
   }
 }
 
-function clearBottomNavState(ui: any) {
-  const nav = ui.node.getChildByName("BottomNav");
-  if (!nav) return;
-
-  const panels: PanelName[] = ["inventory", "craft", "task", "quest"];
-  for (const panel of panels) {
-    const btn = nav.getChildByName(`Nav_${panel}`);
-    if (!btn) continue;
-    fillRoundRect(btn, 76, 59, 13, new Color(255, 247, 210, 255));
-    strokeRoundRect(btn, 76, 59, 13, new Color(126, 78, 48, 225), 2.2);
-
-    const icon = btn.getChildByName("Icon");
-    if (icon) {
-      icon.setScale(new Vec3(1, 1, 1));
-      icon.setPosition(0, (icon as any).__bottomNavBaseY ?? icon.position.y);
-    }
-  }
-}
-
-export function clearPanelBody(ui: any, panel: Node): Node {
+export function clearPanelBody(_ui: any, panel: Node): Node {
   const old = panel.getChildByName("Body");
   if (old) {
     old.removeFromParent();
@@ -420,11 +222,7 @@ export function refreshInventoryGrid(ui: any) {
   drawInventoryGridContent(ui, body, InventorySystem.getInstance());
 }
 
-function drawInventoryGridContent(
-  ui: any,
-  body: Node,
-  inv: InventorySystem,
-) {
+function drawInventoryGridContent(ui: any, body: Node, inv: InventorySystem) {
   const entries = inv.slots
     .map((slot, slotIndex) => ({ slot, slotIndex }))
     .filter(({ slot }) =>
@@ -601,6 +399,7 @@ function drawInventoryGrid(
     const col = index % cols;
     const row = Math.floor(index / cols);
     const cell = new Node(`InventorySlot_${slotIndex}`);
+    (cell as any).__entryIndex = index;
     cell.addComponent(UITransform).setContentSize(cellW, cellH);
     cell.setScale(1, 1, 1);
     cell.setPosition(
@@ -629,10 +428,13 @@ function drawInventoryGrid(
     cell.addChild(cellBackground);
 
     if (slot.itemId) {
+      const itemLayer = new Node("InventorySlotItem");
+      itemLayer.addComponent(UITransform).setContentSize(cellW, cellH);
+      cell.addChild(itemLayer);
       const icon = ui.createItemIcon(slot.itemId, 43, true);
       icon.setPosition(0, 8);
-      cell.addChild(icon);
-      cell.addChild(
+      itemLayer.addChild(icon);
+      itemLayer.addChild(
         ui.makeLabel(
           `x${slot.count}`,
           11,
@@ -644,7 +446,7 @@ function drawInventoryGrid(
           16,
         ),
       );
-      cell.addChild(
+      itemLayer.addChild(
         ui.makeLabel(
           ui.itemName(slot.itemId),
           10,
@@ -656,7 +458,86 @@ function drawInventoryGrid(
           16,
         ),
       );
+      const originalPosition = cell.position.clone();
+      const dragPointerOffset = new Vec3();
+      const dragPointerPosition = new Vec3();
+      let dragDistance = 0;
+      cell.on(Node.EventType.TOUCH_START, (event: any) => {
+        event?.stopPropagation?.();
+        dragDistance = 0;
+        (cell as any).__dragged = false;
+        const pointer = event?.getUILocation?.();
+        if (pointer) {
+          const localPointer = content
+            .getComponent(UITransform)!
+            .convertToNodeSpaceAR(new Vec3(pointer.x, pointer.y));
+          dragPointerPosition.set(localPointer);
+          dragPointerOffset.set(
+            originalPosition.x - localPointer.x,
+            originalPosition.y - localPointer.y,
+            0,
+          );
+        }
+        scrollView.stopAutoScroll();
+        cell.setSiblingIndex(content.children.length - 1);
+        scrollView.enabled = false;
+      });
+      cell.on(Node.EventType.TOUCH_MOVE, (event: any) => {
+        const pointer = event?.getUILocation?.();
+        if (!pointer) return;
+        const localPointer = content
+          .getComponent(UITransform)!
+          .convertToNodeSpaceAR(new Vec3(pointer.x, pointer.y));
+        dragDistance = Math.abs(localPointer.x - dragPointerPosition.x)
+          + Math.abs(localPointer.y - dragPointerPosition.y);
+        if (dragDistance < 7) return;
+        (cell as any).__dragged = true;
+        itemLayer.setPosition(
+          localPointer.x + dragPointerOffset.x - originalPosition.x,
+          localPointer.y + dragPointerOffset.y - originalPosition.y,
+        );
+        itemLayer.setScale(1.08, 1.08, 1);
+      });
+      const finishItemDrag = () => {
+        scrollView.enabled = true;
+        if (!(cell as any).__dragged) {
+          itemLayer.setPosition(Vec3.ZERO);
+          itemLayer.setScale(1, 1, 1);
+          return;
+        }
+        let nearestEntryIndex = index;
+        let nearestDistance = Number.POSITIVE_INFINITY;
+        const draggedCenterX = originalPosition.x + itemLayer.position.x;
+        const draggedCenterY = originalPosition.y + itemLayer.position.y;
+        content.children.forEach((candidate: Node) => {
+          if (!candidate.name.startsWith("InventorySlot_") || candidate === cell) return;
+          const dx = candidate.position.x - draggedCenterX;
+          const dy = candidate.position.y - draggedCenterY;
+          const distance = dx * dx + dy * dy;
+          const insideCandidate = Math.abs(dx) <= cellW / 2
+            && Math.abs(dy) <= cellH / 2;
+          if (insideCandidate && distance < nearestDistance) {
+            nearestDistance = distance;
+            nearestEntryIndex = (candidate as any).__entryIndex ?? index;
+          }
+        });
+        const destination = entries[Math.max(0, nearestEntryIndex)];
+        const toIndex = destination?.slotIndex >= 0
+          ? destination.slotIndex
+          : Math.max(0, InventorySystem.getInstance().slots.length - 1);
+        itemLayer.setPosition(Vec3.ZERO);
+        itemLayer.setScale(1, 1, 1);
+        InventorySystem.getInstance().swapSlots(slotIndex, toIndex);
+      };
+      cell.on(Node.EventType.TOUCH_END, finishItemDrag);
+      // Cocos sends TOUCH_CANCEL when the pointer leaves the fixed source slot.
+      // That is the normal completion path for dragging A over B.
+      cell.on(Node.EventType.TOUCH_CANCEL, finishItemDrag);
       cell.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
+        if ((cell as any).__dragged) {
+          (cell as any).__dragged = false;
+          return;
+        }
         ui.inventoryScrollOffset = scrollView.getScrollOffset().y;
         const item = getItem(slot.itemId);
         if (item?.category === ItemCategory.TOOL)
@@ -743,88 +624,7 @@ function attachPanelScrollState(
 
 export function renderShopPanel(ui: any) {
   renderMarketplacePanel(ui);
-  return;
-
-  const panel = ui.panels.shop!;
-  const body = ui.clearPanelBody(panel);
-  const gm = GameManager.getInstance();
-  const crops = getPlantableCrops()
-    .filter((c) => c.unlockLevel <= gm.playerLevel + 2)
-    .slice(0, 8);
-
-  crops.forEach((crop, index) => {
-    const y = 128 - index * 38;
-    const row = new Node(`Shop_${crop.id}`);
-    row.addComponent(UITransform).setContentSize(276, 34);
-    row.setPosition(0, y);
-    const unlocked = crop.unlockLevel <= gm.playerLevel;
-    fillRoundRect(
-      row,
-      276,
-      34,
-      8,
-      unlocked ? new Color(248, 252, 238, 245) : new Color(222, 226, 216, 235),
-    );
-    strokeRoundRect(row, 276, 34, 8, new Color(154, 196, 138, 120), 1);
-
-    const icon = ui.createItemIcon(crop.id, 28);
-    icon.setPosition(-120, 0);
-    row.addChild(icon);
-    const name = ui.makeLabel(
-      `${ui.itemName(crop.id)} Lv.${crop.unlockLevel}`,
-      13,
-      new Color(54, 72, 46),
-      true,
-      -60,
-      7,
-      105,
-      16,
-    );
-    name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(name);
-    const price = ui.makeLabel(
-      `${Math.max(5, Math.floor(crop.sellPrice * 0.8))}金`,
-      11,
-      new Color(194, 132, 20),
-      false,
-      -60,
-      -9,
-      86,
-      14,
-    );
-    price.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(price);
-
-    const buy = new Node("Buy");
-    buy.addComponent(UITransform).setContentSize(62, 26);
-    buy.setPosition(103, 0);
-    fillRoundRect(
-      buy,
-      62,
-      26,
-      9,
-      unlocked ? new Color(76, 188, 83) : new Color(165, 170, 160),
-    );
-    buy.addChild(
-      ui.makeLabel(
-        unlocked ? "购买" : "未解锁",
-        12,
-        new Color(255, 255, 255),
-        true,
-        0,
-        0,
-        60,
-        22,
-      ),
-    );
-    buy
-      .addComponent(Button)
-      .node.on(Node.EventType.TOUCH_END, () => ui.buySeed(crop));
-    row.addChild(buy);
-    body.addChild(row);
-  });
 }
-
 function renderMarketplacePanel(ui: any) {
   const panel = ui.panels.shop!;
   const body = ui.clearPanelBody(panel);
@@ -974,6 +774,19 @@ export function renderTitlePanel(ui: any) {
     conditionLabel.overflow = Label.Overflow.SHRINK;
     conditionLabel.enableWrapText = false;
     row.addChild(condition);
+    const bonus = ui.makeLabel(
+      `佩戴加成：${title.bonusText}`,
+      10,
+      unlocked ? new Color(74, 143, 67) : new Color(145, 136, 123),
+      true,
+      -122,
+      -29,
+      190,
+      15,
+    );
+    bonus.getComponent(UITransform)!.setAnchorPoint(0, 0.5);
+    bonus.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
+    row.addChild(bonus);
     const status = new Node("TitleStatusVisual");
     status.addComponent(UITransform).setContentSize(78, 78);
     status.setPosition(90, 0);
@@ -1109,14 +922,14 @@ function drawTitleCategoryTabs(
       type: "level",
       text: "等级成长",
       x: -57.5,
-      image: "shopTabsSeeds",
+      image: "titleTabsLevel",
       icon: "titleCategoryLevel",
     },
     {
       type: "achievement",
       text: "成就限定",
       x: 56.5,
-      image: "shopTabsTools",
+      image: "titleTabsAchievement",
       icon: "titleCategoryAchievement",
     },
   ];
@@ -1178,18 +991,26 @@ function drawMarketplaceTabs(ui: any, body: Node) {
     {
       id: "seeds",
       text: "\u79cd\u5b50",
-      x: -57.5,
-      image: "shopTabsSeeds",
-      icon: "shopSeeds",
-      iconSize: 31,
+      x: -114,
+      image: "marketplaceTabsSeeds",
+      icon: "marketplaceSeeds",
+      iconSize: 29,
     },
     {
       id: "tools",
       text: "\u5de5\u5177",
-      x: 56.5,
-      image: "shopTabsTools",
-      icon: "shopTools",
-      iconSize: 32,
+      x: 0,
+      image: "marketplaceTabsTools",
+      icon: "marketplaceTools",
+      iconSize: 30,
+    },
+    {
+      id: "buildings",
+      text: "\u5efa\u7b51",
+      x: 114,
+      image: "marketplaceTabsBuildings",
+      icon: "marketplaceBuildings",
+      iconSize: 30,
     },
   ];
   if (!ui.shopCategory) ui.shopCategory = "seeds";
@@ -1205,15 +1026,15 @@ function drawMarketplaceTabs(ui: any, body: Node) {
   tabs.forEach((tab, index) => {
     const icon = new Node(`MarketplaceTabIcon_${index}`);
     icon.addComponent(UITransform).setContentSize(tab.iconSize, tab.iconSize);
-    icon.setPosition(tab.x - 24, 0);
+    icon.setPosition(tab.x - 27, 0);
     ui.applyUiIcon(tab.icon, icon);
     image.addChild(icon);
     const label = ui.makeLabel(
       tab.text,
-      15,
+      14,
       new Color(67, 30, 14, 255),
       true,
-      tab.x + 17,
+      tab.x + 12,
       0,
       52,
       24,
@@ -1248,17 +1069,24 @@ function drawMarketplaceTabs(ui: any, body: Node) {
 
 function getMarketplaceItems(category: string) {
   if (category === "seeds") {
-    return getPlantableCrops().sort((a, b) => a.unlockLevel - b.unlockLevel);
+    return getPlantableCrops().sort((a, b) => {
+      const seasonRankA = isSeasonAllowed(a.seasons) ? 0 : 1;
+      const seasonRankB = isSeasonAllowed(b.seasons) ? 0 : 1;
+      if (seasonRankA !== seasonRankB) return seasonRankA - seasonRankB;
+      // Preserve the existing progression order inside both groups.
+      return a.unlockLevel - b.unlockLevel;
+    });
   }
   const items: ItemDef[] = [];
   for (const id in ITEM_DB) {
     if (!Object.prototype.hasOwnProperty.call(ITEM_DB, id)) continue;
     const item = ITEM_DB[id];
-    if (
-      item.category === ItemCategory.TOOL ||
-      item.category === ItemCategory.BUILDING ||
-      item.category === ItemCategory.DECORATION
-    ) {
+    const matchesCategory =
+      category === "buildings"
+        ? item.category === ItemCategory.BUILDING
+        : item.category === ItemCategory.TOOL ||
+          item.category === ItemCategory.DECORATION;
+    if (matchesCategory) {
       items.push(item);
     }
   }
@@ -1339,7 +1167,8 @@ function drawMarketplaceGrid(
       );
       const seasonStep = 18;
       const seasonRightX = 25;
-      const seasonLeftX = seasonRightX - (orderedSeasons.length - 1) * seasonStep;
+      const seasonLeftX =
+        seasonRightX - (orderedSeasons.length - 1) * seasonStep;
       orderedSeasons.forEach((season, seasonIndex) => {
         const seasonBadge = new Node(`MarketplaceSeason_${season}`);
         seasonBadge.addComponent(UITransform).setContentSize(20, 20);
@@ -1957,6 +1786,32 @@ function drawCraftProgressSection(
     "CraftProgressKnob",
     false,
   );
+  for (let tick = 1; tick < 5; tick++) {
+    const marker = new Node(`CraftProgressTick_${tick}`);
+    marker.setPosition(-barW / 2 + (barW * tick) / 5, 0);
+    const markerGraphics = marker.addComponent(Graphics);
+    markerGraphics.strokeColor = new Color(255, 250, 218, 155);
+    markerGraphics.lineWidth = 1;
+    markerGraphics.moveTo(0, -4);
+    markerGraphics.lineTo(0, 4);
+    markerGraphics.stroke();
+    bar.addChild(marker);
+  }
+  const shine = new Node("CraftProgressShine");
+  shine.setPosition(-barW / 2 + 7, 0);
+  const shineGraphics = shine.addComponent(Graphics);
+  shineGraphics.fillColor = new Color(255, 255, 232, 175);
+  shineGraphics.ellipse(0, 0, 8, 3);
+  shineGraphics.fill();
+  bar.addChild(shine);
+  tween(shine)
+    .repeatForever(
+      tween()
+        .to(1.35, { position: new Vec3(barW / 2 - 7, 0, 0) }, { easing: "sineInOut" })
+        .delay(.3)
+        .set({ position: new Vec3(-barW / 2 + 7, 0, 0) }),
+    )
+    .start();
   section.addChild(bar);
 
   const progressText = ui.makeLabel(
@@ -2120,9 +1975,12 @@ function drawCraftOperationsSection(
       isSelected ? new Color(173, 118, 55, 255) : new Color(207, 170, 115, 150),
       isSelected ? 2.4 : 1,
     );
-    const icon = ui.createItemIcon(recipe.product.itemId, 34, true);
-    icon.setPosition(0, 8);
-    cell.addChild(icon);
+    const iconHost = new Node("CraftRecipeIconHost");
+    iconHost.addComponent(UITransform).setContentSize(34, 34);
+    iconHost.setPosition(0, 8);
+    (iconHost as any).__itemId = recipe.product.itemId;
+    (iconHost as any).__hydrated = false;
+    cell.addChild(iconHost);
     cell.addChild(
       ui.makeLabel(
         unlocked
@@ -2160,8 +2018,27 @@ function drawCraftOperationsSection(
   scrollView.inertia = true;
   (scrollView as any).elastic = false;
   scrollView.content = content;
+  const hydrateVisibleRecipeIcons = () => {
+    if (!content.isValid) return;
+    const offset = Math.max(0, scrollView.getScrollOffset().y);
+    const firstRow = Math.max(0, Math.floor(offset / (cellH + gapY)) - 1);
+    const lastRow = Math.min(
+      rows - 1,
+      Math.ceil((offset + 112) / (cellH + gapY)) + 1,
+    );
+    const firstIndex = firstRow * cols;
+    const lastIndex = Math.min(recipes.length - 1, (lastRow + 1) * cols - 1);
+    for (let index = firstIndex; index <= lastIndex; index++) {
+      const cell = content.children[index];
+      const host = cell?.getChildByName("CraftRecipeIconHost");
+      if (!host?.isValid || (host as any).__hydrated) continue;
+      (host as any).__hydrated = true;
+      host.addChild(ui.createItemIcon((host as any).__itemId, 34, true));
+    }
+  };
   const rememberScroll = () => {
     ui.craftRecipeScrollOffset = scrollView.getScrollOffset().y;
+    hydrateVisibleRecipeIcons();
   };
   scrollView.node.on(ScrollView.EventType.SCROLLING, rememberScroll);
   scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, rememberScroll);
@@ -2172,6 +2049,7 @@ function drawCraftOperationsSection(
       new Vec2(0, Math.max(0, Math.min(ui.craftRecipeScrollOffset || 0, max))),
       0,
     );
+    hydrateVisibleRecipeIcons();
   }, 0);
 
   const startButton = createCraftActionButton(ui, 96, -4, () =>
@@ -2247,7 +2125,52 @@ function createCraftActionButton(
   return button;
 }
 
-export function renderQuestPanel(ui: any, enterDirection = 0) {
+const CATALOG_CATEGORY_ORDER = new Map<ItemCategory, number>([
+  [ItemCategory.CROP, 0],
+  [ItemCategory.PROCESSED, 1],
+  [ItemCategory.FOOD, 2],
+  [ItemCategory.BUILDING, 3],
+  [ItemCategory.DECORATION, 4],
+  [ItemCategory.TOOL, 5],
+  [ItemCategory.SPECIAL, 6],
+  [ItemCategory.AD_REWARD, 7],
+]);
+
+const CATALOG_CONFIG_ORDER = new Map<string, number>(
+  Object.keys(ITEM_DB).map((id, index) => [id, index]),
+);
+
+const CATALOG_CROP_ORDER = new Map<string, number>(
+  Object.keys(ITEM_DB)
+    .map((id) => ITEM_DB[id])
+    .filter((item) => item.category === ItemCategory.CROP && !item.isCrop)
+    .map((item, index) => [item.id, index]),
+);
+
+function compareCatalogItems(a: ItemDef, b: ItemDef): number {
+  const categoryA = CATALOG_CATEGORY_ORDER.get(a.category) ?? 99;
+  const categoryB = CATALOG_CATEGORY_ORDER.get(b.category) ?? 99;
+  if (categoryA !== categoryB) return categoryA - categoryB;
+
+  if (a.category === ItemCategory.CROP && b.category === ItemCategory.CROP) {
+    const cropA = a.isCrop ? a.cropId || a.id : a.id;
+    const cropB = b.isCrop ? b.cropId || b.id : b.id;
+    const cropOrderA = CATALOG_CROP_ORDER.get(cropA) ?? 999;
+    const cropOrderB = CATALOG_CROP_ORDER.get(cropB) ?? 999;
+    if (cropOrderA !== cropOrderB) return cropOrderA - cropOrderB;
+    // Keep each harvested crop immediately before its matching seed bag.
+    if (!!a.isCrop !== !!b.isCrop) return a.isCrop ? 1 : -1;
+  }
+
+  if (a.unlockLevel !== b.unlockLevel) return a.unlockLevel - b.unlockLevel;
+  if (a.rarity !== b.rarity) return a.rarity - b.rarity;
+  return (
+    (CATALOG_CONFIG_ORDER.get(a.id) ?? 9999) -
+    (CATALOG_CONFIG_ORDER.get(b.id) ?? 9999)
+  );
+}
+
+export function renderQuestPanel(ui: any, _enterDirection = 0) {
   const panel = ui.panels.quest!;
   const body = ui.clearPanelBody(panel);
   const gm = GameManager.getInstance();
@@ -2262,21 +2185,18 @@ export function renderQuestPanel(ui: any, enterDirection = 0) {
     if (Object.prototype.hasOwnProperty.call(ITEM_DB, id))
       items.push(ITEM_DB[id]);
   }
-  items.sort((a, b) => {
-    const levelA = ui.catalogLevel(a);
-    const levelB = ui.catalogLevel(b);
-    if (levelA !== levelB) return levelA - levelB;
-    if (a.rarity !== b.rarity) return a.rarity - b.rarity;
-    return a.category - b.category;
-  });
+  items.sort(compareCatalogItems);
 
   const progress = gm.getCatalogProgress();
   ui.catalogRenderedUnlocked = progress.unlocked;
   const pageSize = 9;
   const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const previousCatalogPage = Number.isInteger(ui.catalogRenderedPage)
+    ? ui.catalogRenderedPage
+    : ui.catalogPage || 0;
   ui.catalogPage = Math.max(0, Math.min(pageCount - 1, ui.catalogPage || 0));
 
-  drawCatalogBackground(ui, body, ui.catalogPage);
+  drawCatalogBackground(ui, body, ui.catalogPage, previousCatalogPage);
   drawRibbonTitle(ui, body, "物品图鉴");
 
   const pageItems = items.slice(
@@ -2296,9 +2216,11 @@ export function renderQuestPanel(ui: any, enterDirection = 0) {
     body,
     progress.unlocked,
     progress.total,
-    ui.catalogPage + 1,
+    ui.catalogPage,
     pageCount,
+    previousCatalogPage,
   );
+  ui.catalogRenderedPage = ui.catalogPage;
   createCatalogCloseHitArea(ui, panel, body);
   createCatalogPageTurnHitArea(ui, body, ui.catalogPage, pageCount);
 }
@@ -2308,9 +2230,23 @@ function clearCatalogPanelChrome(panel: Node) {
   graphics.forEach((g) => g.clear());
 }
 
-function drawCatalogBackground(ui: any, body: Node, pageIndex: number) {
+function drawCatalogBackground(
+  ui: any,
+  body: Node,
+  pageIndex: number,
+  previousPageIndex: number,
+) {
   drawPanelImageBackground(ui, body, "catalogBg", "CatalogImageBackground");
-  if (pageIndex > 0) drawCatalogPrevArrow(body);
+  if (pageIndex <= 0) return;
+  const arrow = drawCatalogPrevArrow(body);
+  if (previousPageIndex !== 0) return;
+  arrow.active = false;
+  ui.scheduleOnce(() => {
+    if (!body.isValid || !arrow.isValid) return;
+    arrow.active = true;
+    arrow.setScale(new Vec3(0.72, 0.72, 1));
+    tween(arrow).to(0.12, { scale: Vec3.ONE }, { easing: "backOut" }).start();
+  }, 0.25);
 }
 
 function drawCommonPanelBackground(ui: any, body: Node) {
@@ -2394,9 +2330,12 @@ export function drawRibbonTitle(
 const CATALOG_PREV_ARROW_X = -104;
 const CATALOG_PREV_ARROW_Y = -251;
 const CATALOG_PROGRESS_X = 7;
+const CATALOG_HOME_PROGRESS_X = -21;
+const CATALOG_PROGRESS_WIDTH = 148;
+const CATALOG_HOME_PROGRESS_WIDTH = 204;
 const CATALOG_PROGRESS_TEXT_X = 111;
 
-function drawCatalogPrevArrow(body: Node) {
+function drawCatalogPrevArrow(body: Node): Node {
   const arrow = new Node("CatalogPrevPageArrow");
   arrow.setPosition(CATALOG_PREV_ARROW_X, CATALOG_PREV_ARROW_Y);
   const g = arrow.addComponent(Graphics);
@@ -2423,6 +2362,7 @@ function drawCatalogPrevArrow(body: Node) {
   g.fill();
   g.stroke();
   body.addChild(arrow);
+  return arrow;
 }
 
 function createCatalogCard(ui: any, gm: GameManager, item: ItemDef): Node {
@@ -2502,13 +2442,17 @@ function drawCatalogProgress(
   body: Node,
   unlocked: number,
   total: number,
-  page: number,
-  pageCount: number,
+  pageIndex: number,
+  _pageCount: number,
+  previousPageIndex: number,
 ) {
   const ratio = total > 0 ? Math.max(0, Math.min(1, unlocked / total)) : 0;
-  const trackW = 148;
+  const isHomePage = pageIndex === 0;
+  const trackW = isHomePage
+    ? CATALOG_HOME_PROGRESS_WIDTH
+    : CATALOG_PROGRESS_WIDTH;
+  const trackX = isHomePage ? CATALOG_HOME_PROGRESS_X : CATALOG_PROGRESS_X;
   const track = new Node("CatalogProgressTrack");
-  track.setPosition(CATALOG_PROGRESS_X, CATALOG_PREV_ARROW_Y);
   drawCatalogStyleProgress(
     track,
     trackW,
@@ -2517,6 +2461,29 @@ function drawCatalogProgress(
     new Color(255, 203, 79, 255),
   );
   body.addChild(track);
+  const previousWasHome = previousPageIndex === 0;
+  if (previousPageIndex !== pageIndex) {
+    const initialW = previousWasHome
+      ? CATALOG_HOME_PROGRESS_WIDTH
+      : CATALOG_PROGRESS_WIDTH;
+    const initialX = previousWasHome
+      ? CATALOG_HOME_PROGRESS_X
+      : CATALOG_PROGRESS_X;
+    track.setPosition(initialX, CATALOG_PREV_ARROW_Y);
+    track.setScale(new Vec3(initialW / trackW, 1, 1));
+    tween(track)
+      .to(
+        0.24,
+        {
+          position: new Vec3(trackX, CATALOG_PREV_ARROW_Y, 0),
+          scale: Vec3.ONE,
+        },
+        { easing: "quadOut" },
+      )
+      .start();
+  } else {
+    track.setPosition(trackX, CATALOG_PREV_ARROW_Y);
+  }
 
   body.addChild(
     ui.makeLabel(
@@ -2674,159 +2641,6 @@ function bindCategoryTabPressFeedback(
   const restore = () => animateScale(targetScale, 0.14, "backOut");
   hitArea.on(Node.EventType.TOUCH_END, restore);
   hitArea.on(Node.EventType.TOUCH_CANCEL, restore);
-}
-
-function renderQuestPanelLegacy(ui: any) {
-  const panel = ui.panels.quest!;
-  const body = ui.clearPanelBody(panel);
-  const gm = GameManager.getInstance();
-  const inv = InventorySystem.getInstance();
-  const land = LandSystem.getInstance();
-  const items: ItemDef[] = [];
-  for (const id in ITEM_DB) {
-    if (Object.prototype.hasOwnProperty.call(ITEM_DB, id))
-      items.push(ITEM_DB[id]);
-  }
-  items.sort((a, b) => {
-    const levelA = ui.catalogLevel(a);
-    const levelB = ui.catalogLevel(b);
-    if (levelA !== levelB) return levelA - levelB;
-    if (a.rarity !== b.rarity) return a.rarity - b.rarity;
-    return a.category - b.category;
-  });
-
-  const progress = gm.getCatalogProgress();
-  const summary = ui.makeLabel(
-    `收集 ${progress.unlocked}/${progress.total}  成就 ${gm.achievements.length}`,
-    12,
-    new Color(92, 104, 82),
-    false,
-    -94,
-    152,
-    190,
-    20,
-  );
-  summary.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-  body.addChild(summary);
-
-  const viewportH = 316;
-  const viewport = new Node("CatalogViewport");
-  viewport.addComponent(UITransform).setContentSize(284, viewportH);
-  viewport.setPosition(0, -12);
-  viewport.addComponent(Mask);
-  body.addChild(viewport);
-
-  const rowH = 52;
-  const gap = 6;
-  const contentH = Math.max(viewportH, items.length * (rowH + gap) - gap + 8);
-  const content = new Node("CatalogContent");
-  content.addComponent(UITransform).setContentSize(274, contentH);
-  viewport.addChild(content);
-
-  const scrollView = viewport.addComponent(ScrollView);
-  scrollView.horizontal = false;
-  scrollView.vertical = true;
-  scrollView.inertia = true;
-  scrollView.content = content;
-
-  items.forEach((item, index) => {
-    const y = contentH / 2 - 4 - rowH / 2 - index * (rowH + gap);
-    const discovered = gm.hasDiscoveredItem(item.id);
-    const levelUnlocked = item.unlockLevel <= gm.playerLevel;
-    const row = new Node(`Catalog_${item.id}`);
-    row.addComponent(UITransform).setContentSize(266, rowH);
-    row.setPosition(-4, y);
-    fillRoundRect(
-      row,
-      266,
-      rowH,
-      8,
-      discovered
-        ? new Color(248, 252, 238, 245)
-        : new Color(224, 228, 216, 232),
-    );
-    strokeRoundRect(row, 266, rowH, 8, new Color(154, 196, 138, 120), 1);
-
-    const icon = ui.createItemIcon(item.id, 32);
-    icon.setPosition(-112, 0);
-    row.addChild(icon);
-    if (!discovered) icon.setScale(0.75, 0.75, 1);
-
-    const name = ui.makeLabel(
-      `${discovered ? ui.itemName(item.id) : "未发现"} Lv.${ui.catalogLevel(item)}`,
-      12,
-      new Color(54, 72, 46),
-      true,
-      -52,
-      11,
-      140,
-      16,
-    );
-    name.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(name);
-
-    const own = inv.getItemCount(item.id);
-    const plantText = item.isCrop
-      ? ` 种植 ${land.getPlantCount(item.id)} 次`
-      : "";
-    const info = ui.makeLabel(
-      `拥有 ${own}${plantText}`,
-      10,
-      new Color(108, 112, 96),
-      false,
-      -52,
-      -6,
-      160,
-      14,
-    );
-    info.getComponent(Label)!.horizontalAlign = Label.HorizontalAlign.LEFT;
-    row.addChild(info);
-
-    const rarity = ui.makeLabel(
-      discovered ? `${item.rarity}星` : levelUnlocked ? "待获得" : "未解锁",
-      10,
-      discovered ? new Color(194, 132, 20) : new Color(150, 156, 140),
-      true,
-      104,
-      0,
-      56,
-      18,
-    );
-    row.addChild(rarity);
-    content.addChild(row);
-  });
-
-  const track = new Node("CatalogScrollTrack");
-  track.setPosition(140, -12);
-  fillRoundRect(track, 4, viewportH, 2, new Color(167, 192, 145, 100));
-  body.addChild(track);
-
-  const thumbH = Math.max(34, (viewportH * viewportH) / contentH);
-  const thumb = new Node("CatalogScrollThumb");
-  thumb.setPosition(0, (viewportH - thumbH) / 2);
-  fillRoundRect(thumb, 4, thumbH, 2, new Color(105, 174, 86, 210));
-  track.addChild(thumb);
-
-  const syncThumb = () => {
-    if (!thumb.isValid) return;
-    const maxOffset = scrollView.getMaxScrollOffset().y;
-    if (maxOffset <= 0) return;
-    const ratio = Math.max(
-      0,
-      Math.min(1, scrollView.getScrollOffset().y / maxOffset),
-    );
-    thumb.setPosition(
-      0,
-      (viewportH - thumbH) / 2 - ratio * (viewportH - thumbH),
-    );
-  };
-  scrollView.node.on(ScrollView.EventType.SCROLLING, syncThumb);
-  scrollView.node.on(ScrollView.EventType.SCROLL_ENDED, syncThumb);
-  ui.scheduleOnce(() => {
-    if (!viewport.isValid || !content.isValid) return;
-    scrollView.scrollToTop(0);
-    syncThumb();
-  }, 0);
 }
 
 export function renderTaskPanel(ui: any) {
@@ -3075,7 +2889,8 @@ function createDailySignInCard(
     ui.applyUiIcon(reward.type, icon);
   }
   if (missed) {
-    const opacity = icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
+    const opacity =
+      icon.getComponent(UIOpacity) || icon.addComponent(UIOpacity);
     opacity.opacity = 135;
   }
   iconFrame.addChild(icon);
@@ -3614,7 +3429,7 @@ function drawAchievementMedalWallEntry(ui: any, body: Node) {
   body.addChild(entry);
 }
 
-function showAchievementMedalWall(ui: any, body: Node) {
+function showAchievementMedalWall(ui: any, _body: Node) {
   if (ui.node.getChildByName("AchievementMedalWallOverlay")) return;
   const gm = GameManager.getInstance();
   const visibleSize = view.getVisibleSize();
@@ -3721,6 +3536,18 @@ function showAchievementMedalWall(ui: any, body: Node) {
     slotBackground.addComponent(UITransform).setContentSize(60, 60);
     slotBackground.setPosition(x, y);
     ui.applyUiIcon("achievementMedalSlot", slotBackground);
+    slotBackground.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      const title = PLAYER_TITLES.find(item => item.achievementId === definition.id);
+      const state = unlocked ? "已获得" : "未获得";
+      ui.showDialog(
+        `${definition.title} · ${state}`,
+        `获取条件：${definition.description}\n佩戴加成：${title?.bonusText || "勋章收藏进度 +1"}`,
+        [{ text: "知道了", cb: () => {} }],
+        true,
+        true,
+      );
+    });
     gridContent.addChild(slotBackground);
 
     const badge = new Node(`MedalWallBadge_${definition.id}`);
@@ -3763,7 +3590,7 @@ function showAchievementMedalWall(ui: any, body: Node) {
 function drawAchievementCard(
   ui: any,
   gm: GameManager,
-  panelBody: Node,
+  _panelBody: Node,
   content: Node,
   definition: AchievementDefinition,
   index: number,
@@ -4375,10 +4202,19 @@ function drawTaskActionButton(
 
 function navigateToTaskAction(ui: any, action: TaskAction) {
   if (action === "farm") {
-    ui.showPanel("task");
+    const taskPanel = ui.panels.task;
+    if (taskPanel?.active) ui.closePanelWithAnimation(taskPanel);
+    ui.scheduleOnce(() => {
+      if (ui.activeWorld !== "farm") ui.switchWorld("farm");
+      else ui.toast("已平滑定位到农场");
+    }, 0.14);
     return;
   }
-  ui.showPanel(action);
+  if (action === "craft") {
+    showPanel(ui, "craft");
+    return;
+  }
+  showPanel(ui, action);
 }
 
 function drawTaskDetailButton(
@@ -4558,6 +4394,31 @@ function drawTaskRewardIcon(
   );
 }
 
+function showGoldExchangeDialog(ui: any) {
+  const gm = GameManager.getInstance();
+  const exchange = (diamonds: number, gold: number) => {
+    if (!gm.spendDiamond(diamonds)) {
+      ui.toast("钻石不足");
+      return;
+    }
+    gm.addGold(gold);
+    ui.refreshTopBar();
+    ui.toast(`兑换成功：金币 +${gold}`);
+  };
+  ui.showDialog(
+    "金币不足 · 钻石兑换",
+    `当前：${gm.gold}金币 / ${gm.diamond}钻石\n选择兑换档位后即可继续购买`,
+    [
+      { text: "10钻→1000金", cb: () => exchange(10, 1000) },
+      { text: "30钻→3500金", cb: () => exchange(30, 3500) },
+      { text: "稍后", cb: () => {} },
+    ],
+    true,
+    false,
+    true,
+  );
+}
+
 export function buySeed(ui: any, crop: ItemDef, startWorld?: Vec3) {
   const gm = GameManager.getInstance();
   if (crop.unlockLevel > gm.playerLevel) {
@@ -4576,10 +4437,10 @@ export function buySeed(ui: any, crop: ItemDef, startWorld?: Vec3) {
     InventorySystem.getInstance().addItem(crop.id, 1);
     const rewardAnimated = startWorld
       ? animateRewardsToInventory(
-        ui,
-        [{ icon: crop.id, iconType: "item", count: 1 }],
-        startWorld,
-      )
+          ui,
+          [{ icon: crop.id, iconType: "item", count: 1 }],
+          startWorld,
+        )
       : false;
     gm.markSeasonalGreenhouseCardPurchased();
     if (!rewardAnimated) ui.toast("购买 温室卡 x1");
@@ -4594,38 +4455,38 @@ export function buySeed(ui: any, crop: ItemDef, startWorld?: Vec3) {
       return;
     }
     if (!gm.spendGold(8000)) {
-      ui.toast("金币不足");
+      showGoldExchangeDialog(ui);
       return;
     }
     requiredCrops.forEach((id) => inventory.removeItem(id, 2));
     inventory.addItem(crop.id, 1);
     const rewardAnimated = startWorld
       ? animateRewardsToInventory(
-        ui,
-        [{ icon: crop.id, iconType: "item", count: 1 }],
-        startWorld,
-      )
+          ui,
+          [{ icon: crop.id, iconType: "item", count: 1 }],
+          startWorld,
+        )
       : false;
-    if (!rewardAnimated) ui.toast("四季恒温温室已放入背包");
+    if (!rewardAnimated) ui.toast("恒温温室已放入背包");
     return;
   }
   const price = ui.getSeedBuyPrice(crop);
   if (!gm.spendGold(price)) {
-    ui.toast("金币不足");
+    showGoldExchangeDialog(ui);
     return;
   }
   InventorySystem.getInstance().addItem(crop.id, 1);
   const rewardAnimated = startWorld
     ? animateRewardsToInventory(
-      ui,
-      [{ icon: crop.id, iconType: "item", count: 1 }],
-      startWorld,
-    )
+        ui,
+        [{ icon: crop.id, iconType: "item", count: 1 }],
+        startWorld,
+      )
     : false;
   if (!rewardAnimated) ui.toast(`购买 ${ui.itemName(crop.id)} x1`);
 }
 
-export function getSeedBuyPrice(ui: any, crop: ItemDef): number {
+export function getSeedBuyPrice(_ui: any, crop: ItemDef): number {
   if (crop.buyPrice !== undefined) return crop.buyPrice;
   const fixedPrices: Record<string, number> = {
     speedTicket: 120,

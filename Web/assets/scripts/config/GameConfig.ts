@@ -54,7 +54,7 @@ export const GameValues = {
   INITIAL_LEVEL: 99,
   INITIAL_GOLD: 10_000_000,
   INITIAL_DIAMOND: 10_000_000,
-  INITIAL_LAND: 9, // 3x3 初始
+  INITIAL_LAND: 9, // 默认解锁前 9 块田地
   MAX_LAND: 15, // 5x3 上限
   MAX_STACK: 99,
   EXP_PER_LEVEL: 100,
@@ -62,12 +62,12 @@ export const GameValues = {
 
   // 扩展地块门槛
   LAND_UNLOCK: {
-    5: 1, // 等级5 +1块 → 共10块
-    8: 1, // 等级8 +1块 → 共11块
-    12: 1, // 等级12 +1块 → 共12块
-    16: 1, // 等级16 +1块 → 共13块
-    20: 1, // 等级20 +1块 → 共14块
-    25: 1, // 等级25 +1块 → 共15块
+    5: 1,
+    8: 1,
+    12: 2,
+    16: 2,
+    20: 2,
+    25: 3,
   },
 
   // 并行制作队列配置
@@ -82,6 +82,9 @@ export const GameValues = {
   // 分享奖励
   SHARE_GOLD_REWARD: 50,
 };
+
+/** 3列×5行：左上2×2后，依次解锁(1,3)、(2,3)，再逐行向下。 */
+export const FARM_LAND_UNLOCK_ORDER = [0, 1, 3, 4, 2, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
 // ===== 广告配置 (GDD §4) =====
 export const AdLimits = {
@@ -119,6 +122,16 @@ export const CropGrowthTimes: Record<string, number> = {
   watermelon: 150,
   okra: 120,
   peanut: 140,
+  broccoli: 120,
+  beetroot: 100,
+  turnip: 95,
+  celery: 110,
+  ginger: 140,
+  kale: 110,
+  chineseCabbage: 125,
+  garlic: 130,
+  leek: 120,
+  brusselsSprouts: 150,
   egg: 110,
   milk: 100,
   mushroom: 20,

@@ -1,40 +1,24 @@
 import {
   Button,
   Color,
-  EditBox,
   Graphics,
   Label,
   LabelOutline,
-  Mask,
   Node,
-  ScrollView,
+  NodePool,
+  Tween,
   UIOpacity,
   UITransform,
   Vec3,
   tween,
   view,
 } from "cc";
-import { Design, GameValues } from "../../config/GameConfig";
-import { GameManager } from "../../core/GameManager";
-import { EventManager } from "../../core/EventManager";
-import { InventorySystem } from "../../systems/InventorySystem";
-import { LandBlock, LandSystem } from "../../systems/LandSystem";
-import { CraftSystem } from "../../systems/CraftSystem";
-import {
-  getItem,
-  getPlantableCrops,
-  ITEM_DB,
-  ItemCategory,
-  ItemDef,
-} from "../../config/ItemConfig";
-import {
-  getRecipe,
-  getRecipesByLevel,
-  RecipeDef,
-} from "../../config/RecipeConfig";
+import { Design } from "../../config/GameConfig";
 import { fillRoundRect, strokeRoundRect } from "../utils/UIDraw";
 import type { PanelName } from "./MainUITypes";
 import { getSeasonInfo, SEASON_LABELS, Season } from "../../config/SeasonConfig";
+import { GameManager } from "../../core/GameManager";
+import { InventorySystem } from "../../systems/InventorySystem";
 
 function getSeasonBackgroundIcon(world: "farm" | "pasture", season: Season): string {
   const backgrounds: Record<Season, { farm: string; pasture: string }> = {
@@ -83,34 +67,14 @@ function applySeasonCharacterAndNavArt(ui: any, season: Season) {
   }
 }
 
-const SEASON_TEXT_STYLES: Record<
-  Season,
-  { title: Color; secondary: Color; outline: Color }
-> = {
-  spring: {
-    title: new Color(76, 104, 42),
-    secondary: new Color(95, 126, 57),
-    outline: new Color(240, 249, 211),
-  },
-  summer: {
-    title: new Color(137, 75, 25),
-    secondary: new Color(161, 101, 35),
-    outline: new Color(255, 239, 170),
-  },
-  autumn: {
-    title: new Color(132, 58, 27),
-    secondary: new Color(166, 87, 35),
-    outline: new Color(255, 224, 157),
-  },
-  winter: {
-    title: new Color(55, 88, 118),
-    secondary: new Color(73, 111, 139),
-    outline: new Color(239, 251, 255),
-  },
+const TOP_BAR_TEXT_STYLE = {
+  title: new Color(88, 45, 24),
+  secondary: new Color(126, 78, 43),
+  outline: new Color(255, 246, 225),
 };
 
-function applySeasonTextStyle(ui: any, season: Season) {
-  const style = SEASON_TEXT_STYLES[season];
+function applySeasonTextStyle(ui: any, _season: Season) {
+  const style = TOP_BAR_TEXT_STYLE;
   const title = ui.topBar?.getChildByName("FarmTitle");
   const seasonLabel = ui.topBar?.getChildByName("SeasonLabel");
   const level = ui.topBar
@@ -134,139 +98,6 @@ function applySeasonTextStyle(ui: any, season: Season) {
 
 export function createBackground(ui: any) {
   const vs = view.getVisibleSize();
-  const fieldTop = vs.height * 0.21;
-  const arcPeakY = fieldTop - 4;
-  const arcEdgeY = arcPeakY - 24;
-  const grassTop = arcPeakY + 4;
-  const sky = new Node("Sky");
-  sky.addComponent(UITransform).setContentSize(vs.width * 2, vs.height * 2);
-  const g = sky.addComponent(Graphics);
-  const steps = 16;
-  const skyHeight = vs.height * 0.66;
-  for (let i = 0; i < steps; i++) {
-    const t = i / (steps - 1);
-    g.fillColor = new Color(
-      Math.round(139 + 87 * t),
-      Math.round(211 + 28 * t),
-      Math.round(238 - 4 * t),
-      255,
-    );
-    const y = vs.height - (i + 1) * (skyHeight / steps);
-    g.rect(-vs.width, y - vs.height / 2, vs.width * 2, skyHeight / steps + 2);
-    g.fill();
-  }
-  ui.node.addChild(sky);
-
-  const hills = new Node("Hills");
-  const hg = hills.addComponent(Graphics);
-  hills.setPosition(0, fieldTop - 88);
-  hg.fillColor = new Color(136, 205, 160, 190);
-  hg.moveTo(-vs.width / 2 - 60, 88);
-  hg.bezierCurveTo(
-    -vs.width * 0.28,
-    138,
-    -vs.width * 0.08,
-    150,
-    vs.width * 0.12,
-    98,
-  );
-  hg.bezierCurveTo(
-    vs.width * 0.34,
-    42,
-    vs.width * 0.52,
-    86,
-    vs.width / 2 + 60,
-    58,
-  );
-  hg.lineTo(vs.width / 2 + 60, -20);
-  hg.lineTo(-vs.width / 2 - 60, -20);
-  hg.close();
-  hg.fill();
-  hg.fillColor = new Color(112, 190, 142, 150);
-  hg.moveTo(-vs.width / 2 - 60, 42);
-  hg.bezierCurveTo(
-    -vs.width * 0.2,
-    104,
-    vs.width * 0.08,
-    114,
-    vs.width * 0.32,
-    62,
-  );
-  hg.bezierCurveTo(
-    vs.width * 0.46,
-    32,
-    vs.width * 0.58,
-    46,
-    vs.width / 2 + 60,
-    28,
-  );
-  hg.lineTo(vs.width / 2 + 60, -20);
-  hg.lineTo(-vs.width / 2 - 60, -20);
-  hg.close();
-  hg.fill();
-  ui.node.addChild(hills);
-
-  const grass = new Node("Grass");
-  const grassHeight = vs.height;
-  grass.setPosition(0, grassTop - grassHeight / 2);
-  const grassG = grass.addComponent(Graphics);
-  const localBottom = -grassHeight / 2;
-  const localPeak = arcPeakY - (grassTop - grassHeight / 2);
-  const localEdge = arcEdgeY - (grassTop - grassHeight / 2);
-  grassG.fillColor = new Color(183, 232, 111, 255);
-  grassG.moveTo(-vs.width, localEdge);
-  grassG.bezierCurveTo(
-    -vs.width * 0.34,
-    localPeak - 2,
-    -vs.width * 0.08,
-    localPeak + 2,
-    0,
-    localPeak + 4,
-  );
-  grassG.bezierCurveTo(
-    vs.width * 0.08,
-    localPeak + 2,
-    vs.width * 0.34,
-    localPeak - 2,
-    vs.width,
-    localEdge,
-  );
-  grassG.lineTo(vs.width, localBottom);
-  grassG.lineTo(-vs.width, localBottom);
-  grassG.close();
-  grassG.fill();
-  ui.node.addChild(grass);
-  ui.createGrassPatches(grass, vs.width, grassHeight, grassTop, arcEdgeY - 4);
-
-  const fieldArc = new Node("FieldArc");
-  const ag = fieldArc.addComponent(Graphics);
-  ag.strokeColor = new Color(74, 154, 78, 170);
-  ag.lineWidth = 2.6;
-  ag.moveTo(-vs.width / 2 - 8, arcEdgeY);
-  ag.bezierCurveTo(
-    -vs.width * 0.34,
-    arcPeakY - 2,
-    -vs.width * 0.08,
-    arcPeakY + 2,
-    0,
-    arcPeakY + 4,
-  );
-  ag.bezierCurveTo(
-    vs.width * 0.08,
-    arcPeakY + 2,
-    vs.width * 0.34,
-    arcPeakY - 2,
-    vs.width / 2 + 8,
-    arcEdgeY,
-  );
-  ag.stroke();
-  ui.node.addChild(fieldArc);
-
-  createSideTree(ui, -vs.width / 2 + 25, fieldTop + 8, 1.12, -1);
-  createSideTree(ui, -vs.width / 2 + 88, fieldTop + 1, 0.82, -1);
-  createSideTree(ui, vs.width / 2 - 25, fieldTop + 8, 1.12, 1);
-  createSideTree(ui, vs.width / 2 - 88, fieldTop + 1, 0.82, 1);
-
   const artBg = new Node("ArtBackground");
   artBg.addComponent(UITransform).setContentSize(vs.width, vs.height);
   artBg.setPosition(0, 0);
@@ -283,7 +114,13 @@ export function createSeasonalEffectLayer(ui: any) {
   layer.setPosition(0, 0);
   ui.node.addChild(layer);
   ui.seasonEffectLayer = layer;
-  ui.topBar?.setSiblingIndex(ui.node.children.length - 1);
+  // Particles must be visible from the physical top edge, including over the
+  // top bar, while panels/dialogs created later remain above this layer.
+  const topBarIndex = ui.topBar?.getSiblingIndex?.() ?? -1;
+  if (topBarIndex >= 0) layer.setSiblingIndex(topBarIndex + 1);
+  ui.seasonParticlePool = ui.seasonParticlePool || new NodePool();
+  ui.activeSeasonParticles =
+    ui.activeSeasonParticles || new Set<Node>();
   ui.seasonVisualKey = "";
   syncSeasonPresentation(ui, true);
 }
@@ -303,7 +140,7 @@ function syncSeasonPresentation(ui: any, force = false) {
   // particles keep moving and are rebuilt only when the season changes.
   if (previousSeason !== season && ui.seasonEffectLayer?.isValid) {
     ui.seasonEffectTimer = 0;
-    [...ui.seasonEffectLayer.children].forEach((child: Node) => child.destroy());
+    recycleAllSeasonParticles(ui);
     if (previousSeason) ui.refreshLand?.();
   }
   return season;
@@ -331,6 +168,14 @@ export function updateSeasonPresentation(ui: any, dt: number) {
 function spawnSeasonParticle(ui: any, season: Season) {
   const layer = ui.seasonEffectLayer as Node;
   if (!layer?.isValid) return;
+  const active = ui.activeSeasonParticles as Set<Node>;
+  const activeCaps: Record<Season, number> = {
+    spring: 24,
+    summer: 22,
+    autumn: 24,
+    winter: 48,
+  };
+  if (active.size >= activeCaps[season]) return;
   const vs = view.getVisibleSize();
   const particleNames: Record<Season, string> = {
     spring: "SpringPetal",
@@ -338,8 +183,13 @@ function spawnSeasonParticle(ui: any, season: Season) {
     autumn: "FallingLeaf",
     winter: "Snowflake",
   };
-  const particle = new Node(particleNames[season]);
-  particle.addComponent(UITransform).setContentSize(18, 18);
+  const pool = ui.seasonParticlePool as NodePool;
+  const particle = pool.size() > 0 ? pool.get()! : createSeasonParticleNode();
+  particle.name = particleNames[season];
+  particle.active = true;
+  particle.angle = 0;
+  (particle as any).__seasonParticleActive = true;
+  active.add(particle);
   const startX = (Math.random() - 0.5) * (vs.width + 40);
   const startY = vs.height / 2 + 18;
   const driftRange =
@@ -352,9 +202,10 @@ function spawnSeasonParticle(ui: any, season: Season) {
         ? 7 + Math.random() * 4
         : 5 + Math.random() * 3;
   particle.setPosition(startX, startY);
-  const opacity = particle.addComponent(UIOpacity);
+  const opacity = particle.getComponent(UIOpacity)!;
   opacity.opacity = season === "summer" ? 175 : season === "winter" ? 205 : 225;
-  const graphics = particle.addComponent(Graphics);
+  const graphics = particle.getComponent(Graphics)!;
+  graphics.clear();
   if (season === "winter") {
     const radius = 1.8 + Math.random() * 2.2;
     graphics.fillColor = new Color(255, 255, 255, 235);
@@ -417,7 +268,7 @@ function spawnSeasonParticle(ui: any, season: Season) {
             ? 120
             : 540 + Math.random() * 360),
     }, { easing: "linear" })
-    .call(() => particle.destroy())
+    .call(() => recycleSeasonParticle(ui, particle))
     .start();
   tween(opacity)
     .delay(duration * 0.72)
@@ -425,183 +276,40 @@ function spawnSeasonParticle(ui: any, season: Season) {
     .start();
 }
 
-function createSideTree(
-  ui: any,
-  x: number,
-  y: number,
-  scale: number,
-  side: number,
-) {
-  const tree = new Node("SideTree");
-  tree.setPosition(x, y);
-  tree.setScale(new Vec3(scale, scale, 1));
-  const g = tree.addComponent(Graphics);
-  g.fillColor = new Color(128, 84, 55, 235);
-  g.moveTo(-8 * side, -54);
-  g.lineTo(8 * side, -54);
-  g.lineTo(6 * side, -4);
-  g.lineTo(-6 * side, -4);
-  g.close();
-  g.fill();
-  g.strokeColor = new Color(104, 72, 50, 185);
-  g.lineWidth = 3.2;
-  g.moveTo(0, -23);
-  g.lineTo(-18 * side, 3);
-  g.moveTo(2 * side, -18);
-  g.lineTo(21 * side, 8);
-  g.stroke();
-  g.fillColor = new Color(121, 178, 83, 245);
-  g.circle(-18 * side, 20, 28);
-  g.circle(8 * side, 33, 35);
-  g.circle(31 * side, 17, 29);
-  g.circle(0, 7, 31);
-  g.fill();
-  g.fillColor = new Color(152, 202, 103, 235);
-  g.circle(-14 * side, 31, 18);
-  g.circle(18 * side, 31, 17);
-  g.circle(5 * side, 48, 19);
-  g.fill();
-  g.fillColor = new Color(178, 218, 118, 145);
-  g.circle(-20 * side, 31, 7);
-  g.circle(19 * side, 34, 6);
-  g.circle(4 * side, 12, 6);
-  g.fill();
-  ui.node.addChild(tree);
+const MAX_SEASON_PARTICLE_POOL = 56;
+
+function createSeasonParticleNode(): Node {
+  const particle = new Node("SeasonParticle");
+  particle.addComponent(UITransform).setContentSize(18, 18);
+  particle.addComponent(UIOpacity);
+  particle.addComponent(Graphics);
+  return particle;
 }
 
-export function createGrassPatches(
-  ui: any,
-  parent: Node,
-  viewWidth: number,
-  grassHeight: number,
-  grassTop: number,
-  patchTop = grassTop,
-) {
-  const colors = [
-    new Color(95, 166, 80, 150),
-    new Color(121, 186, 86, 138),
-    new Color(142, 200, 92, 126),
-  ];
-  const rows = 12;
-  const cols = 9;
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      if ((row + col * 2) % 7 === 0 && row > 2) continue;
-      const seed = row * 17 + col * 29;
-      const x =
-        -viewWidth / 2 +
-        14 +
-        (col * (viewWidth - 28)) / (cols - 1) +
-        (ui.rng(seed, 1) - 0.5) * 20;
-      const worldY = patchTop - 16 - row * 38 + (ui.rng(seed, 2) - 0.5) * 16;
-      const localY = worldY - (grassTop - grassHeight / 2);
-      ui.drawGrassPatch(
-        parent,
-        x,
-        localY,
-        6 + ui.rng(seed, 3) * 4,
-        colors[(row + col) % colors.length],
-      );
-    }
-  }
+function recycleSeasonParticle(ui: any, particle: Node) {
+  if (!(particle as any).__seasonParticleActive) return;
+  (particle as any).__seasonParticleActive = false;
+  Tween.stopAllByTarget(particle);
+  const opacity = particle.getComponent(UIOpacity);
+  if (opacity) Tween.stopAllByTarget(opacity);
+  (ui.activeSeasonParticles as Set<Node>)?.delete(particle);
+  particle.removeFromParent();
+  const pool = ui.seasonParticlePool as NodePool;
+  if (pool?.size() < MAX_SEASON_PARTICLE_POOL) pool.put(particle);
+  else particle.destroy();
 }
 
-export function drawGrassPatch(
-  ui: any,
-  parent: Node,
-  x: number,
-  y: number,
-  size: number,
-  color: Color,
-) {
-  const patch = new Node("GrassPatch");
-  patch.setPosition(x, y);
-  const g = patch.addComponent(Graphics);
-  g.strokeColor = color;
-  g.lineWidth = 1.2;
-  const blades = 3 + Math.floor(ui.rng(x, y) * 3);
-  for (let i = 0; i < blades; i++) {
-    const center = (blades - 1) / 2;
-    const offset = (i - center) * 2.5;
-    const height = size * (0.66 + ui.rng(x + y, i) * 0.42);
-    const bend = (i - center) * 2.1;
-    g.moveTo(offset, 0);
-    g.quadraticCurveTo(
-      offset + bend * 0.5,
-      height * 0.48,
-      offset + bend,
-      height,
-    );
-  }
-  g.stroke();
-  parent.addChild(patch);
+function recycleAllSeasonParticles(ui: any) {
+  const active = ui.activeSeasonParticles as Set<Node>;
+  if (!active) return;
+  [...active].forEach((particle) => recycleSeasonParticle(ui, particle));
 }
 
-export function createSun(ui: any, x: number, y: number): Node {
-  const sun = new Node("Sun");
-  sun.setPosition(x, y);
-
-  const rays = new Node("SunRays");
-  const rg = rays.addComponent(Graphics);
-  rg.fillColor = new Color(255, 221, 94, 120);
-  for (let i = 0; i < 14; i++) {
-    const angle = (Math.PI * 2 * i) / 14;
-    const half = 0.07;
-    const inner = 38;
-    const outer = i % 2 === 0 ? 57 : 51;
-    rg.moveTo(Math.cos(angle - half) * inner, Math.sin(angle - half) * inner);
-    rg.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
-    rg.lineTo(Math.cos(angle + half) * inner, Math.sin(angle + half) * inner);
-    rg.close();
-    rg.fill();
-  }
-  sun.addChild(rays);
-
-  const glow = new Node("SunGlow");
-  const gg = glow.addComponent(Graphics);
-  gg.fillColor = new Color(255, 214, 72, 48);
-  gg.circle(0, 0, 50);
-  gg.fill();
-  gg.fillColor = new Color(255, 226, 104, 72);
-  gg.circle(0, 0, 42);
-  gg.fill();
-  sun.addChild(glow);
-
-  const body = new Node("SunBody");
-  const bg = body.addComponent(Graphics);
-  bg.fillColor = new Color(255, 194, 42, 255);
-  bg.circle(0, 0, 34);
-  bg.fill();
-  bg.fillColor = new Color(255, 218, 79, 255);
-  bg.circle(-5, 6, 24);
-  bg.fill();
-  bg.fillColor = new Color(255, 242, 156, 185);
-  bg.circle(-12, 13, 11);
-  bg.fill();
-  sun.addChild(body);
-
-  return sun;
-}
-
-export function createCloud(ui: any, x: number, y: number, size: number) {
-  const cloud = new Node("Cloud");
-  cloud.setPosition(x, y);
-  const g = cloud.addComponent(Graphics);
-  g.fillColor = new Color(217, 243, 250, 62);
-  g.roundRect(-size * 0.68, -size * 0.25, size * 1.36, size * 0.42, size * 0.2);
-  g.fill();
-  g.fillColor = new Color(255, 255, 255, 160);
-  g.roundRect(-size * 0.62, -size * 0.2, size * 1.24, size * 0.36, size * 0.18);
-  g.fill();
-  g.circle(-size * 0.38, -size * 0.02, size * 0.34);
-  g.circle(-size * 0.08, size * 0.16, size * 0.42);
-  g.circle(size * 0.34, size * 0.02, size * 0.33);
-  g.fill();
-  g.fillColor = new Color(255, 255, 255, 72);
-  g.circle(-size * 0.28, size * 0.15, size * 0.22);
-  g.circle(size * 0.1, size * 0.24, size * 0.18);
-  g.fill();
-  ui.node.addChild(cloud);
+export function disposeSeasonalEffects(ui: any) {
+  recycleAllSeasonParticles(ui);
+  const pool = ui.seasonParticlePool as NodePool;
+  pool?.clear();
+  ui.activeSeasonParticles?.clear?.();
 }
 
 export function createTopBar(ui: any) {
@@ -907,25 +615,22 @@ export function createLandArea(ui: any) {
 
 function createHarvestAllButton(ui: any) {
   const button = new Node("HarvestAllButton");
-  button.active = false;
+  // Farm is the startup world. Keep the reserved action slot visible even
+  // before the first land refresh determines whether anything is collectable.
+  button.active = true;
   button.addComponent(UITransform).setContentSize(38, 46);
-  button.setPosition(Design.WIDTH / 2 - 20, -108);
-  fillRoundRect(button, 38, 46, 13, new Color(255, 250, 230, 240));
-  strokeRoundRect(button, 38, 46, 13, new Color(105, 174, 86, 180), 2);
-
-  const glow = new Node("Glow");
-  glow.setPosition(0, -1);
-  fillRoundRect(glow, 28, 30, 12, new Color(116, 216, 104, 82));
-  button.addChild(glow);
+  button.setPosition(Design.WIDTH / 2 - 20, -16);
+  addSideEntryBackground(ui, button, "sideEntryDisabledBg");
+  drawDisabledSideActionCard(button);
 
   const harvestIcon = new Node("HarvestEntryIcon");
   harvestIcon.addComponent(UITransform).setContentSize(32, 32);
   ui.applyUiIcon("entryHarvest", harvestIcon);
   button.addChild(harvestIcon);
 
-  button
-    .addComponent(Button)
-    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+  const action = button.addComponent(Button);
+  action.interactable = false;
+  action.node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       tween(button)
         .to(0.06, { scale: new Vec3(0.92, 0.92, 1) }, { easing: "quadOut" })
@@ -934,64 +639,41 @@ function createHarvestAllButton(ui: any) {
       ui.harvestAllMatureCrops();
     });
   ui.node.addChild(button);
-
-  tween(glow)
-    .repeatForever(
-      tween()
-        .to(0.8, { scale: new Vec3(1.12, 1.06, 1) }, { easing: "quadInOut" })
-        .to(0.8, { scale: new Vec3(1, 1, 1) }, { easing: "quadInOut" }),
-    )
-    .start();
 }
 
-function createActionButtons(ui: any) {
-  const vs = view.getVisibleSize();
-  const y = -vs.height / 2 + 154;
-  const actions: Array<{ name: string; icon: string; cb: () => void }> = [
-    { name: "种植", icon: "leaf", cb: () => ui.showPanel("shop") },
-    { name: "合成", icon: "gear", cb: () => ui.showPanel("craft") },
-  ];
+function addSideEntryBackground(
+  ui: any,
+  owner: Node,
+  iconKey = "sideEntryBg",
+) {
+  const old = owner.getChildByName("SideEntryBackground");
+  old?.destroy();
+  const background = new Node("SideEntryBackground");
+  background.addComponent(UITransform).setContentSize(38, 46);
+  background.setPosition(0, -1);
+  if (iconKey !== "sideEntryDisabledBg") {
+    ui.applyUiIcon(iconKey, background);
+  }
+  owner.addChild(background);
+  background.setSiblingIndex(0);
+  return background;
+}
 
-  actions.forEach((item, index) => {
-    const btn = new Node(`Action_${item.name}`);
-    btn.addComponent(UITransform).setContentSize(104, 48);
-    btn.setPosition(index === 0 ? -56 : 56, y);
-    fillRoundRect(btn, 104, 48, 14, new Color(255, 248, 218, 255));
-    strokeRoundRect(btn, 104, 48, 14, new Color(126, 78, 48, 225), 2.2);
+function drawDisabledSideActionCard(owner: Node) {
+  fillRoundRect(owner, 38, 46, 13, new Color(194, 197, 190, 255));
+  strokeRoundRect(owner, 38, 46, 13, new Color(132, 137, 128, 230), 2);
+}
 
-    const icon = new Node("Icon");
-    icon.addComponent(UITransform).setContentSize(34, 34);
-    icon.setPosition(-28, 2);
-    ui.applyUiIcon(
-      getSeasonNavIcon(
-        item.icon as "bag" | "gear" | "quest" | "catalog",
-        getSeasonInfo().season,
-      ),
-      icon,
-    );
-    btn.addChild(icon);
+/** Match the daily sign-in entry: a white outer card with a green icon tile. */
+function addBoostQuickEntryBackground(owner: Node, tileColor: Color) {
+  fillRoundRect(owner, 38, 46, 13, new Color(255, 255, 255, 255));
+  strokeRoundRect(owner, 38, 46, 13, new Color(105, 174, 86, 180), 2);
 
-    const label = ui.makeLabel(
-      item.name,
-      22,
-      new Color(88, 45, 24),
-      true,
-      18,
-      0,
-      62,
-      30,
-    );
-    btn.addChild(label);
-
-    btn.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
-      tween(btn)
-        .to(0.06, { scale: new Vec3(0.94, 0.94, 1) }, { easing: "quadOut" })
-        .to(0.12, { scale: new Vec3(1, 1, 1) }, { easing: "backOut" })
-        .start();
-      item.cb();
-    });
-    ui.node.addChild(btn);
-  });
+  const tile = new Node("BoostQuickIconTile");
+  tile.setPosition(0, -1);
+  fillRoundRect(tile, 30, 32, 9, tileColor);
+  owner.addChild(tile);
+  return tile;
 }
 
 export function layoutLandArea(ui: any) {
@@ -1018,22 +700,18 @@ export function layoutLandArea(ui: any) {
 
 function createPastureCollectAllButton(ui: any) {
   const button = new Node("PastureCollectAllButton");
-  button.active = false;
+  button.active = ui.activeWorld === "pasture";
   button.addComponent(UITransform).setContentSize(38, 46);
-  button.setPosition(Design.WIDTH / 2 - 20, -108);
-  fillRoundRect(button, 38, 46, 13, new Color(255, 250, 230, 240));
-  strokeRoundRect(button, 38, 46, 13, new Color(224, 142, 54, 210), 2);
-  const glow = new Node("Glow");
-  glow.setPosition(0, -1);
-  fillRoundRect(glow, 28, 30, 12, new Color(245, 166, 65, 92));
-  button.addChild(glow);
+  button.setPosition(Design.WIDTH / 2 - 20, -16);
+  addSideEntryBackground(ui, button, "sideEntryDisabledBg");
+  drawDisabledSideActionCard(button);
   const icon = new Node("PastureCollectIcon");
   icon.addComponent(UITransform).setContentSize(32, 32);
   ui.applyUiIcon("pastureCollect", icon);
   button.addChild(icon);
-  button
-    .addComponent(Button)
-    .node.on(Node.EventType.TOUCH_END, (event: any) => {
+  const action = button.addComponent(Button);
+  action.interactable = false;
+  action.node.on(Node.EventType.TOUCH_END, (event: any) => {
       event?.stopPropagation?.();
       tween(button)
         .to(0.06, { scale: new Vec3(0.92, 0.92, 1) }, { easing: "quadOut" })
@@ -1042,24 +720,17 @@ function createPastureCollectAllButton(ui: any) {
       ui.collectAllPastureProducts();
     });
   ui.node.addChild(button);
-  tween(glow)
-    .repeatForever(
-      tween()
-        .to(0.8, { scale: new Vec3(1.12, 1.06, 1) }, { easing: "quadInOut" })
-        .to(0.8, { scale: new Vec3(1, 1, 1) }, { easing: "quadInOut" }),
-    )
-    .start();
 }
 
 function createWorldSwitchButton(ui: any) {
   const button = new Node("WorldSwitchButton");
   button.addComponent(UITransform).setContentSize(38, 46);
-  button.setPosition(Design.WIDTH / 2 - 20, 38);
-  fillRoundRect(button, 38, 46, 13, new Color(255, 250, 230, 240));
+  button.setPosition(Design.WIDTH / 2 - 20, 92);
+  fillRoundRect(button, 38, 46, 13, new Color(255, 255, 255, 255));
   strokeRoundRect(button, 38, 46, 13, new Color(105, 174, 86, 180), 2);
   const glow = new Node("WorldSwitchGlow");
   glow.setPosition(0, -1);
-  fillRoundRect(glow, 30, 32, 9, new Color(137, 205, 112, 220));
+  fillRoundRect(glow, 30, 32, 9, new Color(144, 210, 143, 255));
   button.addChild(glow);
   drawWorldSwitchArrow(ui, button, false);
   button
@@ -1120,10 +791,7 @@ export function switchWorld(ui: any, target?: "farm" | "pasture") {
     ui.pastureRoot.active = next === "pasture";
     syncSeasonPresentation(ui, true);
     drawWorldSwitchArrow(ui, ui.worldSwitchButton, next === "pasture");
-    ui.worldSwitchButton.setPosition(
-      next === "pasture" ? -Design.WIDTH / 2 + 20 : Design.WIDTH / 2 - 20,
-      38,
-    );
+    layoutSideEntries(ui);
     const harvestAll = ui.node.getChildByName("HarvestAllButton");
     const pastureCollectAll = ui.node.getChildByName("PastureCollectAllButton");
     if (next === "pasture") {
@@ -1239,18 +907,10 @@ export function createBottomNav(ui: any) {
     nav.addChild(shadow);
 
     const btn = new Node(`Nav_${item.panel}`);
-    // The source images use different transparent padding. These values make
-    // their opaque artwork 31px tall and align its visible bottom edge.
-    const iconLayout: Record<
-      "inventory" | "craft" | "task" | "quest",
-      { size: number; y: number }
-    > = {
-      inventory: { size: 49.6, y: 15.3 },
-      craft: { size: 47, y: 16.8 },
-      task: { size: 64, y: 14.3 },
-      quest: { size: 51.2, y: 17.3 },
-    };
-    const { size: iconSize, y: iconY } = iconLayout[item.panel];
+    // All seasonal sprite-sheet cells use the same normalized 256×256 canvas,
+    // so every tab item uses one shared size and baseline without compensation.
+    const iconSize = 49.6;
+    const iconY = 15.3;
     btn.addComponent(UITransform).setContentSize(76, 59);
     btn.setPosition(itemX, itemY);
     fillRoundRect(btn, 76, 59, 13, new Color(255, 247, 210, 255));
@@ -1307,97 +967,6 @@ export function createBottomNav(ui: any) {
     nav.addChild(btn);
     btn.setSiblingIndex(nav.children.length - 1);
   });
-}
-
-function createAdBanner(ui: any, vs: { width: number; height: number }) {
-  const banner = new Node("AdBanner");
-  banner.setPosition(0, -vs.height / 2 + 102);
-  banner.addComponent(UITransform).setContentSize(324, 48);
-  fillRoundRect(banner, 324, 48, 8, new Color(112, 84, 64, 218));
-  strokeRoundRect(banner, 324, 48, 8, new Color(255, 255, 255, 230), 2);
-
-  const warm = new Node("AdWarmth");
-  warm.setPosition(-56, 0);
-  fillRoundRect(warm, 176, 42, 8, new Color(248, 184, 92, 45));
-  banner.addChild(warm);
-
-  const title = ui.makeLabel(
-    "Banner\n320x50 px",
-    16,
-    new Color(255, 255, 255),
-    true,
-    -116,
-    0,
-    74,
-    40,
-  );
-  banner.addChild(title);
-
-  const offer = ui.makeLabel(
-    "免费领取钻石?",
-    21,
-    new Color(255, 255, 255),
-    true,
-    32,
-    0,
-    160,
-    32,
-  );
-  banner.addChild(offer);
-
-  const countdown = ui.makeLabel(
-    "5s",
-    16,
-    new Color(255, 255, 255),
-    true,
-    120,
-    6,
-    38,
-    24,
-  );
-  banner.addChild(countdown);
-
-  const close = new Node("Close");
-  close.setPosition(150, 12);
-  fillRoundRect(close, 20, 20, 10, new Color(95, 66, 50, 210));
-  close.addChild(
-    ui.makeLabel("x", 16, new Color(255, 255, 255), true, 0, 0, 18, 18),
-  );
-  banner.addChild(close);
-
-  const note = ui.makeLabel(
-    "广告合规与用户体验",
-    9,
-    new Color(255, 255, 255),
-    false,
-    104,
-    -15,
-    112,
-    14,
-  );
-  banner.addChild(note);
-  ui.node.addChild(banner);
-}
-
-function addStarSprinkles(parent: Node, stars: number[][]) {
-  for (let i = 0; i < stars.length; i++) {
-    const [x, y, size] = stars[i];
-    const star = new Node(`Star_${i}`);
-    star.setPosition(x, y);
-    const g = star.addComponent(Graphics);
-    g.fillColor = new Color(255, 255, 255, 178);
-    g.moveTo(0, size);
-    g.lineTo(size * 0.32, size * 0.32);
-    g.lineTo(size, 0);
-    g.lineTo(size * 0.32, -size * 0.32);
-    g.lineTo(0, -size);
-    g.lineTo(-size * 0.32, -size * 0.32);
-    g.lineTo(-size, 0);
-    g.lineTo(-size * 0.32, size * 0.32);
-    g.close();
-    g.fill();
-    parent.addChild(star);
-  }
 }
 
 export function createPanels(ui: any) {
@@ -1467,6 +1036,7 @@ function drawBottomNavBackground(node: Node, w: number, h: number) {
 
 export function layoutResponsiveFeaturePanels(ui: any) {
   const vs = view.getVisibleSize();
+  layoutSideEntries(ui);
   const layoutKey = `${vs.width}x${vs.height}`;
   if (ui.featurePanelLayoutKey === layoutKey) return;
   ui.featurePanelLayoutKey = layoutKey;
@@ -1492,14 +1062,16 @@ export function layoutResponsiveFeaturePanels(ui: any) {
 
 export function createShopEntry(ui: any) {
   const entry = new Node("ShopEntry");
-  entry.setPosition(Design.WIDTH / 2 - 20, -55);
+  entry.setPosition(Design.WIDTH / 2 - 20, 38);
   entry.addComponent(UITransform).setContentSize(38, 46);
-  fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
+  fillRoundRect(entry, 38, 46, 13, new Color(255, 255, 255, 255));
   strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
 
   const glow = new Node("ShopEntryGlow");
   glow.setPosition(0, -1);
-  fillRoundRect(glow, 30, 32, 9, new Color(240, 168, 70, 220));
+  fillRoundRect(glow, 30, 32, 9, new Color(240, 168, 70, 255));
+  const glowOpacity = glow.addComponent(UIOpacity);
+  glowOpacity.opacity = 220;
   entry.addChild(glow);
 
   const icon = new Node("ShopEntryIcon");
@@ -1516,25 +1088,112 @@ export function createShopEntry(ui: any) {
       .start();
     ui.showPanel("shop");
   });
+  ui.shopEntry = entry;
+  ui.shopEntryGlow = glow;
+  ui.shopEntryGlowOpacity = glowOpacity;
   ui.node.addChild(entry);
+  layoutSideEntries(ui);
+  raiseFeaturePanels(ui);
+}
+
+function layoutSideEntries(ui: any) {
+  const vs = view.getVisibleSize();
+  const x = Design.WIDTH / 2 - 20;
+  const topBoundary = ui.topBar?.isValid
+    ? ui.topBar.position.y - 72
+    : vs.height / 2 - 148;
+  const bottomBoundary = -vs.height / 2 + 102;
+  const centerY = (topBoundary + bottomBoundary) / 2;
+  const gap = 54;
+  const actionName = ui.activeWorld === "pasture"
+    ? "PastureCollectAllButton"
+    : "HarvestAllButton";
+  const slots: Array<[string, number]> = [
+    ["WorldSwitchButton", 1.5],
+    ["ShopEntry", 0.5],
+    [actionName, -0.5],
+    ["ShovelEntry", -1.5],
+  ];
+  slots.forEach(([name, offset]) => {
+    const node = ui.node.getChildByName(name);
+    if (node) node.setPosition(x, centerY + offset * gap);
+  });
+  const hiddenAction = ui.node.getChildByName(
+    ui.activeWorld === "pasture" ? "HarvestAllButton" : "PastureCollectAllButton",
+  );
+  if (hiddenAction) hiddenAction.setPosition(x, centerY - .5 * gap);
+}
+
+function raiseFeaturePanels(ui: any) {
   for (const panel of [
     ui.panels.inventory,
     ui.panels.craft,
     ui.panels.shop,
     ui.panels.quest,
     ui.panels.task,
+    ui.panels.signIn,
+    ui.panels.achievement,
     ui.panels.title,
   ]) {
     if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
   }
 }
 
+/** Draw attention to the shop without opening it. Repeated requests restart
+ * the finite breathing cue, so the entry always responds immediately. */
+export function pulseShopEntry(ui: any) {
+  const entry: Node | undefined = ui.shopEntry;
+  const glow: Node | undefined = ui.shopEntryGlow;
+  const opacity: UIOpacity | undefined = ui.shopEntryGlowOpacity;
+  if (!entry?.isValid || !glow?.isValid || !opacity?.isValid) return;
+
+  Tween.stopAllByTarget(entry);
+  Tween.stopAllByTarget(glow);
+  Tween.stopAllByTarget(opacity);
+  entry.setScale(Vec3.ONE);
+  glow.setScale(Vec3.ONE);
+  opacity.opacity = 220;
+
+  tween(entry)
+    .repeat(
+      3,
+      tween()
+        .to(0.34, { scale: new Vec3(1.09, 1.09, 1) }, { easing: "sineInOut" })
+        .to(0.34, { scale: Vec3.ONE }, { easing: "sineInOut" }),
+    )
+    .start();
+  tween(glow)
+    .repeat(
+      3,
+      tween()
+        .to(0.34, { scale: new Vec3(1.28, 1.2, 1) }, { easing: "sineInOut" })
+        .to(0.34, { scale: Vec3.ONE }, { easing: "sineInOut" }),
+    )
+    .start();
+  tween(opacity)
+    .repeat(
+      3,
+      tween()
+        .to(0.34, { opacity: 255 }, { easing: "sineInOut" })
+        .to(0.34, { opacity: 150 }, { easing: "sineInOut" }),
+    )
+    .call(() => {
+      if (opacity.isValid) opacity.opacity = 220;
+    })
+    .start();
+}
+
 export function createShovelEntry(ui: any) {
   const entry = new Node("ShovelEntry");
-  entry.setPosition(Design.WIDTH / 2 - 20, -160);
+  entry.setPosition(Design.WIDTH / 2 - 20, -70);
   entry.addComponent(UITransform).setContentSize(38, 46);
-  fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
+  fillRoundRect(entry, 38, 46, 13, new Color(255, 255, 255, 255));
   strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
+
+  const utilityTile = new Node("UtilityTile");
+  utilityTile.setPosition(0, -1);
+  fillRoundRect(utilityTile, 30, 32, 9, new Color(144, 210, 143, 255));
+  entry.addChild(utilityTile);
 
   const selectedGlow = new Node("SelectedGlow");
   selectedGlow.setPosition(0, -1);
@@ -1562,6 +1221,8 @@ export function createShovelEntry(ui: any) {
   });
   ui.shovelEntry = entry;
   ui.node.addChild(entry);
+  layoutSideEntries(ui);
+  raiseFeaturePanels(ui);
 }
 
 export function setShovelMode(ui: any, active: boolean) {
@@ -1678,12 +1339,12 @@ export function createDailySignInEntry(ui: any) {
   const entry = new Node("DailySignInEntry");
   entry.setPosition(-Design.WIDTH / 2 + 20, -55);
   entry.addComponent(UITransform).setContentSize(38, 46);
-  fillRoundRect(entry, 38, 46, 13, new Color(255, 250, 230, 240));
+  fillRoundRect(entry, 38, 46, 13, new Color(255, 255, 255, 255));
   strokeRoundRect(entry, 38, 46, 13, new Color(105, 174, 86, 180), 2);
 
   const tile = new Node("CalendarTile");
   tile.setPosition(0, -1);
-  fillRoundRect(tile, 30, 32, 9, new Color(129, 205, 133, 225));
+  fillRoundRect(tile, 30, 32, 9, new Color(240, 168, 70, 255));
   entry.addChild(tile);
 
   const calendar = new Node("CalendarIcon");
@@ -1733,16 +1394,128 @@ export function createDailySignInEntry(ui: any) {
     ui.showPanel("signIn");
   });
   ui.node.addChild(entry);
-  for (const panel of [
-    ui.panels.inventory,
-    ui.panels.craft,
-    ui.panels.shop,
-    ui.panels.quest,
-    ui.panels.task,
-    ui.panels.signIn,
-    ui.panels.achievement,
-    ui.panels.title,
-  ]) {
-    if (panel) panel.setSiblingIndex(ui.node.children.length - 1);
+  raiseFeaturePanels(ui);
+}
+
+export function refreshBoostEntries(ui: any, changedBoostId?: string) {
+  const inv = InventorySystem.getInstance();
+  const gm = GameManager.getInstance();
+  if (!inv || !gm) return;
+  const harvestCards = inv.getItemCount("doubleHarvestCard");
+  const goldCards = inv.getItemCount("goldBoostCard");
+  const key = `${harvestCards}/${goldCards}/${gm.doubleHarvestCharges}/${gm.goldBoostCharges}`;
+  if (ui.boostUiKey === key) return;
+  ui.boostUiKey = key;
+  ui.node.getChildByName("BoostQuickEntries")?.destroy();
+
+  const quickRoot = new Node("BoostQuickEntries");
+  quickRoot.setPosition(-Design.WIDTH / 2 + 20, -109);
+  ui.node.addChild(quickRoot);
+  // Boost tickets belong to the world HUD. Rebuilding them while an indoor
+  // dialog is open must never append them above the modal artwork.
+  if (ui.dialogRoot?.isValid) {
+    quickRoot.setSiblingIndex(Math.max(0, ui.dialogRoot.getSiblingIndex() - 1));
   }
+  const quickItems = [
+    { id: "doubleHarvestCard", count: harvestCards, label: "双倍收获" },
+    { id: "goldBoostCard", count: goldCards, label: "金币加倍" },
+  ].filter(item => item.count > 0);
+  quickItems.forEach((item, index) => {
+    const button = new Node(`BoostQuick_${item.id}`);
+    button.addComponent(UITransform).setContentSize(38, 46);
+    button.setPosition(0, -index * 54);
+    addBoostQuickEntryBackground(
+      button,
+      item.id === "goldBoostCard"
+        ? new Color(240, 168, 70, 255)
+        : new Color(144, 210, 143, 255),
+    );
+    const icon = ui.createItemIcon(item.id, 31, true);
+    icon.setPosition(0, -1);
+    button.addChild(icon);
+    button.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
+      event?.stopPropagation?.();
+      gm.useTool(item.id);
+      ui.boostUiKey = "";
+      refreshBoostEntries(ui, item.id);
+    });
+    quickRoot.addChild(button);
+  });
+  raiseFeaturePanels(ui);
+
+  const active = [
+    { id: "doubleHarvestCard", count: gm.doubleHarvestCharges, text: "\u53cc\u500d\u6536\u83b7\u5269\u4f59" },
+    { id: "goldBoostCard", count: gm.goldBoostCharges, text: "\u91d1\u5e01\u52a0\u500d\u5269\u4f59" },
+  ].filter(item => item.count > 0);
+  if (active.length === 0) {
+    ui.node.getChildByName("BoostStatusRow")?.destroy();
+    return;
+  }
+
+  let statusRoot = ui.node.getChildByName("BoostStatusRow");
+  if (!statusRoot) {
+    statusRoot = new Node("BoostStatusRow");
+    ui.node.addChild(statusRoot);
+  }
+  const levelBadge = ui.topBar?.getChildByName("LevelBadge");
+  const levelX = levelBadge?.position.x ?? -113;
+  const levelY = ui.topBar?.position.y ?? view.getVisibleSize().height / 2 - 76;
+  const levelWidth = levelBadge?.getComponent(UITransform)?.contentSize.width ?? 88;
+  const firstCloudX = levelX - levelWidth / 2 + 76;
+  statusRoot.setPosition(0, levelY - 99);
+
+  const activeNames = new Set(active.map(item => `BoostStatus_${item.id}`));
+  for (const child of [...statusRoot.children]) {
+    if (child.name.startsWith("BoostStatus_") && !activeNames.has(child.name)) {
+      child.name = `Removing_${child.name}`;
+      Tween.stopAllByTarget(child);
+      const opacity = child.getComponent(UIOpacity) || child.addComponent(UIOpacity);
+      tween(opacity).to(0.16, { opacity: 0 }, { easing: "quadIn" }).start();
+      tween(child)
+        .to(0.16, { scale: new Vec3(0.86, 0.86, 1) }, { easing: "quadIn" })
+        .call(() => child.destroy())
+        .start();
+    }
+  }
+
+  active.forEach((item, index) => {
+    const cloudName = `BoostStatus_${item.id}`;
+    let cloud = statusRoot!.getChildByName(cloudName);
+    const shouldUpdate = !changedBoostId || changedBoostId === item.id || !cloud;
+    const targetX = firstCloudX + index * 156;
+    if (!cloud) {
+      cloud = new Node(cloudName);
+      cloud.addComponent(UITransform).setContentSize(152, 52);
+      cloud.setPosition(targetX, 0);
+      cloud.setScale(new Vec3(0.86, 0.86, 1));
+      const opacity = cloud.addComponent(UIOpacity);
+      opacity.opacity = 0;
+      ui.applyUiIcon("boostStatusCloud", cloud);
+      const icon = ui.createItemIcon(item.id, 30, true);
+      icon.setPosition(-48, 0);
+      cloud.addChild(icon);
+      const label = ui.makeLabel("", 10, new Color(88, 51, 28), true, 23, 0, 108, 24);
+      label.name = "BoostStatusText";
+      cloud.addChild(label);
+      statusRoot!.addChild(cloud);
+      tween(opacity).to(0.2, { opacity: 255 }, { easing: "quadOut" }).start();
+      tween(cloud)
+        .to(0.22, { scale: Vec3.ONE }, { easing: "backOut" })
+        .start();
+    } else if (Math.abs(cloud.position.x - targetX) > 0.5) {
+      Tween.stopAllByTarget(cloud);
+      tween(cloud)
+        .to(0.24, { position: new Vec3(targetX, 0, 0) }, { easing: "quadInOut" })
+        .start();
+    }
+    if (shouldUpdate) {
+      const label = cloud.getChildByName("BoostStatusText")?.getComponent(Label);
+      if (label) label.string = `${item.text} ${item.count}\u6b21`;
+    }
+  });
+  // During a right-shift overlap, keep the double-harvest cloud visible above
+  // the moving gold cloud. Their final positions remain double-left/gold-right.
+  const doubleCloud = statusRoot.getChildByName("BoostStatus_doubleHarvestCard");
+  if (doubleCloud) doubleCloud.setSiblingIndex(statusRoot.children.length - 1);
+  raiseFeaturePanels(ui);
 }

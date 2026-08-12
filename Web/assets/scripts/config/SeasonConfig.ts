@@ -1,4 +1,4 @@
-export type Season = "spring" | "summer" | "autumn" | "winter";
+﻿export type Season = "spring" | "summer" | "autumn" | "winter";
 
 export const SEASONS: Season[] = ["spring", "summer", "autumn", "winter"];
 export const SEASON_LENGTH_DAYS = 7;
@@ -41,10 +41,11 @@ export function isSeasonAllowed(seasons?: Season[], now = Date.now()): boolean {
   return !seasons?.length || seasons.indexOf(getSeasonInfo(now).season) >= 0;
 }
 
-/** 测试期临时关闭普通农田的当季种植限制；季节标签与跨季统计仍然保留。 */
-export const ENFORCE_FARM_SEASON_RESTRICTION = false;
+/** 普通农田仅显示并允许种植符合当前现实种植季节的作物。 */
+export const ENFORCE_FARM_SEASON_RESTRICTION = true;
 
 export function seasonText(seasons?: Season[]): string {
   if (!seasons?.length) return "全年";
   return seasons.map((season) => SEASON_LABELS[season]).join("/");
 }
+

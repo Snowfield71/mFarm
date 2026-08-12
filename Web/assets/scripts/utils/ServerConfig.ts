@@ -5,9 +5,27 @@
  * 静态图片通过 /assets/ 路径提供
  */
 
+type RuntimeServerConfig = typeof globalThis & {
+  __MOEFARM_SERVER_URL__?: string;
+};
+
+function resolveServerBaseUrl(): string {
+  const override = (globalThis as RuntimeServerConfig).__MOEFARM_SERVER_URL__;
+  if (override?.trim()) return override.trim().replace(/\/+$/, "");
+
+  // Use the host that served the web build. This remains correct after DHCP
+  // address changes and when another device opens the game over the LAN.
+  if (typeof location !== "undefined" && location.hostname) {
+    const protocol = location.protocol === "https:" ? "https:" : "http:";
+    return `${protocol}//${location.hostname}:3000`;
+  }
+
+  return "http://127.0.0.1:3000";
+}
+
 export const ServerConfig = {
   /** 后端基础地址 */
-  baseUrl: "http://192.168.2.3:3000",
+  baseUrl: resolveServerBaseUrl(),
 
   /** 图片的基础路径 */
   get imageBaseUrl(): string {

@@ -1,0 +1,67 @@
+body {
+  cursor: default;
+  padding: 0;
+  border: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #1d261d;
+  font-family: Helvetica, Verdana, Arial, sans-serif;
+}
+
+body, canvas, div, img {
+  outline: none;
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -khtml-user-select: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+
+#GameDiv {
+  position: relative;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #9edcf1 url("startup-loading.png") center / cover no-repeat;
+}
+
+#StartupLoadingArtwork {
+  position: absolute;
+  inset: 0;
+  /* Keep the direct image above WebGL's black clear frame. It is faded only
+     after the matching Cocos SpriteFrame has been painted. */
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 160ms linear;
+}
+
+#StartupLoadingArtwork.startup-loading-hidden {
+  opacity: 0;
+}
+
+#Cocos3dGameContainer, #GameCanvas {
+  width: 100%;
+  height: 100%;
+}
+
+#Cocos3dGameContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+}
+
+#GameCanvas {
+  background: transparent;
+}
+
+:root {
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+}

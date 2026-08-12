@@ -1,0 +1,36 @@
+{
+  "flowerhouse_slot_plus": {
+    "generation": "brand-new imagegen redraw",
+    "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\redrawn_slot_plus\\flowerhouse_slot_plus_alpha.png",
+    "sourceAlphaBBox": [
+      103,
+      109,
+      1226,
+      1072
+    ],
+    "outputAlphaBBox": [
+      18,
+      33,
+      238,
+      222
+    ],
+    "sha256": "f683819d94514846a89afcc7410f7a915ac8c02c04ae2c348ab026cbfa8d45b6"
+  },
+  "greenhouse_slot_plus": {
+    "generation": "brand-new imagegen redraw",
+    "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\redrawn_slot_plus\\greenhouse_slot_plus_circle_alpha.png",
+    "sourceAlphaBBox": [
+      111,
+      103,
+      1143,
+      1151
+    ],
+    "outputAlphaBBox": [
+      18,
+      18,
+      238,
+      238
+    ],
+    "sha256": "467eea754c7e714d35afd811d48f39f66084e9d9b64bbcea0a3b5b7f6ee00cf0"
+  }
+}

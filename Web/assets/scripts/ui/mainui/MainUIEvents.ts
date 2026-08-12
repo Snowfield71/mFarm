@@ -1,43 +1,17 @@
 import {
-  Button,
   Color,
-  EditBox,
   Graphics,
   Label,
-  Mask,
   Node,
-  ScrollView,
+  tween,
   UITransform,
   Vec3,
-  tween,
-  view,
 } from "cc";
-import { Design, GameValues } from "../../config/GameConfig";
 import { GameManager } from "../../core/GameManager";
 import { EventManager } from "../../core/EventManager";
-import { InventorySystem } from "../../systems/InventorySystem";
-import { LandBlock, LandSystem } from "../../systems/LandSystem";
 import { CraftSystem } from "../../systems/CraftSystem";
 import { CurrencySystem } from "../../systems/CurrencySystem";
-import {
-  getItem,
-  getPlantableCrops,
-  ITEM_DB,
-  ItemCategory,
-  ItemDef,
-} from "../../config/ItemConfig";
-import {
-  getRecipe,
-  getRecipesByLevel,
-  RecipeDef,
-} from "../../config/RecipeConfig";
-import {
-  drawCatalogStyleProgress,
-  fillRect,
-  fillRoundRect,
-  strokeRoundRect,
-} from "../utils/UIDraw";
-import type { PanelName } from "./MainUITypes";
+import { drawCatalogStyleProgress } from "../utils/UIDraw";
 import { getPlayerTitle } from "../../config/TitleConfig";
 import { getSeasonInfo, SEASON_LABELS } from "../../config/SeasonConfig";
 import { animateItemToInventory } from "./MainUIRewardAnimation";
@@ -59,6 +33,8 @@ export function bindEvents(ui: any) {
       ui.renderQuestPanel();
     }
     updateTaskNavBadge(ui);
+    ui.boostUiKey = "";
+    ui.refreshBoostEntries();
   });
   evt.on("craftStarted", () => {
     if (ui.panels.craft?.active) ui.refreshCraftPanelDynamicSections();
@@ -97,12 +73,26 @@ export function bindEvents(ui: any) {
     updateDailySignInEntryState(ui);
   });
   evt.on("cropMatured", (data: any) => {
+    if (Number.isInteger(data.greenhouseSlotId)) {
+      ui.refreshPastureSlot(Math.floor(data.greenhouseSlotId / 6));
+      return;
+    }
     ui.refreshLandBlock(data.blockId, true);
   });
   evt.on("buildingReady", (data: any) => {
     ui.refreshPastureSlot(data.slotId);
+    if (ui.activeLivestockBuildingSlotId === data.slotId) {
+      ui.refreshLivestockDialog();
+    }
   });
-  evt.on("pastureChanged", () => ui.refreshPasture());
+  evt.on("pastureChanged", () => {
+    if (ui.suppressNextPastureChangedRefresh) {
+      ui.suppressNextPastureChangedRefresh = false;
+      return;
+    }
+    ui.refreshPasture();
+    ui.refreshLivestockDialog();
+  });
   evt.on("landExpanded", () => {
     if (ui.suppressNextLandExpandedRefresh) {
       ui.suppressNextLandExpandedRefresh = false;

@@ -1,3 +1,19 @@
 {
-  "__version__": "1.3.9"
+  "__version__": "1.3.9",
+  "splash-setting": {
+    "background": {
+      "type": "custom",
+      "image": "project://settings/bg_loading_farm.png",
+      "color": {
+        "x": 0,
+        "y": 0.8313725490196079,
+        "z": 1,
+        "w": 1
+      }
+    },
+    "logo": {
+      "type": "none"
+    },
+    "totalTime": 500
+  }
 }

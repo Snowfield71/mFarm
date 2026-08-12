@@ -1,5 +1,7 @@
-/// 应用配置
+use anyhow::{bail, Context};
+use std::path::PathBuf;
 
+/// 应用配置
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub database_url: String,
@@ -26,5 +28,47 @@ impl AppConfig {
             wx_app_secret: std::env::var("WX_APP_SECRET").unwrap_or_default(),
             static_dir: std::env::var("STATIC_DIR").unwrap_or_else(|_| "./assets".to_string()),
         }
+    }
+}
+
+/// Resolve relative static paths from the Server crate instead of the caller's
+/// current working directory. This keeps `cargo run` and
+/// `cargo run --manifest-path Server/Cargo.toml` serving the same asset tree.
+pub fn resolve_static_dir(static_dir: &str) -> anyhow::Result<PathBuf> {
+    let configured = PathBuf::from(static_dir);
+    let candidate = if configured.is_absolute() {
+        configured
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(configured)
+    };
+    let resolved = candidate.canonicalize().with_context(|| {
+        format!(
+            "static asset directory does not exist: {}",
+            candidate.display()
+        )
+    })?;
+    if !resolved.is_dir() {
+        bail!(
+            "static asset path is not a directory: {}",
+            resolved.display()
+        );
+    }
+    Ok(resolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_static_dir;
+
+    #[test]
+    fn default_assets_directory_exists() {
+        let path = resolve_static_dir("./assets").expect("default static directory");
+        assert!(path.ends_with("assets"));
+        assert!(path.join("textures").is_dir());
+    }
+
+    #[test]
+    fn missing_static_directory_is_rejected() {
+        assert!(resolve_static_dir("./assets-that-do-not-exist").is_err());
     }
 }

@@ -6,7 +6,6 @@ pub mod handlers;
 pub mod middleware;
 
 use std::sync::Arc;
-use std::path::PathBuf;
 use axum::{Router, routing::{get, post}};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -40,14 +39,10 @@ async fn main() -> anyhow::Result<()> {
     let server_port = config.server_port;
 
     // 解析静态资源目录为绝对路径
-    let assets_path = PathBuf::from(&config.static_dir);
-    let abs_assets = if assets_path.is_absolute() {
-        assets_path
-    } else {
-        std::env::current_dir()
-            .map(|p| p.join(&assets_path))
-            .unwrap_or(assets_path)
-    };
+    // Resolve once at startup and fail fast instead of silently returning 404
+    // for every image when launched from a different working directory.
+    let abs_assets = config::resolve_static_dir(&config.static_dir)?;
+    tracing::info!("serving static assets from {}", abs_assets.display());
 
     let state = Arc::new(AppState { db, config });
 

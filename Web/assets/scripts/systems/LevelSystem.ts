@@ -2,9 +2,7 @@ import { _decorator, Component } from 'cc';
 import { GameValues } from '../config/GameConfig';
 import { getItemsByCategory, ItemCategory } from '../config/ItemConfig';
 import { getAllRecipes, RecipeDef } from '../config/RecipeConfig';
-import { Logger } from '../utils/Logger';
 const { ccclass } = _decorator;
-const TAG = 'LevelSystem';
 
 /**
  * 等级系统 - 管理等级相关的解锁逻辑

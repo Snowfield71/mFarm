@@ -113,6 +113,9 @@ farm cocos/
 - 构建农场场景、顶部状态栏和底部导航。
 - 主场景维护农田/牧场两套内容根节点；背景切换由云层遮挡动画保护资源替换过程。
 - `LandSystem` 分离 `landBlocks` 与 `buildingSlots`，并在旧存档加载时将占用农田的建筑迁移到牧场建筑位。
+- 鸡舍与牛棚在所属 `buildingSlots` 内保存 `livestockSlots` 子槽数组，每槽记录解锁状态、独立生产起点、成熟通知和收获次数；旧存档没有该字段时自动迁移为首槽开放、其余锁定。鸡舍通过生产起点实时推导 `producedCount`，每 `30` 秒增加一枚并封顶 `5` 枚，不额外保存可由时间计算出的冗余鸡蛋数组；收获时按 `producedCount` 发放并重置起点。
+- 花房沿用 `garden` 建筑 ID 以兼容旧存档，并在所属 `buildingSlots` 内保存固定四项 `flowerHouseSlots`。每项只持久化 `id`、`flowerId` 和 `plantedTime`，进度与成熟状态由当前时间和生产倍率实时推导；旧存档缺少该数组时自动迁移为四个空花位。
+- 交互层通过 `activeLivestockBuildingSlotId` 定位建筑，再以子槽 ID 调用 `getLivestockSlotProduction`、`collectLivestockSlotProduct`、`feedLivestockSlot` 和 `unlockLivestockSlot`。一键收取遍历所有已成熟子槽，喂食通过向前移动该槽生产起点实现可保存的时间缩减。
 - 底部导航面板映射：`inventory`、`craft`、`task`、`quest`。
 - 好物集市使用 `shop` 面板，由种植入口或任务动作打开。
 

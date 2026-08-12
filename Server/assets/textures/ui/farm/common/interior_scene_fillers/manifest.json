@@ -1,0 +1,489 @@
+{
+  "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\fillers_transparent.png",
+  "canvas": [
+    256,
+    256
+  ],
+  "rowBands": [
+    [
+      23,
+      261
+    ],
+    [
+      279,
+      523
+    ],
+    [
+      540,
+      764
+    ],
+    [
+      772,
+      946
+    ],
+    [
+      964,
+      1107
+    ]
+  ],
+  "columnBands": [
+    [
+      77,
+      306
+    ],
+    [
+      380,
+      622
+    ],
+    [
+      726,
+      984
+    ],
+    [
+      1030,
+      1321
+    ]
+  ],
+  "assets": {
+    "chicken_eggs": {
+      "file": "chicken_eggs.png",
+      "sourceCell": [
+        77,
+        23,
+        307,
+        262
+      ],
+      "sourceObjectBBox": [
+        0,
+        49,
+        230,
+        235
+      ],
+      "outputAlphaBBox": [
+        18,
+        39,
+        238,
+        217
+      ],
+      "sha256": "217d62f13d78122e1a854c166e111f91f5c061fb5b589654a4938cdb90480af6"
+    },
+    "chicken_chick": {
+      "file": "chicken_chick.png",
+      "sourceCell": [
+        380,
+        23,
+        623,
+        262
+      ],
+      "sourceObjectBBox": [
+        22,
+        0,
+        233,
+        233
+      ],
+      "outputAlphaBBox": [
+        28,
+        18,
+        227,
+        238
+      ],
+      "sha256": "289605d2537ef371265dc6cea7c580190c8f3b1ed7aa2fa4a1f8ce5a1c12c0ee"
+    },
+    "chicken_expand": {
+      "file": "chicken_expand.png",
+      "sourceCell": [
+        726,
+        23,
+        985,
+        262
+      ],
+      "sourceObjectBBox": [
+        11,
+        37,
+        259,
+        239
+      ],
+      "outputAlphaBBox": [
+        18,
+        38,
+        238,
+        217
+      ],
+      "sha256": "6a842a115a2ef561a4299975e302fdb1d09ace18909eb6aa5e3cded45ca7ea2a"
+    },
+    "chicken_feed": {
+      "file": "chicken_feed.png",
+      "sourceCell": [
+        1030,
+        23,
+        1322,
+        262
+      ],
+      "sourceObjectBBox": [
+        67,
+        15,
+        277,
+        234
+      ],
+      "outputAlphaBBox": [
+        23,
+        18,
+        233,
+        237
+      ],
+      "sha256": "59f9c5d1f1713ac41df56539ca300aec477d281cfb9926eef6100e4c26fc36e8"
+    },
+    "barn_milk": {
+      "file": "barn_milk.png",
+      "sourceCell": [
+        77,
+        279,
+        307,
+        524
+      ],
+      "sourceObjectBBox": [
+        26,
+        14,
+        204,
+        245
+      ],
+      "outputAlphaBBox": [
+        43,
+        18,
+        213,
+        238
+      ],
+      "sha256": "2a69d1aaff4b8a9d1ec5adb8c98d5e468165031ef8eb693b894034e349eb7079"
+    },
+    "barn_hay": {
+      "file": "barn_hay.png",
+      "sourceCell": [
+        380,
+        279,
+        623,
+        524
+      ],
+      "sourceObjectBBox": [
+        9,
+        16,
+        243,
+        238
+      ],
+      "outputAlphaBBox": [
+        18,
+        23,
+        238,
+        232
+      ],
+      "sha256": "e869eae81283c1000c7eecf3137bf95e81cec74a069d0a587497847a9f8b3ed0"
+    },
+    "barn_wheat": {
+      "file": "barn_wheat.png",
+      "sourceCell": [
+        726,
+        279,
+        985,
+        524
+      ],
+      "sourceObjectBBox": [
+        11,
+        4,
+        233,
+        236
+      ],
+      "outputAlphaBBox": [
+        22,
+        18,
+        233,
+        238
+      ],
+      "sha256": "17a13098c19c6118a05abd0172c3eb8ad91aa3487e8df9826fd680ebe7979b6e"
+    },
+    "barn_cow_status": {
+      "file": "barn_cow_status.png",
+      "sourceCell": [
+        1030,
+        279,
+        1322,
+        524
+      ],
+      "sourceObjectBBox": [
+        26,
+        0,
+        292,
+        244
+      ],
+      "outputAlphaBBox": [
+        18,
+        27,
+        238,
+        229
+      ],
+      "sha256": "3b234e609487d257ac95fc1ff3b7d20f6c7e78f1e026bd950eb137b7548c8f36"
+    },
+    "beehive_honey": {
+      "file": "beehive_honey.png",
+      "sourceCell": [
+        77,
+        540,
+        307,
+        765
+      ],
+      "sourceObjectBBox": [
+        18,
+        0,
+        205,
+        225
+      ],
+      "outputAlphaBBox": [
+        36,
+        18,
+        219,
+        238
+      ],
+      "sha256": "698d2f5a49a762c69554296cb38a416152698ce374e3dde18cc3d4074108e542"
+    },
+    "beehive_comb": {
+      "file": "beehive_comb.png",
+      "sourceCell": [
+        380,
+        540,
+        623,
+        765
+      ],
+      "sourceObjectBBox": [
+        0,
+        26,
+        241,
+        206
+      ],
+      "outputAlphaBBox": [
+        18,
+        46,
+        238,
+        210
+      ],
+      "sha256": "d5bc449da0c5ea46d59502855af3d699eb9cff998630ea684572f9dfbf1d91e2"
+    },
+    "beehive_bee_status": {
+      "file": "beehive_bee_status.png",
+      "sourceCell": [
+        726,
+        540,
+        985,
+        765
+      ],
+      "sourceObjectBBox": [
+        0,
+        6,
+        232,
+        211
+      ],
+      "outputAlphaBBox": [
+        18,
+        31,
+        238,
+        225
+      ],
+      "sha256": "283e211c82010f5391a9219b083d0309d362e5519ccb86993e4bcc8254328216"
+    },
+    "beehive_flowers": {
+      "file": "beehive_flowers.png",
+      "sourceCell": [
+        1030,
+        540,
+        1322,
+        765
+      ],
+      "sourceObjectBBox": [
+        25,
+        3,
+        269,
+        209
+      ],
+      "outputAlphaBBox": [
+        18,
+        35,
+        238,
+        221
+      ],
+      "sha256": "50e76d4adfb9d3633dc0e9c23674bb4e517d241193d8bc3f8cac51bd8174966d"
+    },
+    "flowerhouse_pot": {
+      "file": "flowerhouse_pot.png",
+      "sourceCell": [
+        77,
+        772,
+        307,
+        947
+      ],
+      "sourceObjectBBox": [
+        21,
+        5,
+        207,
+        175
+      ],
+      "outputAlphaBBox": [
+        35,
+        43,
+        221,
+        213
+      ],
+      "sha256": "71c934b694486c0a0498234a0723f3b28d2d3f3e2e5d3c15ddb5f8d81f67c248"
+    },
+    "flowerhouse_base": {
+      "file": "flowerhouse_base.png",
+      "sourceCell": [
+        380,
+        772,
+        623,
+        947
+      ],
+      "sourceObjectBBox": [
+        0,
+        13,
+        233,
+        168
+      ],
+      "outputAlphaBBox": [
+        18,
+        55,
+        238,
+        201
+      ],
+      "sha256": "18f4758e7c52072ea9067fbc646084746c54851195deaa72ee60f3f5ba9420db"
+    },
+    "greenhouse_pot": {
+      "file": "greenhouse_pot.png",
+      "sourceCell": [
+        726,
+        772,
+        985,
+        947
+      ],
+      "sourceObjectBBox": [
+        4,
+        0,
+        217,
+        175
+      ],
+      "outputAlphaBBox": [
+        21,
+        40,
+        234,
+        215
+      ],
+      "sha256": "74e2bde4d35a3ac242e746064ef1a6fedc926cca7b42cb016b24a186fc18d5c2"
+    },
+    "greenhouse_base": {
+      "file": "greenhouse_base.png",
+      "sourceCell": [
+        1030,
+        772,
+        1322,
+        947
+      ],
+      "sourceObjectBBox": [
+        0,
+        12,
+        271,
+        174
+      ],
+      "outputAlphaBBox": [
+        18,
+        62,
+        238,
+        194
+      ],
+      "sha256": "20ce1cf8a9134275b9eaaf6654d935a499ca72181903bbd2a8d17f23e39238c3"
+    },
+    "flowerhouse_arrow_left": {
+      "file": "flowerhouse_arrow_left.png",
+      "sourceCell": [
+        77,
+        964,
+        307,
+        1108
+      ],
+      "sourceObjectBBox": [
+        40,
+        0,
+        194,
+        139
+      ],
+      "outputAlphaBBox": [
+        51,
+        58,
+        205,
+        197
+      ],
+      "sha256": "5fd84266b5e5fd840a666f19ab1bf710d0f551d835565731c34505374b95e9ce"
+    },
+    "flowerhouse_arrow_right": {
+      "file": "flowerhouse_arrow_right.png",
+      "sourceCell": [
+        380,
+        964,
+        623,
+        1108
+      ],
+      "sourceObjectBBox": [
+        17,
+        0,
+        173,
+        140
+      ],
+      "outputAlphaBBox": [
+        50,
+        58,
+        206,
+        198
+      ],
+      "sha256": "d012711bf3a200b865685f9f45ed72772f0e20fb481b549df9e6dbb3115fca68"
+    },
+    "greenhouse_arrow_left": {
+      "file": "greenhouse_arrow_left.png",
+      "sourceCell": [
+        726,
+        964,
+        985,
+        1108
+      ],
+      "sourceObjectBBox": [
+        36,
+        0,
+        194,
+        144
+      ],
+      "outputAlphaBBox": [
+        49,
+        56,
+        207,
+        200
+      ],
+      "sha256": "615bb65de6d679965cd0a94003857484ed40bda087ccce23360850c84cc20267"
+    },
+    "greenhouse_arrow_right": {
+      "file": "greenhouse_arrow_right.png",
+      "sourceCell": [
+        1030,
+        964,
+        1322,
+        1108
+      ],
+      "sourceObjectBBox": [
+        39,
+        0,
+        196,
+        144
+      ],
+      "outputAlphaBBox": [
+        49,
+        56,
+        206,
+        200
+      ],
+      "sha256": "df80f418993cb22eeeb10cb35a83a0c71f27fc418b5caed1f5a1a9c076cb837b"
+    }
+  }
+}

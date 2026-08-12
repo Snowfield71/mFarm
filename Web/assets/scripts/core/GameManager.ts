@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, view, ResolutionPolicy } from 'cc';
+import { _decorator, Component, Node, ResolutionPolicy, resources, SpriteFrame, view } from 'cc';
 import { DataManager, SaveData } from './DataManager';
 import { EventManager } from './EventManager';
 import { GameValues, Design } from '../config/GameConfig';
@@ -14,12 +14,23 @@ import { CraftSystem } from '../systems/CraftSystem';
 import { CurrencySystem } from '../systems/CurrencySystem';
 import { LevelSystem } from '../systems/LevelSystem';
 import { MainUI } from '../ui/MainUI';
+import { createGameLoadingScreen } from '../ui/GameLoadingScreen';
 import { TASK_DEFINITIONS, TaskCategory, TaskEvent, getTaskDefinition } from '../config/TaskConfig';
 import { DAILY_SIGN_IN_REWARDS, DailySignInReward } from '../config/DailySignInConfig';
 import { ACHIEVEMENTS } from '../config/AchievementConfig';
 
 const { ccclass } = _decorator;
 const TAG = 'GameManager';
+
+// Keep every theme-dependent loading-screen value together. Seasonal variants
+// can provide another object with their own artwork and subject-bottom metric.
+const ACTIVE_LOADING_THEME = {
+    artworkPath: 'loading/bg_loading_farm/spriteFrame',
+    panelPath: 'loading/loading_panel/spriteFrame',
+    progressFillPath: 'loading/loading_progress_fill_v3/spriteFrame',
+    titlePath: 'loading/game_title/spriteFrame',
+    subjectBottomFromTop: 727 / 1280,
+} as const;
 
 function localDateKey(date: Date): string {
     const year = date.getFullYear();
@@ -99,13 +110,114 @@ export class GameManager extends Component {
     }
 
     start() {
+        const loadingScreen = createGameLoadingScreen(this.node, {
+            subjectBottomFromTop: ACTIVE_LOADING_THEME.subjectBottomFromTop,
+        });
+        const loadingStartedAt = Date.now();
+        const minimumLoadingScreenMs = 750;
         // 延迟一帧初始化，确保所有子管理器 start 已调用
         this.scheduleOnce(async () => {
             this.loadGameData();
             this.bindProgressEvents();
-            const loaded = await ImageCache.getInstance().preloadAllRequired();
-            Logger.info(TAG, `🖼️ 初始化资源完成：物品 ${loaded.items}，UI ${loaded.ui}`);
+            const imageCache = ImageCache.getInstance();
+            const loadingUiAssetTotal = 4;
+            const preloadAssetTotal = imageCache.getPreloadAssetTotal();
+            let loadingUiCompleted = 0;
+            let preloadCompleted = 0;
+            let reportedPreloadTotal = preloadAssetTotal;
+            const refreshLoadingProgress = () => {
+                loadingScreen.setProgress(
+                    loadingUiCompleted + preloadCompleted,
+                    loadingUiAssetTotal + reportedPreloadTotal,
+                );
+            };
+            refreshLoadingProgress();
+
+            const loadSpriteFrame = (path: string, timeoutMs = 3000) =>
+                new Promise<SpriteFrame | null>((resolve) => {
+                    let settled = false;
+                    const finish = (spriteFrame: SpriteFrame | null) => {
+                        if (settled) return;
+                        settled = true;
+                        clearTimeout(timeoutId);
+                        resolve(spriteFrame);
+                    };
+                    const timeoutId = setTimeout(() => {
+                        Logger.warn(TAG, `加载界面素材超时，跳过但继续预加载：${path}`);
+                        finish(null);
+                    }, timeoutMs);
+                    resources.load(
+                        path,
+                        SpriteFrame,
+                        (error, spriteFrame) => {
+                            if (error) {
+                                Logger.warn(TAG, `加载界面素材失败，跳过但继续预加载：${path}`);
+                            }
+                            finish(error ? null : spriteFrame);
+                        },
+                    );
+                });
+
+            const loadAndApplyLoadingAsset = async (
+                path: string,
+                apply: (spriteFrame: SpriteFrame | null) => void,
+            ) => {
+                try {
+                    apply(await loadSpriteFrame(path));
+                } catch (error) {
+                    Logger.warn(TAG, `应用加载界面素材失败，继续场景预加载：${path}`, error);
+                } finally {
+                    loadingUiCompleted += 1;
+                    refreshLoadingProgress();
+                }
+            };
+
+            // 装饰图与实际场景图片并行请求；任意装饰图失败或超时都不能阻断主流程。
+            const loadingUiPromise = Promise.all([
+                loadAndApplyLoadingAsset(
+                    ACTIVE_LOADING_THEME.artworkPath,
+                    loadingScreen.setArtwork,
+                ),
+                loadAndApplyLoadingAsset(
+                    ACTIVE_LOADING_THEME.panelPath,
+                    loadingScreen.setPanelArtwork,
+                ),
+                loadAndApplyLoadingAsset(
+                    ACTIVE_LOADING_THEME.progressFillPath,
+                    loadingScreen.setProgressArtwork,
+                ),
+                loadAndApplyLoadingAsset(
+                    ACTIVE_LOADING_THEME.titlePath,
+                    loadingScreen.setTitleArtwork,
+                ),
+            ]);
+            const preloadPromise = imageCache.preloadAllAssets((completed, total) => {
+                preloadCompleted = completed;
+                reportedPreloadTotal = total;
+                refreshLoadingProgress();
+            });
+            const [, loaded] = await Promise.all([loadingUiPromise, preloadPromise]);
+            Logger.info(
+                TAG,
+                `🖼️ 全部图片请求完成：物品 ${loaded.items}，UI ${loaded.ui}，失败 ${loaded.failed}`,
+            );
+            const remainingDisplayMs =
+                minimumLoadingScreenMs - (Date.now() - loadingStartedAt);
+            if (remainingDisplayMs > 0) {
+                await new Promise<void>((resolve) => {
+                    this.scheduleOnce(resolve, remainingDisplayMs / 1000);
+                });
+            }
             this.createMainUI();
+            // MainUI is appended after the loading node. Keep the loading
+            // screen above it for the initialization frame; finish() then
+            // creates an even higher cloud curtain and reveals MainUI only
+            // after the curtains fully overlap.
+            if (loadingScreen.node.isValid) {
+                loadingScreen.node.setSiblingIndex(this.node.children.length - 1);
+            }
+            await new Promise<void>((resolve) => this.scheduleOnce(resolve, 0));
+            await loadingScreen.finish();
             this.hasLoaded = true;
             if (this.pendingGreenhouseUnlockMigration) {
                 this.pendingGreenhouseUnlockMigration = false;
@@ -213,6 +325,10 @@ export class GameManager extends Component {
                 saveData.maxCraftTables || 1,
             );
             Logger.info(TAG, '📂 存档加载完成', `等级:${this.playerLevel}`);
+        } else {
+            // Missing local save always means a fresh game. Reset explicitly
+            // before MainUI renders so pasture returns to its four starter pads.
+            LandSystem.getInstance().reset(GameValues.INITIAL_LAND);
         }
         this.ensureDailyQuests();
         this.syncDiscoveredItems();
@@ -628,9 +744,9 @@ export class GameManager extends Component {
             const seed = seeds[Math.floor(Math.random() * seeds.length)];
             inventory.runBatch(() => {
                 inventory.removeItem(itemId, 1);
-                inventory.addItem(seed.id, 3);
+                inventory.addItem(seed.id, 1);
             });
-            return `获得 ${seed.name} x3`;
+            return `获得 ${seed.name} x1`;
         }
         return null;
     }
@@ -693,16 +809,19 @@ export class GameManager extends Component {
     }
 
     consumeHarvestMultiplier(): number {
-        if (this.doubleHarvestCharges <= 0) return 1;
-        this.doubleHarvestCharges--;
+        const titleBonus = getPlayerTitle(this.equippedTitleId)?.yieldBonus || 0;
+        const cardMultiplier = this.doubleHarvestCharges > 0 ? 2 : 1;
+        if (cardMultiplier > 1) this.doubleHarvestCharges--;
         this.requestSave();
-        return 2;
+        return cardMultiplier * (1 + titleBonus);
     }
 
     applySaleGold(baseGold: number): number {
-        const multiplier = this.goldBoostCharges > 0 ? 2 : 1;
-        if (multiplier > 1) this.goldBoostCharges--;
-        const awarded = Math.max(0, baseGold) * multiplier;
+        const titleBonus = getPlayerTitle(this.equippedTitleId)?.goldBonus || 0;
+        const hasCard = this.goldBoostCharges > 0;
+        const multiplier = (hasCard ? 2 : 1) * (1 + titleBonus);
+        if (hasCard) this.goldBoostCharges--;
+        const awarded = Math.round(Math.max(0, baseGold) * multiplier);
         this.addGold(awarded);
         this.requestSave();
         return awarded;

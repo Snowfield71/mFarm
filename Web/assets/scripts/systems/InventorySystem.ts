@@ -154,6 +154,30 @@ export class InventorySystem extends Component {
         return this.slots.map(slot => ({ ...slot }));
     }
 
+    moveSlot(fromIndex: number, toIndex: number): boolean {
+        if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= this.slots.length || toIndex >= this.slots.length) return false;
+        const [slot] = this.slots.splice(fromIndex, 1);
+        this.slots.splice(toIndex, 0, slot);
+        this.emitChanged();
+        return true;
+    }
+
+    swapSlots(firstIndex: number, secondIndex: number): boolean {
+        if (
+            firstIndex === secondIndex
+            || firstIndex < 0
+            || secondIndex < 0
+            || firstIndex >= this.slots.length
+            || secondIndex >= this.slots.length
+        ) return false;
+        [this.slots[firstIndex], this.slots[secondIndex]] = [
+            this.slots[secondIndex],
+            this.slots[firstIndex],
+        ];
+        this.emitChanged();
+        return true;
+    }
+
     sellItem(itemId: string, count: number, goldCallback: (price: number) => void): boolean {
         const def = getItem(itemId);
         if (!def || def.sellPrice <= 0 || !this.removeItem(itemId, count)) return false;

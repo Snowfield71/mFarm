@@ -1,14 +1,9 @@
-import { Button, Color, EditBox, Graphics, Label, LabelOutline, Mask, Node, UITransform, Vec3, tween, view } from 'cc';
-import { Design, GameValues } from '../../config/GameConfig';
+import { Button, Color, EditBox, Label, LabelOutline, Node, UITransform, Vec3, tween, view } from 'cc';
+import { Design } from '../../config/GameConfig';
 import { GameManager } from '../../core/GameManager';
-import { EventManager } from '../../core/EventManager';
 import { InventorySystem } from '../../systems/InventorySystem';
-import { LandBlock, LandSystem } from '../../systems/LandSystem';
-import { CraftSystem } from '../../systems/CraftSystem';
-import { getItem, getPlantableCrops, ITEM_DB, ItemCategory, ItemDef } from '../../config/ItemConfig';
-import { getRecipe, getRecipesByLevel, RecipeDef } from '../../config/RecipeConfig';
+import { getItem } from '../../config/ItemConfig';
 import { fillRect, fillRoundRect, strokeRoundRect } from '../utils/UIDraw';
-import type { PanelName } from './MainUITypes';
 
 export function openSellDialog(ui: any, slotIndex: number) {
     const inv = InventorySystem.getInstance();
@@ -197,12 +192,22 @@ function showSellResultToast(ui: any, text: string) {
     showStyledToast(ui, text, 'SellResultToast', 1.05);
 }
 
-function formatToastText(text: string): { text: string; fontSize: number; lineHeight: number } {
+function formatToastText(text: string): {
+    text: string;
+    fontSize: number;
+    lineHeight: number;
+    multiline: boolean;
+} {
     const normalized = text.replace(/\s+/g, ' ').trim();
-    const singleLineLimit = 15;
-    const totalLimit = 30;
+    const singleLineLimit = 20;
+    const totalLimit = 38;
     if (normalized.length <= singleLineLimit) {
-        return { text: normalized, fontSize: 12, lineHeight: 17 };
+        return {
+            text: normalized,
+            fontSize: 13,
+            lineHeight: 20,
+            multiline: false,
+        };
     }
 
     const clipped = normalized.length > totalLimit
@@ -222,26 +227,49 @@ function formatToastText(text: string): { text: string; fontSize: number; lineHe
     const secondLine = clipped.slice(splitAt).trim();
     return {
         text: `${firstLine}\n${secondLine}`,
-        fontSize: clipped.length > 24 ? 10 : 11,
-        lineHeight: 16,
+        fontSize: clipped.length > 30 ? 10 : 11,
+        lineHeight: 17,
+        multiline: true,
     };
 }
 
 function showStyledToast(ui: any, text: string, name = 'Toast', holdDuration = 0.9) {
     const vs = view.getVisibleSize();
     const targetY = vs.height * 0.39 - 30;
+    const toastWidth = 286;
+    const toastHeight = 80.4375;
     const node = new Node(name);
-    node.addComponent(UITransform).setContentSize(250, 70.3125);
+    node.addComponent(UITransform).setContentSize(toastWidth, toastHeight);
     node.setPosition(0, targetY - 16);
     const background = new Node(`${name}Background`);
-    background.addComponent(UITransform).setContentSize(250, 70.3125);
+    background.addComponent(UITransform).setContentSize(toastWidth, toastHeight);
     ui.applyUiIcon('inventorySellResultBg', background);
     node.addChild(background);
     const formatted = formatToastText(text);
-    const message = ui.makeLabel(formatted.text, formatted.fontSize, new Color(88, 45, 24), true, 0, 0, 204, 42);
+    // bg_sell_result reserves its left side for the coin/leaf artwork. Keep
+    // every toast label inside the remaining visual safe area instead of
+    // centring it across the full texture, which makes long messages overlap
+    // the icon. The asymmetric insets also keep short messages visually
+    // centred in the usable text panel.
+    const toastIconSafeInset = 58;
+    const toastRightInset = 16;
+    const messageWidth = toastWidth - toastIconSafeInset - toastRightInset;
+    const messageCenterX = (toastIconSafeInset - toastRightInset) / 2;
+    const message = ui.makeLabel(
+        formatted.text,
+        formatted.fontSize,
+        new Color(88, 45, 24),
+        true,
+        messageCenterX,
+        0,
+        messageWidth,
+        formatted.multiline ? 44 : 28,
+    );
     const messageLabel = message.getComponent(Label)!;
-    messageLabel.overflow = Label.Overflow.CLAMP;
-    messageLabel.enableWrapText = true;
+    messageLabel.overflow = formatted.multiline
+        ? Label.Overflow.CLAMP
+        : Label.Overflow.SHRINK;
+    messageLabel.enableWrapText = formatted.multiline;
     messageLabel.lineHeight = formatted.lineHeight;
     messageLabel.horizontalAlign = Label.HorizontalAlign.CENTER;
     messageLabel.verticalAlign = Label.VerticalAlign.CENTER;
@@ -284,7 +312,7 @@ export function applyEditBoxTextColor(ui: any, editBox: EditBox, color: Color, p
 
 }
 
-export function showDialog(ui: any, title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string }>, showMask = true, preserveExisting = false) {
+export function showDialog(ui: any, title: string, message: string | (() => string), buttons: Array<{ text: string; cb: () => void; image?: string; icon?: string; imageWidth?: number; imageHeight?: number; imageOffsetX?: number; inlineText?: string; inlineIconEmbedded?: boolean; compactGap?: number; background?: { fill: Color; stroke: Color; radius?: number } }>, showMask = true, preserveExisting = false, compactButtons = false) {
     if (!preserveExisting) ui.dialogRoot.removeAllChildren();
     ui.dialogRoot.active = true;
 
@@ -333,18 +361,65 @@ export function showDialog(ui: any, title: string, message: string | (() => stri
         ui.schedule(refreshMessage, 0.16);
     }
 
-    const startX = -((buttons.length - 1) * 98) / 2;
+    const customCompactGap = buttons.find((button) => button.compactGap !== undefined)?.compactGap;
+    const buttonGap = compactButtons ? (buttons.length === 2 ? (customCompactGap ?? 12) : 84) : 98;
+    const buttonWidths = buttons.map(button =>
+        button.imageWidth ?? (button.icon ? 110 : button.image ? 80 : 88),
+    );
+    const combinedButtonWidth = buttonWidths.reduce((sum, width) => sum + width, 0) +
+        Math.max(0, buttons.length - 1) * buttonGap;
+    let compactCursor = -combinedButtonWidth / 2;
     buttons.forEach((button, index) => {
-        const x = startX + index * 98;
-        if (button.image) {
+        const width = buttonWidths[index];
+        const x = compactButtons
+            ? compactCursor + width / 2
+            : -((buttons.length - 1) * buttonGap) / 2 + index * buttonGap;
+        compactCursor += width + buttonGap;
+        if (button.image || button.background) {
             const art = new Node(`ButtonArt_${index}`);
-            art.addComponent(UITransform).setContentSize(80, 80);
-            art.setPosition(x, -65);
-            ui.applyUiIcon(button.image, art);
+            const artWidth = button.imageWidth ?? 80;
+            const artHeight = button.imageHeight ?? 80;
+            art.addComponent(UITransform).setContentSize(artWidth, artHeight);
+            art.setPosition(x + (button.imageOffsetX ?? 0), -65);
+            if (button.image) ui.applyUiIcon(button.image, art);
+            if (button.background) {
+                fillRoundRect(art, artWidth, artHeight, button.background.radius ?? 11, button.background.fill);
+                strokeRoundRect(art, artWidth, artHeight, button.background.radius ?? 11, button.background.stroke, 1.25);
+            }
             dialog.addChild(art);
+            if ((button.background || button.image) && button.icon) {
+                const icon = new Node(`ButtonIcon_${index}`);
+                const iconSize = button.inlineText ? 27 : 24;
+                icon.addComponent(UITransform).setContentSize(iconSize, iconSize);
+                // Treat the diamond and label as one centered group. The icon's
+                // left edge and the label's right edge balance around x = 0.
+                const iconX = button.inlineText ? -48 : -38;
+                icon.setPosition(iconX, 0);
+                ui.applyUiIcon(button.icon, icon);
+                art.addChild(icon);
+            }
+            if (button.inlineText) {
+                const hasInlineIcon = !!button.icon || !!button.inlineIconEmbedded;
+                const labelX = hasInlineIcon ? 6 : button.background || button.icon ? 9 : 14;
+                const labelWidth = hasInlineIcon ? 84 : button.background || button.icon ? 74 : 70;
+                const inlineLabel = ui.makeLabel(
+                    button.inlineText,
+                    hasInlineIcon ? 14 : 11,
+                    new Color(255, 252, 242),
+                    true,
+                    labelX,
+                    0,
+                    labelWidth,
+                    hasInlineIcon ? 30 : 24,
+                );
+                const inlineOutline = inlineLabel.addComponent(LabelOutline);
+                inlineOutline.color = new Color(71, 39, 24, 255);
+                inlineOutline.width = 2;
+                art.addChild(inlineLabel);
+            }
             const hit = new Node(`Button_${index}`);
-            hit.addComponent(UITransform).setContentSize(70, 34);
-            hit.setPosition(x, -65);
+            hit.addComponent(UITransform).setContentSize(artWidth, Math.max(34, artHeight));
+            hit.setPosition(x + (button.imageOffsetX ?? 0), -65);
             hit.addComponent(Button).node.on(Node.EventType.TOUCH_END, (event: any) => {
                 event?.stopPropagation?.();
                 tween(art)
@@ -360,10 +435,20 @@ export function showDialog(ui: any, title: string, message: string | (() => stri
             return;
         }
         const node = new Node(`Button_${index}`);
-        node.addComponent(UITransform).setContentSize(88, 34);
+        const buttonWidth = button.icon ? 110 : 88;
+        node.addComponent(UITransform).setContentSize(buttonWidth, 34);
         node.setPosition(x, -58);
-        fillRoundRect(node, 88, 34, 10, index === buttons.length - 1 ? new Color(76, 188, 83) : new Color(185, 190, 178));
-        node.addChild(ui.makeLabel(button.text, 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
+        fillRoundRect(node, buttonWidth, 34, 10, index === buttons.length - 1 ? new Color(76, 188, 83) : new Color(185, 190, 178));
+        if (button.icon) {
+            const icon = new Node(`ButtonIcon_${index}`);
+            icon.addComponent(UITransform).setContentSize(24, 24);
+            icon.setPosition(-39, 0);
+            ui.applyUiIcon(button.icon, icon);
+            node.addChild(icon);
+            node.addChild(ui.makeLabel(button.text, 11, new Color(255, 255, 255), true, 15, 0, 78, 24));
+        } else {
+            node.addChild(ui.makeLabel(button.text, 13, new Color(255, 255, 255), true, 0, 0, 82, 24));
+        }
         node.addComponent(Button).node.on(Node.EventType.TOUCH_END, () => {
             dismiss();
             button.cb();
