@@ -17,7 +17,7 @@ import {
 } from "cc";
 import { Design, GameValues } from "../../config/GameConfig";
 import { GameManager } from "../../core/GameManager";
-import { InventorySystem } from "../../systems/InventorySystem";
+import { InventorySystem, type InventorySlotSwap } from "../../systems/InventorySystem";
 import { LandSystem } from "../../systems/LandSystem";
 import { CraftSystem } from "../../systems/CraftSystem";
 import {
@@ -211,10 +211,30 @@ export function renderInventoryPanel(ui: any) {
   drawInventoryGridContent(ui, body, inv);
 }
 
-export function refreshInventoryGrid(ui: any) {
+const inventoryCellsByViewport = new WeakMap<Node, Map<number, Node>>();
+
+function swapInventoryItemLayers(viewport: Node, swap: InventorySlotSwap) {
+  const cells = inventoryCellsByViewport.get(viewport);
+  if (!cells) return false;
+  const firstCell = cells.get(swap.firstIndex);
+  const secondCell = cells.get(swap.secondIndex);
+  // Neither slot appears in this category. If only one appears, the filter
+  // may change which rows are visible and the normal refresh must handle it.
+  if (!firstCell && !secondCell) return true;
+  const firstItem = firstCell?.getChildByName("InventorySlotItem");
+  const secondItem = secondCell?.getChildByName("InventorySlotItem");
+  if (!firstCell || !secondCell || !firstItem || !secondItem) return false;
+
+  firstItem.setParent(secondCell);
+  secondItem.setParent(firstCell);
+  return true;
+}
+
+export function refreshInventoryGrid(ui: any, swap?: InventorySlotSwap) {
   const body = ui.panels.inventory?.getChildByName("Body");
   if (!body) return;
   const viewport = body.getChildByName("InventoryViewport");
+  if (viewport && swap && swapInventoryItemLayers(viewport, swap)) return;
   if (viewport) {
     viewport.removeFromParent();
     viewport.destroy();
@@ -395,11 +415,13 @@ function drawInventoryGrid(
   (scrollView as any).elastic = false;
   scrollView.content = content;
 
+  const cellsBySlot = new Map<number, Node>();
+  inventoryCellsByViewport.set(viewport, cellsBySlot);
   entries.forEach(({ slot, slotIndex }, index) => {
     const col = index % cols;
     const row = Math.floor(index / cols);
     const cell = new Node(`InventorySlot_${slotIndex}`);
-    (cell as any).__entryIndex = index;
+    if (slotIndex >= 0) cellsBySlot.set(slotIndex, cell);
     cell.addComponent(UITransform).setContentSize(cellW, cellH);
     cell.setScale(1, 1, 1);
     cell.setPosition(
@@ -462,8 +484,12 @@ function drawInventoryGrid(
       const dragPointerOffset = new Vec3();
       const dragPointerPosition = new Vec3();
       let dragDistance = 0;
+      let draggedItem: Node | null = null;
+      let originalSiblingIndex = 0;
       cell.on(Node.EventType.TOUCH_START, (event: any) => {
         event?.stopPropagation?.();
+        draggedItem = cell.getChildByName("InventorySlotItem");
+        if (!draggedItem) return;
         dragDistance = 0;
         (cell as any).__dragged = false;
         const pointer = event?.getUILocation?.();
@@ -479,10 +505,12 @@ function drawInventoryGrid(
           );
         }
         scrollView.stopAutoScroll();
+        originalSiblingIndex = cell.getSiblingIndex();
         cell.setSiblingIndex(content.children.length - 1);
         scrollView.enabled = false;
       });
       cell.on(Node.EventType.TOUCH_MOVE, (event: any) => {
+        if (!draggedItem) return;
         const pointer = event?.getUILocation?.();
         if (!pointer) return;
         const localPointer = content
@@ -490,27 +518,30 @@ function drawInventoryGrid(
           .convertToNodeSpaceAR(new Vec3(pointer.x, pointer.y));
         dragDistance = Math.abs(localPointer.x - dragPointerPosition.x)
           + Math.abs(localPointer.y - dragPointerPosition.y);
-        if (dragDistance < 7) return;
+        if (dragDistance < 7 && !(cell as any).__dragged) return;
         (cell as any).__dragged = true;
-        itemLayer.setPosition(
+        draggedItem.setPosition(
           localPointer.x + dragPointerOffset.x - originalPosition.x,
           localPointer.y + dragPointerOffset.y - originalPosition.y,
         );
-        itemLayer.setScale(1.08, 1.08, 1);
+        draggedItem.setScale(1.08, 1.08, 1);
       });
       const finishItemDrag = () => {
+        const item = draggedItem;
+        if (!item) return;
+        draggedItem = null;
+        cell.setSiblingIndex(originalSiblingIndex);
         scrollView.enabled = true;
-        if (!(cell as any).__dragged) {
-          itemLayer.setPosition(Vec3.ZERO);
-          itemLayer.setScale(1, 1, 1);
-          return;
-        }
-        let nearestEntryIndex = index;
+        const draggedCenterX = originalPosition.x + item.position.x;
+        const draggedCenterY = originalPosition.y + item.position.y;
+        item.setPosition(Vec3.ZERO);
+        item.setScale(1, 1, 1);
+        if (!(cell as any).__dragged) return;
+
+        let toIndex = slotIndex;
         let nearestDistance = Number.POSITIVE_INFINITY;
-        const draggedCenterX = originalPosition.x + itemLayer.position.x;
-        const draggedCenterY = originalPosition.y + itemLayer.position.y;
-        content.children.forEach((candidate: Node) => {
-          if (!candidate.name.startsWith("InventorySlot_") || candidate === cell) return;
+        cellsBySlot.forEach((candidate, candidateSlot) => {
+          if (candidate === cell || !candidate.getChildByName("InventorySlotItem")) return;
           const dx = candidate.position.x - draggedCenterX;
           const dy = candidate.position.y - draggedCenterY;
           const distance = dx * dx + dy * dy;
@@ -518,16 +549,10 @@ function drawInventoryGrid(
             && Math.abs(dy) <= cellH / 2;
           if (insideCandidate && distance < nearestDistance) {
             nearestDistance = distance;
-            nearestEntryIndex = (candidate as any).__entryIndex ?? index;
+            toIndex = candidateSlot;
           }
         });
-        const destination = entries[Math.max(0, nearestEntryIndex)];
-        const toIndex = destination?.slotIndex >= 0
-          ? destination.slotIndex
-          : Math.max(0, InventorySystem.getInstance().slots.length - 1);
-        itemLayer.setPosition(Vec3.ZERO);
-        itemLayer.setScale(1, 1, 1);
-        InventorySystem.getInstance().swapSlots(slotIndex, toIndex);
+        if (toIndex !== slotIndex) InventorySystem.getInstance().swapSlots(slotIndex, toIndex);
       };
       cell.on(Node.EventType.TOUCH_END, finishItemDrag);
       // Cocos sends TOUCH_CANCEL when the pointer leaves the fixed source slot.
@@ -539,7 +564,9 @@ function drawInventoryGrid(
           return;
         }
         ui.inventoryScrollOffset = scrollView.getScrollOffset().y;
-        const item = getItem(slot.itemId);
+        const currentSlot = InventorySystem.getInstance().slots[slotIndex];
+        if (!currentSlot?.itemId) return;
+        const item = getItem(currentSlot.itemId);
         if (item?.category === ItemCategory.TOOL)
           ui.useInventoryTool(slotIndex);
         else if (item?.category === ItemCategory.BUILDING)

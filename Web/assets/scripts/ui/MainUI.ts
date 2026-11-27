@@ -7,6 +7,7 @@ import type { PanelName } from './mainui/MainUITypes';
 import * as MainUIScene from './mainui/MainUIScene';
 import * as MainUILand from './mainui/MainUILand';
 import * as MainUIPanels from './mainui/MainUIPanels';
+import type { InventorySlotSwap } from '../systems/InventorySystem';
 import * as MainUIDialogs from './mainui/MainUIDialogs';
 import * as MainUIEvents from './mainui/MainUIEvents';
 import {
@@ -183,7 +184,7 @@ export class MainUI extends Component {
     private showPanel(name: PanelName) { return MainUIPanels.showPanel(this, name); }
     private clearPanelBody(panel: Node): Node { return MainUIPanels.clearPanelBody(this, panel); }
     private renderInventoryPanel() { return MainUIPanels.renderInventoryPanel(this); }
-    private refreshInventoryGrid() { return MainUIPanels.refreshInventoryGrid(this); }
+    private refreshInventoryGrid(swap?: InventorySlotSwap) { return MainUIPanels.refreshInventoryGrid(this, swap); }
     private renderShopPanel() { return MainUIPanels.renderShopPanel(this); }
     private renderShopPanelScrollable() { return MainUIPanels.renderShopPanelScrollable(this); }
     private renderCraftPanel() { return MainUIPanels.renderCraftPanel(this); }

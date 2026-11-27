@@ -12,6 +12,12 @@ export interface InventorySlot {
     count: number;
 }
 
+export interface InventorySlotSwap {
+    kind: 'swap';
+    firstIndex: number;
+    secondIndex: number;
+}
+
 @ccclass('InventorySystem')
 export class InventorySystem extends Component {
     private static instance: InventorySystem;
@@ -127,12 +133,14 @@ export class InventorySystem extends Component {
         }
     }
 
-    private emitChanged() {
+    private emitChanged(change?: InventorySlotSwap) {
         if (this.batchDepth > 0) {
             this.batchChanged = true;
             return;
         }
-        EventManager.getInstance().emit('inventoryChanged');
+        const events = EventManager.getInstance();
+        if (change) events.emit('inventoryChanged', change);
+        else events.emit('inventoryChanged');
     }
 
     private compactSlots() {
@@ -174,7 +182,7 @@ export class InventorySystem extends Component {
             this.slots[secondIndex],
             this.slots[firstIndex],
         ];
-        this.emitChanged();
+        this.emitChanged({ kind: 'swap', firstIndex, secondIndex });
         return true;
     }
 

@@ -11,6 +11,7 @@ import { GameManager } from "../../core/GameManager";
 import { EventManager } from "../../core/EventManager";
 import { CraftSystem } from "../../systems/CraftSystem";
 import { CurrencySystem } from "../../systems/CurrencySystem";
+import type { InventorySlotSwap } from "../../systems/InventorySystem";
 import { drawCatalogStyleProgress } from "../utils/UIDraw";
 import { getPlayerTitle } from "../../config/TitleConfig";
 import { getSeasonInfo, SEASON_LABELS } from "../../config/SeasonConfig";
@@ -23,8 +24,10 @@ export function bindEvents(ui: any) {
   evt.on("experienceChanged", () => ui.refreshTopBar());
   evt.on("levelUp", () => ui.refreshAll());
   evt.on("playerTitleChanged", () => ui.refreshTopBar());
-  evt.on("inventoryChanged", () => {
-    if (ui.panels.inventory?.active) ui.refreshInventoryGrid();
+  evt.on("inventoryChanged", (change?: InventorySlotSwap) => {
+    if (ui.panels.inventory?.active) ui.refreshInventoryGrid(change);
+    // Reordering does not affect catalog, tasks, or available boosts.
+    if (change?.kind === "swap") return;
     const catalogUnlocked = GameManager.getInstance().getCatalogProgress().unlocked;
     if (
       ui.panels.quest?.active &&
