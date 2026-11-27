@@ -7,6 +7,7 @@ import { ENFORCE_FARM_SEASON_RESTRICTION, isSeasonAllowed } from '../config/Seas
 
 const { ccclass } = _decorator;
 const TAG = 'LandSystem';
+const BARN_GROOM_SECONDS = 20;
 
 export type LandState = 'empty' | 'growing' | 'harvesting' | 'occupied';
 
@@ -17,6 +18,7 @@ export interface LivestockProductionSlot {
     readyNotified?: boolean;
     collectCount?: number;
     feedCount?: number;
+    cleanedThisCycle?: boolean;
 }
 
 export interface FlowerHouseProductionSlot {
@@ -215,6 +217,7 @@ export class LandSystem extends Component {
                     readyNotified: !!livestockSlot.readyNotified,
                     collectCount: Math.max(0, livestockSlot.collectCount || 0),
                     feedCount: Math.max(0, Math.min(3, livestockSlot.feedCount || 0)),
+                    cleanedThisCycle: source.buildingId === "barn" && livestockSlot.cleanedThisCycle === true,
                 })),
                 flowerHouseSlots: source.flowerHouseSlots?.slice(0, FLOWER_HOUSE_SLOT_COUNT).map((flowerSlot, index) => ({
                     id: index,
@@ -477,7 +480,7 @@ export class LandSystem extends Component {
             : undefined;
         slot.progress = 0;
         if (buildingId === 'fourSeasonGreenhouse') this.syncGreenhouseBlocks();
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId });
         return true;
     }
 
@@ -678,7 +681,7 @@ export class LandSystem extends Component {
         if (!target || target.unlocked) return false;
         if (flowerSlotId > 0 && !slots[flowerSlotId - 1]?.unlocked) return false;
         target.unlocked = true;
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
         return true;
     }
 
@@ -695,7 +698,7 @@ export class LandSystem extends Component {
         flowerSlot.flowerId = flowerId;
         flowerSlot.plantedTime = Date.now();
         slot.buildingReadyNotified = false;
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
         return true;
     }
 
@@ -706,7 +709,7 @@ export class LandSystem extends Component {
         if (!flowerSlot?.flowerId) return false;
         flowerSlot.flowerId = undefined;
         flowerSlot.plantedTime = undefined;
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
         return true;
     }
 
@@ -720,7 +723,7 @@ export class LandSystem extends Component {
         // planted timestamp back by exactly one completed production cycle.
         flowerSlot.plantedTime = Date.now() - production.duration * 1000;
         slot.buildingReadyNotified = false;
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
         return true;
     }
 
@@ -743,7 +746,7 @@ export class LandSystem extends Component {
             itemId: production.itemId,
             count: harvestCount,
         });
-        EventManager.getInstance().emit('pastureChanged');
+        EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
         return { itemId: production.itemId, count: harvestCount };
     }
 
@@ -894,6 +897,7 @@ export class LandSystem extends Component {
             duration,
             livestockSlotId,
             feedCount: livestockSlot.feedCount || 0,
+            cleanedThisCycle: livestockSlot.cleanedThisCycle === true,
             producedCount: elapsed >= duration ? production.count : 0,
             ready: elapsed >= duration,
             remaining: Math.max(0, Math.ceil(duration - elapsed)),
@@ -929,7 +933,28 @@ export class LandSystem extends Component {
         if (slot.buildingId === 'barn') {
             livestockSlot.feedCount = (livestockSlot.feedCount || 0) + 1;
         }
-        EventManager.getInstance().emit('pastureChanged');
+        if (slot.buildingId === 'barn') {
+            EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
+        } else {
+            EventManager.getInstance().emit('pastureChanged');
+        }
+        return appliedSeconds;
+    }
+
+    groomLivestockCow(buildingSlotId: number, livestockSlotId: number): number {
+        const slot = this.buildingSlots.get(buildingSlotId);
+        if (slot?.buildingId !== 'barn') return 0;
+        const cow = this.ensureLivestockSlots(slot).find(candidate => candidate.id === livestockSlotId);
+        if (!cow?.unlocked || cow.cleanedThisCycle) return 0;
+        const state = this.getLivestockSlotProduction(buildingSlotId, livestockSlotId);
+        if (!state || state.ready || state.remaining <= 0) return 0;
+        const appliedSeconds = Math.min(BARN_GROOM_SECONDS, state.remaining);
+        cow.lastCollectTime -= appliedSeconds * 1000;
+        cow.cleanedThisCycle = true;
+        cow.readyNotified = false;
+        EventManager.getInstance().emit('livestockGroomed', {
+            slotId: buildingSlotId, livestockSlotId, seconds: appliedSeconds,
+        });
         return appliedSeconds;
     }
 
@@ -943,6 +968,7 @@ export class LandSystem extends Component {
         livestockSlot.readyNotified = false;
         livestockSlot.collectCount = (livestockSlot.collectCount || 0) + 1;
         livestockSlot.feedCount = 0;
+        if (slot.buildingId === "barn") livestockSlot.cleanedThisCycle = false;
         slot.buildingLastCollectTime = livestockSlot.lastCollectTime;
         slot.buildingCollectCount = (slot.buildingCollectCount || 0) + 1;
         EventManager.getInstance().emit('buildingCollected', {
@@ -952,7 +978,11 @@ export class LandSystem extends Component {
             itemId: production.itemId,
             count: production.count,
         });
-        EventManager.getInstance().emit('pastureChanged');
+        if (slot.buildingId === 'barn') {
+            EventManager.getInstance().emit('pastureSlotChanged', { slotId: buildingSlotId });
+        } else {
+            EventManager.getInstance().emit('pastureChanged');
+        }
         return { itemId: production.itemId, count: production.count };
     }
 
@@ -1040,7 +1070,7 @@ export class LandSystem extends Component {
                     const production = this.getLivestockSlotProduction(slot.id, livestockSlot.id);
                     if (production?.ready && !livestockSlot.readyNotified) {
                         livestockSlot.readyNotified = true;
-                        pastureChanged = true;
+                        if (slot.buildingId !== 'barn') pastureChanged = true;
                         EventManager.getInstance().emit('buildingReady', {
                             slotId: slot.id,
                             livestockSlotId: livestockSlot.id,

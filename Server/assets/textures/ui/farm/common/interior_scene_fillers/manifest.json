@@ -1,5 +1,5 @@
 {
-  "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\fillers_transparent.png",
+  "source": "artifacts/20260809_scene_fillers/fillers_transparent.png",
   "canvas": [
     256,
     256
@@ -374,6 +374,18 @@
         215
       ],
       "sha256": "74e2bde4d35a3ac242e746064ef1a6fedc926cca7b42cb016b24a186fc18d5c2"
+    },
+    "greenhouse_pot_front": {
+      "file": "greenhouse_pot_front.png",
+      "derivedFrom": "greenhouse_pot.png",
+      "alphaCutoffY": 100,
+      "outputAlphaBBox": [
+        23,
+        100,
+        232,
+        215
+      ],
+      "sha256": "9a1745ff5a1991227778cf0a6430d9dea3ca1400753e11ee717edde479851cd1"
     },
     "greenhouse_base": {
       "file": "greenhouse_base.png",

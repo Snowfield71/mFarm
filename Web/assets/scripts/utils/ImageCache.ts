@@ -9,15 +9,16 @@
 
 import { SpriteFrame, Texture2D, ImageAsset, assetManager, Color, Rect, Size } from "cc";
 import { ServerConfig } from "./ServerConfig";
+import { resolveCropStageAtlasSource } from "../config/CropStageAtlasConfig";
 
 const TAG = "[ImageCache]";
 // Bump when item PNGs are replaced. This versions both remote URLs and local
 // SpriteFrame cache keys so hot reloads cannot reuse stale artwork.
-const ITEM_ASSET_REVISION = "20260809-17";
+const ITEM_ASSET_REVISION = "20261127-05";
 // UI backgrounds are served from the same static server and are also cached
 // by both the browser and this SpriteFrame cache. Version them independently
 // so replacing a dialog PNG is visible without clearing site data.
-const UI_ASSET_REVISION = "20260813-69";
+const UI_ASSET_REVISION = "20261127-05";
 
 /** 鐗╁搧 ID -> 闈欐€佽祫婧愬垎绫荤洰褰?*/
 const CATEGORY_MAP: Record<string, string> = {
@@ -354,7 +355,6 @@ const UI_ICON_MAP: Record<string, string> = {
   fieldSummer: "farm/home/field_states_seasons_sheet",
   fieldAutumn: "farm/home/field_states_seasons_sheet",
   fieldWinter: "farm/home/field_states_seasons_sheet",
-  greenField: "farm/home/icon_green_field",
   lockedFieldSpring: "farm/home/field_states_seasons_sheet",
   lockedFieldSummer: "farm/home/field_states_seasons_sheet",
   lockedFieldAutumn: "farm/home/field_states_seasons_sheet",
@@ -365,7 +365,6 @@ const UI_ICON_MAP: Record<string, string> = {
   lockedPastureWinter: "farm/pasture/pasture_pad_states_seasons_sheet",
   boostStatusCloud: "common/status/bg_boost_cloud",
   seedSelectorBg: "farm/common/dialogs/bg_seed_selector",
-  btnCropSpeedUp: "farm/common/dialogs/btn_crop_speedup",
   btnFlowerCancel: "farm/flowerhouse/btn_flower_cancel",
   btnFlowerDiamondSpeedUp: "farm/flowerhouse/btn_flower_diamond_speedup",
   sideEntryBg: "farm/common/interaction/bg_side_entry",
@@ -375,21 +374,29 @@ const UI_ICON_MAP: Record<string, string> = {
   interactionCardLockedBg: "farm/common/interaction/bg_interaction_card_locked",
   feedCardBg: "farm/common/interaction/bg_feed_card",
   feedCardSelectedBg: "farm/common/interaction/bg_feed_card_selected",
-  // Building interiors are independent 752 x 1359 PNGs.
-  greenhouseDialogBg: "farm/common/interior_scenes/bg_greenhouse",
+  // Five equal-size building interiors share one horizontal 3760 x 1359 sheet.
+  greenhouseDialogBg: "farm/common/interior_scenes/interior_scenes_sheet",
   greenhousePot: "farm/greenhouse/pot_greenhouse",
   greenhouseSlotUnlock: "farm/greenhouse/icon_greenhouse_slot_unlock",
-  chickenCoopDialogBg: "farm/common/interior_scenes/bg_chicken",
-  barnDialogBg: "farm/common/interior_scenes/bg_barn",
-  barnSceneCowMoomoo: "farm/common/interior_scene_fillers/barn_cow_status",
-  barnSceneCowDada: "farm/common/interior_scene_fillers/barn_cow_status",
-  barnCowMoomooAvatar: "farm/livestock/barn/avatar_barn_moomoo",
-  barnCowDadaAvatar: "farm/livestock/barn/avatar_barn_dada",
-  barnCowStatusPanel: "farm/livestock/barn/panel_barn_cow_status",
+  chickenCoopDialogBg: "farm/common/interior_scenes/interior_scenes_sheet",
+  barnDialogBg: "farm/common/interior_scenes/interior_scenes_sheet",
+  barnCowMoo: "farm/livestock/barn/actor_barn_moo",
+  barnCowDa: "farm/livestock/barn/actor_barn_da",
+  barnForegroundFence: "farm/livestock/barn/foreground_barn_fence",
+  barnCowSelectionPointer: "farm/livestock/barn/pointer_barn_cow",
+  barnSelectedCowPanel: "farm/livestock/barn/panel_barn_selected_cow",
+  barnFeedActionButton: "farm/livestock/barn/btn_barn_feed",
+  barnMilkActionButton: "farm/livestock/barn/btn_barn_milk",
+  barnMilkGrip: "farm/livestock/barn/icon_barn_milk_grip",
+  barnFeedLaterGray: "farm/livestock/barn/btn_barn_feed_later_gray",
+  barnFeedConfirmGreen: "farm/livestock/barn/btn_barn_feed_confirm_green",
+  barnCowMooPortrait: "farm/livestock/barn/portrait_barn_moo",
+  barnCowDaPortrait: "farm/livestock/barn/portrait_barn_da",
+  barnGroomBrush: "farm/livestock/barn/icon_barn_brush",
+  barnGroomActionButton: "farm/livestock/barn/btn_barn_groom",
   barnMilkCup: "farm/livestock/barn/icon_barn_milk_cup",
-  barnMilkCubby: "farm/livestock/barn/slot_barn_milk_cubby",
-  flowerHouseDialogBg: "farm/common/interior_scenes/bg_flowerhouse",
-  beehiveDialogBg: "farm/common/interior_scenes/bg_beehive",
+  flowerHouseDialogBg: "farm/common/interior_scenes/interior_scenes_sheet",
+  beehiveDialogBg: "farm/common/interior_scenes/interior_scenes_sheet",
   chickenSceneNest0: "farm/common/interior_scene_fillers/chicken_eggs",
   chickenSceneNest1: "farm/common/interior_scene_fillers/chicken_eggs",
   chickenSceneNest2: "farm/common/interior_scene_fillers/chicken_eggs",
@@ -410,10 +417,9 @@ const UI_ICON_MAP: Record<string, string> = {
   sceneBeehiveFlowers: "farm/common/interior_scene_fillers/beehive_flowers",
   sceneFlowerhousePot: "farm/common/interior_scene_fillers/flowerhouse_pot",
   sceneFlowerhouseSlotPlus: "farm/common/interior_scene_fillers/flowerhouse_slot_plus",
-  sceneFlowerhouseFillOverlay: "farm/common/interior_scene_fillers/flowerhouse_fill_overlay",
   sceneGreenhousePot: "farm/common/interior_scene_fillers/greenhouse_pot",
+  sceneGreenhousePotFront: "farm/common/interior_scene_fillers/greenhouse_pot_front",
   sceneGreenhouseSlotPlus: "farm/common/interior_scene_fillers/greenhouse_slot_plus",
-  sceneGreenhouseFillOverlay: "farm/common/interior_scene_fillers/greenhouse_fill_overlay",
   beehiveSlotCardBg: "farm/beehive/bg_beehive_slot_card",
   beehiveBottomPanelBg: "farm/beehive/bg_beehive_bottom_panel",
   beehiveFeedSunflower: "farm/beehive/feed_icons/icon_beehive_feed_sunflower",
@@ -438,19 +444,18 @@ const UI_ICON_MAP: Record<string, string> = {
   flowerSeedFlower: "farm/flowerhouse/seeds/seed_flower_flower",
   flowerSeedTulip: "farm/flowerhouse/seeds/seed_flower_tulip",
   flowerSeedRose: "farm/flowerhouse/seeds/seed_flower_rose",
-  flowerGrowthSunflowerStage1: "farm/flowerhouse/growth/flower_sunflower_stage_1",
-  flowerGrowthSunflowerStage2: "farm/flowerhouse/growth/flower_sunflower_stage_2",
-  flowerGrowthSunflowerStage3: "farm/flowerhouse/growth/flower_sunflower_stage_3",
-  flowerGrowthFlowerStage1: "farm/flowerhouse/growth/flower_flower_stage_1",
-  flowerGrowthFlowerStage2: "farm/flowerhouse/growth/flower_flower_stage_2",
-  flowerGrowthFlowerStage3: "farm/flowerhouse/growth/flower_flower_stage_3",
-  flowerGrowthTulipStage1: "farm/flowerhouse/growth/flower_tulip_stage_1",
-  flowerGrowthTulipStage2: "farm/flowerhouse/growth/flower_tulip_stage_2",
-  flowerGrowthTulipStage3: "farm/flowerhouse/growth/flower_tulip_stage_3",
-  flowerGrowthRoseStage1: "farm/flowerhouse/growth/flower_rose_stage_1",
-  flowerGrowthRoseStage2: "farm/flowerhouse/growth/flower_rose_stage_2",
-  flowerGrowthRoseStage3: "farm/flowerhouse/growth/flower_rose_stage_3",
-  livestockMilkFront: "farm/livestock/barn/product_milk_front",
+  flowerGrowthSunflowerStage1: "farm/flowerhouse/growth/flower_sunflower_stages_sheet",
+  flowerGrowthSunflowerStage2: "farm/flowerhouse/growth/flower_sunflower_stages_sheet",
+  flowerGrowthSunflowerStage3: "farm/flowerhouse/growth/flower_sunflower_stages_sheet",
+  flowerGrowthFlowerStage1: "farm/flowerhouse/growth/flower_flower_stages_sheet",
+  flowerGrowthFlowerStage2: "farm/flowerhouse/growth/flower_flower_stages_sheet",
+  flowerGrowthFlowerStage3: "farm/flowerhouse/growth/flower_flower_stages_sheet",
+  flowerGrowthTulipStage1: "farm/flowerhouse/growth/flower_tulip_stages_sheet",
+  flowerGrowthTulipStage2: "farm/flowerhouse/growth/flower_tulip_stages_sheet",
+  flowerGrowthTulipStage3: "farm/flowerhouse/growth/flower_tulip_stages_sheet",
+  flowerGrowthRoseStage1: "farm/flowerhouse/growth/flower_rose_stages_sheet",
+  flowerGrowthRoseStage2: "farm/flowerhouse/growth/flower_rose_stages_sheet",
+  flowerGrowthRoseStage3: "farm/flowerhouse/growth/flower_rose_stages_sheet",
   chickenNestSlot0: "farm/livestock/chicken/slot_chicken_nest_0",
   chickenNestSlot1: "farm/livestock/chicken/slot_chicken_nest_1",
   chickenNestSlot2: "farm/livestock/chicken/slot_chicken_nest_2",
@@ -464,7 +469,6 @@ const UI_ICON_MAP: Record<string, string> = {
   btnGreenhouseUnlockConfirm: "farm/greenhouse/btn_greenhouse_unlock_confirm",
   btnPastureExpandLater: "farm/pasture/btn_pasture_expand_sheet",
   btnPastureExpandConfirm: "farm/pasture/btn_pasture_expand_sheet",
-  avatarFarmgirl: "../avatar/avatar_farmgirl",
   avatarFarmgirlSpring: "../avatar/seasons/spring/avatar_farmgirl",
   avatarFarmgirlSummer: "../avatar/seasons/summer/avatar_farmgirl",
   avatarFarmgirlAutumn: "../avatar/seasons/autumn/avatar_farmgirl",
@@ -477,14 +481,10 @@ const UI_ICON_MAP: Record<string, string> = {
   bgPastureSummer: "farm/pasture/bg_pasture_summer",
   bgPastureAutumn: "farm/pasture/bg_pasture_autumn",
   bgPastureWinter: "farm/pasture/bg_pasture_winter",
-  buildingPad: "farm/home/icon_building_pad",
   buildingPadSpring: "farm/pasture/pasture_pad_states_seasons_sheet",
   buildingPadSummer: "farm/pasture/pasture_pad_states_seasons_sheet",
   buildingPadAutumn: "farm/pasture/pasture_pad_states_seasons_sheet",
   buildingPadWinter: "farm/pasture/pasture_pad_states_seasons_sheet",
-  // Legacy aliases point at the current arrow billboards so old callers never request removed files.
-  entryPasture: "farm/pasture/icon_entry_pasture_arrow",
-  entryFarm: "farm/pasture/icon_entry_farm_arrow",
   entryPastureArrow: "farm/pasture/icon_entry_pasture_arrow",
   entryFarmArrow: "farm/pasture/icon_entry_farm_arrow",
   pastureCollect: "farm/pasture/icon_collect_pasture",
@@ -509,10 +509,6 @@ const UI_ICON_MAP: Record<string, string> = {
   btnSellMinus: "inventory/buttons/btn_sell_minus",
   btnSellPlus: "inventory/buttons/btn_sell_plus",
   btnSellMax: "inventory/buttons/btn_sell_max",
-  shopTabsSeeds: "shop/tabs/shop_tabs_seeds",
-  shopTabsTools: "shop/tabs/shop_tabs_tools",
-  shopSeeds: "shop/icons/icon_shop_seeds",
-  shopTools: "shop/icons/icon_shop_tools",
   marketplaceTabsSeeds: "shop/tabs/shop_tabs_categories_sheet",
   marketplaceTabsTools: "shop/tabs/shop_tabs_categories_sheet",
   marketplaceTabsBuildings: "shop/tabs/shop_tabs_categories_sheet",
@@ -568,7 +564,6 @@ const UI_ICON_MAP: Record<string, string> = {
   titleTabsLevel: "title/categories/title_tabs_level",
   titleTabsAchievement: "title/categories/title_tabs_achievement",
   craftChefTools: "craft/icons/icon_chef_tools",
-  craftArrow: "craft/icons/icon_craft_arrow",
   btnCraft: "craft/buttons/btn_craft",
   task1: "task/icons/icon_task_1",
   task2: "task/icons/icon_task_2",
@@ -599,6 +594,17 @@ type SheetFrameDefinition = {
 
 // Both pasture actions share one 512 x 256 texture. Equal 256 x 256 cells
 // guarantee identical runtime scale, padding, and text baseline.
+const BUILDING_SHEET_FRAMES: Record<string, SheetFrameDefinition> = {
+  barn: { x: 0, y: 0, width: 256, height: 256 },
+  beehive: { x: 256, y: 0, width: 256, height: 256 },
+  chickenCoop: { x: 512, y: 0, width: 256, height: 256 },
+  fourSeasonGreenhouse: { x: 768, y: 0, width: 256, height: 256 },
+  garden: { x: 1024, y: 0, width: 256, height: 256 },
+  house: { x: 1280, y: 0, width: 256, height: 256 },
+  warehouse: { x: 1536, y: 0, width: 256, height: 256 },
+  well: { x: 1792, y: 0, width: 256, height: 256 },
+};
+
 const UI_SHEET_FRAMES: Record<string, SheetFrameDefinition> = {
   bagSpring: { x: 0, y: 0, width: 256, height: 256 },
   gearSpring: { x: 256, y: 0, width: 256, height: 256 },
@@ -640,6 +646,26 @@ const UI_SHEET_FRAMES: Record<string, SheetFrameDefinition> = {
   lockedPastureSummer: { x: 512, y: 512, width: 512, height: 512 },
   lockedPastureAutumn: { x: 1024, y: 512, width: 512, height: 512 },
   lockedPastureWinter: { x: 1536, y: 512, width: 512, height: 512 },
+  chickenCoopDialogBg: { x: 0, y: 0, width: 752, height: 1359 },
+  barnDialogBg: { x: 752, y: 0, width: 752, height: 1359 },
+  flowerHouseDialogBg: { x: 1504, y: 0, width: 752, height: 1359 },
+  greenhouseDialogBg: { x: 2256, y: 0, width: 752, height: 1359 },
+  beehiveDialogBg: { x: 3008, y: 0, width: 752, height: 1359 },
+  // Each flower-house texture stores stages 1/2/3 in three 512 px cells.
+  // The shared source cache downloads one sheet per flower, while the public
+  // icon keys continue returning an independent 512 x 512 SpriteFrame.
+  flowerGrowthSunflowerStage1: { x: 0, y: 0, width: 512, height: 512 },
+  flowerGrowthSunflowerStage2: { x: 512, y: 0, width: 512, height: 512 },
+  flowerGrowthSunflowerStage3: { x: 1024, y: 0, width: 512, height: 512 },
+  flowerGrowthFlowerStage1: { x: 0, y: 0, width: 512, height: 512 },
+  flowerGrowthFlowerStage2: { x: 512, y: 0, width: 512, height: 512 },
+  flowerGrowthFlowerStage3: { x: 1024, y: 0, width: 512, height: 512 },
+  flowerGrowthTulipStage1: { x: 0, y: 0, width: 512, height: 512 },
+  flowerGrowthTulipStage2: { x: 512, y: 0, width: 512, height: 512 },
+  flowerGrowthTulipStage3: { x: 1024, y: 0, width: 512, height: 512 },
+  flowerGrowthRoseStage1: { x: 0, y: 0, width: 512, height: 512 },
+  flowerGrowthRoseStage2: { x: 512, y: 0, width: 512, height: 512 },
+  flowerGrowthRoseStage3: { x: 1024, y: 0, width: 512, height: 512 },
 };
 
 function extractSheetFrame(
@@ -661,18 +687,27 @@ function extractSheetFrame(
 
 type CropStageSheetDefinition = SheetFrameDefinition & {
   cropId: string;
+  season?: "spring" | "summer" | "autumn" | "winter";
+  sourceCategory?: string;
+  sourceAssetId?: string;
 };
 
 function resolveCropStageSheet(
   imageId: string,
 ): CropStageSheetDefinition | null {
-  const match = /^(.+)_stage_([123])$/.exec(imageId);
+  const match = /^(.+)_stage_([123])(?:_(spring|summer|autumn|winter))?$/.exec(imageId);
   if (!match) return null;
   const stageIndex = Number(match[2]) - 1;
+  const cropId = match[1];
+  const season = match[3] as CropStageSheetDefinition["season"];
+  const atlas = resolveCropStageAtlasSource(cropId, season);
   return {
-    cropId: match[1],
+    cropId,
+    season,
+    sourceCategory: atlas?.category,
+    sourceAssetId: atlas?.assetId,
     x: stageIndex * 512,
-    y: 0,
+    y: (atlas?.row || 0) * 512,
     width: 512,
     height: 512,
   };
@@ -697,11 +732,18 @@ export class ImageCache {
   /** 鑾峰彇鐗╁搧鍥剧墖 URL */
   getItemUrl(itemId: string): string {
     const imageId = resolveItemImageId(itemId);
-    const cat = CATEGORY_MAP[itemId] || CATEGORY_MAP[imageId] || "Vegetables";
+    if (BUILDING_SHEET_FRAMES[imageId]) {
+      const url = ServerConfig.getItemImageUrl("Buildings", "buildings_sheet");
+      return `${url}${url.includes("?") ? "&" : "?"}v=${ITEM_ASSET_REVISION}`;
+    }
     const stageSheet = resolveCropStageSheet(imageId);
-    const assetId = stageSheet
-      ? `${stageSheet.cropId}_stages`
-      : imageId;
+    const stageCategoryId = stageSheet ? `${stageSheet.cropId}_stage_1` : imageId;
+    const cat =
+      stageSheet?.sourceCategory ||
+      CATEGORY_MAP[itemId] || CATEGORY_MAP[imageId] || CATEGORY_MAP[stageCategoryId] || "Vegetables";
+    const assetId = stageSheet?.sourceAssetId || (stageSheet
+      ? `${stageSheet.cropId}_stages${stageSheet.season ? `_${stageSheet.season}` : ""}`
+      : imageId);
     const url = ServerConfig.getItemImageUrl(cat, assetId);
     return `${url}${url.includes("?") ? "&" : "?"}v=${ITEM_ASSET_REVISION}`;
   }
@@ -801,13 +843,49 @@ export class ImageCache {
     if (pending) return pending;
 
     const imageId = resolveItemImageId(itemId);
+    const buildingFrame = BUILDING_SHEET_FRAMES[imageId];
     const stageSheet = resolveCropStageSheet(imageId);
     const url = this.getItemUrl(itemId);
+    if (buildingFrame) {
+      const sourceCacheKey = `_item_buildings_sheet@${ITEM_ASSET_REVISION}`;
+      let sourcePromise = this.pending.get(sourceCacheKey);
+      if (!sourcePromise) {
+        const cachedSource = this.cache.get(sourceCacheKey);
+        sourcePromise = cachedSource
+          ? Promise.resolve(cachedSource)
+          : this.enqueueDownload(url, timeout, priority).then((source) => {
+              if (source) this.cache.set(sourceCacheKey, source);
+              this.pending.delete(sourceCacheKey);
+              return source;
+            });
+        this.pending.set(sourceCacheKey, sourcePromise);
+      }
+      const framePromise = sourcePromise
+        .then((source) => {
+          const frame = source ? extractSheetFrame(source, buildingFrame) : null;
+          if (frame) this.cache.set(cacheKey, frame);
+          this.pending.delete(cacheKey);
+          return frame;
+        })
+        .catch((err) => {
+          console.warn(`${TAG} ${itemId} building sheet slice failed:`, err);
+          this.pending.delete(cacheKey);
+          return null;
+        });
+      this.pending.set(cacheKey, framePromise);
+      return framePromise;
+    }
     if (stageSheet) {
       const category =
-        CATEGORY_MAP[itemId] || CATEGORY_MAP[imageId] || "Vegetables";
+        stageSheet.sourceCategory ||
+        CATEGORY_MAP[itemId] ||
+        CATEGORY_MAP[imageId] ||
+        CATEGORY_MAP[`${stageSheet.cropId}_stage_1`] ||
+        "Vegetables";
+      const sourceAssetId = stageSheet.sourceAssetId ||
+        `${stageSheet.cropId}_stages${stageSheet.season ? `_${stageSheet.season}` : ""}`;
       const sourceCacheKey =
-        `_item_stage_sheet_${category}/${stageSheet.cropId}@${ITEM_ASSET_REVISION}`;
+        `_item_stage_sheet_${category}/${sourceAssetId}@${ITEM_ASSET_REVISION}`;
       let sourcePromise: Promise<SpriteFrame | null>;
       const sourceCached = this.cache.get(sourceCacheKey);
       if (sourceCached) {

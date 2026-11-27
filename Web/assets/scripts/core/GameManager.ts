@@ -445,6 +445,7 @@ export class GameManager extends Component {
         evt.on('itemSold', (data: any) => { this.advanceTaskProgress('itemSold', data); this.requestSave(); });
         evt.on('landExpanded', (data: any) => { this.advanceTaskProgress('landExpanded', data); this.evaluateAchievements(); this.requestSave(); });
         evt.on('pastureExpanded', () => this.requestSave());
+        evt.on('livestockGroomed', () => this.requestSave());
         evt.on('buildingCollected', () => {
             this.totalPastureCollectCount++;
             this.evaluateAchievements();

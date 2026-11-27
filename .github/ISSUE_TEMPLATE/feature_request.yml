@@ -1,0 +1,41 @@
+name: Feature Request
+description: 建议新的玩法、界面、服务或工程改进
+title: "[Feature] "
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: 建议区域
+      options:
+        - 游戏玩法
+        - 客户端 UI/UX
+        - 服务端与数据
+        - 美术与资源
+        - 工程与文档
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 描述当前限制、用户场景和价值
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案与影响
+      description: 包括数值、存档兼容、资源量和维护成本
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已搜索现有 Issue 和项目文档
+          required: true

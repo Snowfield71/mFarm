@@ -1,31 +1,48 @@
-# Rust
-Server/target/
-Server/**/*.o
-Server/**/*.bin
-Server/**/*.exe
+# Rust build output
+/Server/target/
+/Server/**/*.o
+/Server/**/*.bin
+/Server/**/*.exe
 
-# Cocos Creator
-Web/temp/
-Web/library/
-Web/build/
-Web/node_modules/
+# Cocos Creator generated data
+/Web/temp/
+/Web/library/
+/Web/build/
+/Web/node_modules/
 
-# IDE
+# Runtime data and secrets
+.env
+.env.*
+!.env.example
+/Server/.env
+moefarm.db
+*.db-journal
+
+# Logs and caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+__pycache__/
+*.pyc
+/tmp/
+
+# Local generated verification artifacts
+/artifacts/
+/changes.patch
+
+# Local design prototypes (large source images)
+/原型图/
+
+# Editors
 .idea/
 .vscode/
+.vs/
 *.swp
 *.swo
 
-# OS
+# Operating systems
 .DS_Store
 Thumbs.db
-
-# Env
-.env
-moefarm.db
-
-# Local generated and inspection files
-/tmp/
-
-# Prototypes
-原型图/
+Desktop.ini

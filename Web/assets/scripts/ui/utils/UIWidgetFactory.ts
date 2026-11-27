@@ -195,7 +195,7 @@ export function createLabel(
   return node;
 }
 
-/** 创建物品图标节点；启动阶段已经完成全量预载，此处只读取内存缓存。 */
+/** Creates an item icon; runtime-derived asset IDs load on the first cache miss. */
 export function createItemIcon(
   itemId: string,
   size: number,
@@ -207,12 +207,25 @@ export function createItemIcon(
   sprite.sizeMode = Sprite.SizeMode.CUSTOM;
   sprite.trim = trimTransparent;
   const applySpriteFrame = (sf: import("cc").SpriteFrame | null) => {
-    if (!sf || !node.isValid) return;
+    if (
+      !sf ||
+      !node.isValid ||
+      (node as any).__itemIconRequest !== itemId
+    )
+      return;
     enqueueItemTexture({ node, sprite, spriteFrame: sf });
   };
   const imageCache = ImageCache.getInstance();
+  (node as any).__itemIconRequest = itemId;
   const cached = imageCache.getCachedItem(itemId);
-  if (cached) applySpriteFrame(cached);
+  if (cached) {
+    applySpriteFrame(cached);
+  } else {
+    // Seasonal crop stage IDs are derived at runtime and are intentionally not
+    // part of the fixed startup preload table. Load them on first use; the
+    // ImageCache source-key deduplication still downloads each sheet once.
+    void imageCache.load(itemId, 8000, "interactive").then(applySpriteFrame);
+  }
   return node;
 }
 

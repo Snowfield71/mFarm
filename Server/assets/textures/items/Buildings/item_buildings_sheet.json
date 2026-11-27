@@ -1,0 +1,70 @@
+{
+  "image": "item_buildings_sheet.png",
+  "size": {
+    "width": 2048,
+    "height": 256
+  },
+  "frameSize": {
+    "width": 256,
+    "height": 256
+  },
+  "orientation": "orthographic front-left with right side visible; round structures use entry, side feature and base to convey heading",
+  "frames": {
+    "barn": {
+      "x": 0,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "beehive": {
+      "x": 256,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "chickenCoop": {
+      "x": 512,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "fourSeasonGreenhouse": {
+      "x": 768,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "garden": {
+      "x": 1024,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "house": {
+      "x": 1280,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "warehouse": {
+      "x": 1536,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    },
+    "well": {
+      "x": 1792,
+      "y": 0,
+      "width": 256,
+      "height": 256
+    }
+  },
+  "camera": {
+    "projection": "orthographic",
+    "yawRightFromFrontDeg": 26,
+    "downwardPitchDeg": 18,
+    "rollDeg": 0,
+    "frontRightDownDeg": 8.6,
+    "depthRightUpDeg": 32.3
+  }
+}

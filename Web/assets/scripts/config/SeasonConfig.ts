@@ -44,6 +44,9 @@ export function isSeasonAllowed(seasons?: Season[], now = Date.now()): boolean {
 /** 普通农田仅显示并允许种植符合当前现实种植季节的作物。 */
 export const ENFORCE_FARM_SEASON_RESTRICTION = true;
 
+/** 温室测试开关：false 时展示并允许种植背包中的全部已解锁种子。 */
+export const ENFORCE_GREENHOUSE_OFF_SEASON_ONLY = false;
+
 export function seasonText(seasons?: Season[]): string {
   if (!seasons?.length) return "全年";
   return seasons.map((season) => SEASON_LABELS[season]).join("/");

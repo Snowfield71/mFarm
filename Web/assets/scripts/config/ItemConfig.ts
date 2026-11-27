@@ -1,6 +1,6 @@
 /**
  * 物品配置 - 萌田农场
- * 基于 Moefarm_items_and_recipes.md 详细设计
+ * 基于 docs/items-and-recipes.md 详细设计
  */
 import type { Season } from "./SeasonConfig";
 

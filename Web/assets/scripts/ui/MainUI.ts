@@ -3,13 +3,13 @@ import { CraftSystem } from '../systems/CraftSystem';
 import { LandBlock, LandSystem } from '../systems/LandSystem';
 import { ItemCategory, ItemDef } from '../config/ItemConfig';
 import { RecipeDef } from '../config/RecipeConfig';
-import type { PanelName } from './mainui/MainUITypes';
-import * as MainUIScene from './mainui/MainUIScene';
-import * as MainUILand from './mainui/MainUILand';
-import * as MainUIPanels from './mainui/MainUIPanels';
+import type { PanelName } from './mainui/core/MainUITypes';
+import * as MainUIScene from './mainui/core/MainUIScene';
+import * as MainUILand from './mainui/farm/MainUILand';
+import * as MainUIPanels from './mainui/panels/MainUIPanels';
 import type { InventorySlotSwap } from '../systems/InventorySystem';
-import * as MainUIDialogs from './mainui/MainUIDialogs';
-import * as MainUIEvents from './mainui/MainUIEvents';
+import * as MainUIDialogs from './mainui/core/MainUIDialogs';
+import * as MainUIEvents from './mainui/core/MainUIEvents';
 import {
     applyUiIcon,
     createItemIcon,

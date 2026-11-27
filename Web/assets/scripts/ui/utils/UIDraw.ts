@@ -2,7 +2,25 @@
  * 绘图工具函数
  * 封装 Cocos Creator 的 Graphics 常用绘制操作
  */
-import { Color, Graphics, Node } from 'cc';
+import { Color, Graphics, Node, Vec3, tween } from 'cc';
+
+/** Shared press motion used by task-panel controls and close glyphs. */
+export function bindTaskStylePressFeedback(hitArea: Node, visual: Node = hitArea) {
+    hitArea.on(Node.EventType.TOUCH_START, () => {
+        tween(visual).stop();
+        tween(visual)
+            .to(0.06, { scale: new Vec3(0.9, 0.9, 1) }, { easing: 'quadOut' })
+            .start();
+    });
+    const restore = () => {
+        tween(visual).stop();
+        tween(visual)
+            .to(0.12, { scale: Vec3.ONE }, { easing: 'backOut' })
+            .start();
+    };
+    hitArea.on(Node.EventType.TOUCH_END, restore);
+    hitArea.on(Node.EventType.TOUCH_CANCEL, restore);
+}
 
 export function fillRect(node: Node, w: number, h: number, color: Color) {
     const g = node.getComponent(Graphics) || node.addComponent(Graphics);

@@ -1,0 +1,58 @@
+name: Bug Report
+description: 报告可复现的功能、界面、资源或服务端问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈。安全问题请使用仓库的私密漏洞报告渠道。
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响区域
+      options:
+        - Cocos 客户端
+        - Rust 服务端
+        - 游戏资源
+        - 文档或构建工具
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本或提交
+      placeholder: commit SHA、分支或发布版本
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: 按顺序列出最小复现步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境与日志
+      description: 操作系统、Cocos Creator/浏览器/Rust 版本及去敏后的日志或截图
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 已搜索现有 Issue，未发现相同报告
+          required: true
+        - label: 报告中未包含密码、Token、玩家隐私或其他敏感数据
+          required: true

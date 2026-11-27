@@ -37,7 +37,14 @@ Web/assets/scripts/
 ├─ config/       # 游戏数值、物品、配方和任务
 ├─ core/         # GameManager、DataManager、EventManager
 ├─ systems/      # 土地、背包、合成、货币和等级
-├─ ui/           # 主界面、面板与绘制工具
+├─ ui/
+│  ├─ mainui/
+│  │  ├─ core/    # 主界面场景、事件、弹窗与公共类型
+│  │  ├─ panels/  # 商店、图鉴、合成、任务等功能面板
+│  │  ├─ farm/    # 土地视图、土地操作与作物加速
+│  │  ├─ rooms/   # 种植、生产、养殖建筑室内逻辑
+│  │  └─ shared/  # 跨模块复用的 UI 动画
+│  └─ utils/      # UI 绘制与组件工厂
 └─ utils/        # 图片缓存等公共工具
 ```
 

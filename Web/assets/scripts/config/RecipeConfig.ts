@@ -1,6 +1,6 @@
 /**
  * 合成配方配置 - 萌田农场
- * 基于 Moefarm_items_and_recipes.md 第三部分
+ * 基于 docs/items-and-recipes.md 第三部分
  */
 
 export interface RecipeIngredient {

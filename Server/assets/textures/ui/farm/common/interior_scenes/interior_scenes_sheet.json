@@ -1,0 +1,56 @@
+{
+  "image": "interior_scenes_sheet.png",
+  "size": {
+    "width": 3760,
+    "height": 1359
+  },
+  "frameSize": {
+    "width": 752,
+    "height": 1359
+  },
+  "visibleBounds": {
+    "x": 6,
+    "y": 5,
+    "width": 740,
+    "height": 1348
+  },
+  "order": [
+    "chickenCoopDialogBg",
+    "barnDialogBg",
+    "flowerHouseDialogBg",
+    "greenhouseDialogBg",
+    "beehiveDialogBg"
+  ],
+  "frames": {
+    "chickenCoopDialogBg": {
+      "x": 0,
+      "y": 0,
+      "width": 752,
+      "height": 1359
+    },
+    "barnDialogBg": {
+      "x": 752,
+      "y": 0,
+      "width": 752,
+      "height": 1359
+    },
+    "flowerHouseDialogBg": {
+      "x": 1504,
+      "y": 0,
+      "width": 752,
+      "height": 1359
+    },
+    "greenhouseDialogBg": {
+      "x": 2256,
+      "y": 0,
+      "width": 752,
+      "height": 1359
+    },
+    "beehiveDialogBg": {
+      "x": 3008,
+      "y": 0,
+      "width": 752,
+      "height": 1359
+    }
+  }
+}

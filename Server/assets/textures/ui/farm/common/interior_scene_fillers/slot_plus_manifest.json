@@ -1,7 +1,7 @@
 {
   "flowerhouse_slot_plus": {
     "generation": "brand-new imagegen redraw",
-    "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\redrawn_slot_plus\\flowerhouse_slot_plus_alpha.png",
+    "source": "artifacts/20260809_scene_fillers/redrawn_slot_plus/flowerhouse_slot_plus_alpha.png",
     "sourceAlphaBBox": [
       103,
       109,
@@ -18,7 +18,7 @@
   },
   "greenhouse_slot_plus": {
     "generation": "brand-new imagegen redraw",
-    "source": "C:\\Users\\qiuhuangzz\\Desktop\\farm cocos\\artifacts\\20260809_scene_fillers\\redrawn_slot_plus\\greenhouse_slot_plus_circle_alpha.png",
+    "source": "artifacts/20260809_scene_fillers/redrawn_slot_plus/greenhouse_slot_plus_circle_alpha.png",
     "sourceAlphaBBox": [
       111,
       103,

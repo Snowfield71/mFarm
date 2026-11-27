@@ -1,0 +1,1333 @@
+{
+  "version": 1,
+  "crops": {
+    "apple": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Fruits/apple/item_apple_stages.png",
+      "outputs": {
+        "spring": "Fruits/apple/item_apple_stages_spring.png",
+        "summer": "Fruits/apple/item_apple_stages_summer.png",
+        "autumn": "Fruits/apple/item_apple_stages_autumn.png",
+        "winter": "Fruits/apple/item_apple_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          142,
+          290,
+          369,
+          480
+        ],
+        [
+          142,
+          180,
+          369,
+          480
+        ],
+        [
+          73,
+          60,
+          439,
+          480
+        ]
+      ]
+    },
+    "banana": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Fruits/banana/item_banana_stages.png",
+      "outputs": {
+        "spring": "Fruits/banana/item_banana_stages_spring.png",
+        "summer": "Fruits/banana/item_banana_stages_summer.png",
+        "autumn": "Fruits/banana/item_banana_stages_autumn.png",
+        "winter": "Fruits/banana/item_banana_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          178,
+          290,
+          333,
+          480
+        ],
+        [
+          105,
+          180,
+          407,
+          480
+        ],
+        [
+          65,
+          60,
+          447,
+          480
+        ]
+      ]
+    },
+    "cherry": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Fruits/cherry/item_cherry_stages.png",
+      "outputs": {
+        "spring": "Fruits/cherry/item_cherry_stages_spring.png",
+        "summer": "Fruits/cherry/item_cherry_stages_summer.png",
+        "autumn": "Fruits/cherry/item_cherry_stages_autumn.png",
+        "winter": "Fruits/cherry/item_cherry_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          123,
+          290,
+          389,
+          480
+        ],
+        [
+          134,
+          180,
+          379,
+          480
+        ],
+        [
+          44,
+          60,
+          467,
+          480
+        ]
+      ]
+    },
+    "strawberry": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Fruits/strawberry/item_strawberry_stages.png",
+      "outputs": {
+        "spring": "Fruits/strawberry/item_strawberry_stages_spring.png",
+        "summer": "Fruits/strawberry/item_strawberry_stages_summer.png",
+        "autumn": "Fruits/strawberry/item_strawberry_stages_autumn.png",
+        "winter": "Fruits/strawberry/item_strawberry_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          124,
+          290,
+          387,
+          480
+        ],
+        [
+          89,
+          180,
+          423,
+          480
+        ],
+        [
+          56,
+          199,
+          456,
+          480
+        ]
+      ]
+    },
+    "watermelon": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Fruits/watermelon/item_watermelon_stages.png",
+      "outputs": {
+        "spring": "Fruits/watermelon/item_watermelon_stages_spring.png",
+        "summer": "Fruits/watermelon/item_watermelon_stages_summer.png",
+        "autumn": "Fruits/watermelon/item_watermelon_stages_autumn.png",
+        "winter": "Fruits/watermelon/item_watermelon_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          46,
+          290,
+          466,
+          480
+        ],
+        [
+          66,
+          180,
+          446,
+          480
+        ],
+        [
+          21,
+          151,
+          491,
+          480
+        ]
+      ]
+    },
+    "artichoke": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/artichoke/item_artichoke_stages.png",
+      "outputs": {
+        "spring": "Vegetables/artichoke/item_artichoke_stages_spring.png",
+        "summer": "Vegetables/artichoke/item_artichoke_stages_summer.png",
+        "autumn": "Vegetables/artichoke/item_artichoke_stages_autumn.png",
+        "winter": "Vegetables/artichoke/item_artichoke_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          151,
+          290,
+          361,
+          480
+        ],
+        [
+          86,
+          180,
+          426,
+          480
+        ],
+        [
+          56,
+          60,
+          456,
+          480
+        ]
+      ]
+    },
+    "asparagus": {
+      "configuredSeasons": [
+        "spring"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/asparagus/item_asparagus_stages.png",
+      "outputs": {
+        "spring": "Vegetables/asparagus/item_asparagus_stages_spring.png",
+        "summer": "Vegetables/asparagus/item_asparagus_stages_summer.png",
+        "autumn": "Vegetables/asparagus/item_asparagus_stages_autumn.png",
+        "winter": "Vegetables/asparagus/item_asparagus_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          190,
+          290,
+          321,
+          480
+        ],
+        [
+          168,
+          180,
+          343,
+          480
+        ],
+        [
+          112,
+          60,
+          399,
+          480
+        ]
+      ]
+    },
+    "beetroot": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/beetroot/item_beetroot_stages.png",
+      "outputs": {
+        "spring": "Vegetables/beetroot/item_beetroot_stages_spring.png",
+        "summer": "Vegetables/beetroot/item_beetroot_stages_summer.png",
+        "autumn": "Vegetables/beetroot/item_beetroot_stages_autumn.png",
+        "winter": "Vegetables/beetroot/item_beetroot_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          140,
+          290,
+          373,
+          480
+        ],
+        [
+          101,
+          266,
+          411,
+          480
+        ],
+        [
+          86,
+          112,
+          426,
+          480
+        ]
+      ]
+    },
+    "broccoli": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/broccoli/item_broccoli_stages.png",
+      "outputs": {
+        "spring": "Vegetables/broccoli/item_broccoli_stages_spring.png",
+        "summer": "Vegetables/broccoli/item_broccoli_stages_summer.png",
+        "autumn": "Vegetables/broccoli/item_broccoli_stages_autumn.png",
+        "winter": "Vegetables/broccoli/item_broccoli_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          108,
+          290,
+          403,
+          480
+        ],
+        [
+          91,
+          252,
+          421,
+          480
+        ],
+        [
+          76,
+          151,
+          436,
+          480
+        ]
+      ]
+    },
+    "brusselsSprouts": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/brusselsSprouts/item_brusselsSprouts_stages.png",
+      "outputs": {
+        "spring": "Vegetables/brusselsSprouts/item_brusselsSprouts_stages_spring.png",
+        "summer": "Vegetables/brusselsSprouts/item_brusselsSprouts_stages_summer.png",
+        "autumn": "Vegetables/brusselsSprouts/item_brusselsSprouts_stages_autumn.png",
+        "winter": "Vegetables/brusselsSprouts/item_brusselsSprouts_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          166,
+          290,
+          346,
+          480
+        ],
+        [
+          130,
+          160,
+          381,
+          480
+        ],
+        [
+          86,
+          64,
+          426,
+          480
+        ]
+      ]
+    },
+    "carrot": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/carrot/item_carrot_stages.png",
+      "outputs": {
+        "spring": "Vegetables/carrot/item_carrot_stages_spring.png",
+        "summer": "Vegetables/carrot/item_carrot_stages_summer.png",
+        "autumn": "Vegetables/carrot/item_carrot_stages_autumn.png",
+        "winter": "Vegetables/carrot/item_carrot_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          153,
+          290,
+          359,
+          480
+        ],
+        [
+          80,
+          180,
+          431,
+          480
+        ],
+        [
+          26,
+          60,
+          485,
+          480
+        ]
+      ]
+    },
+    "celery": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/celery/item_celery_stages.png",
+      "outputs": {
+        "spring": "Vegetables/celery/item_celery_stages_spring.png",
+        "summer": "Vegetables/celery/item_celery_stages_summer.png",
+        "autumn": "Vegetables/celery/item_celery_stages_autumn.png",
+        "winter": "Vegetables/celery/item_celery_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          166,
+          290,
+          347,
+          480
+        ],
+        [
+          101,
+          175,
+          411,
+          480
+        ],
+        [
+          100,
+          60,
+          412,
+          480
+        ]
+      ]
+    },
+    "chineseCabbage": {
+      "configuredSeasons": [
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/chineseCabbage/item_chineseCabbage_stages.png",
+      "outputs": {
+        "spring": "Vegetables/chineseCabbage/item_chineseCabbage_stages_spring.png",
+        "summer": "Vegetables/chineseCabbage/item_chineseCabbage_stages_summer.png",
+        "autumn": "Vegetables/chineseCabbage/item_chineseCabbage_stages_autumn.png",
+        "winter": "Vegetables/chineseCabbage/item_chineseCabbage_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          120,
+          290,
+          392,
+          480
+        ],
+        [
+          112,
+          170,
+          399,
+          480
+        ],
+        [
+          96,
+          56,
+          416,
+          480
+        ]
+      ]
+    },
+    "corn": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/corn/item_corn_stages.png",
+      "outputs": {
+        "spring": "Vegetables/corn/item_corn_stages_spring.png",
+        "summer": "Vegetables/corn/item_corn_stages_summer.png",
+        "autumn": "Vegetables/corn/item_corn_stages_autumn.png",
+        "winter": "Vegetables/corn/item_corn_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          189,
+          290,
+          328,
+          480
+        ],
+        [
+          160,
+          180,
+          348,
+          480
+        ],
+        [
+          123,
+          60,
+          389,
+          480
+        ]
+      ]
+    },
+    "cucumber": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/cucumber/item_cucumber_stages.png",
+      "outputs": {
+        "spring": "Vegetables/cucumber/item_cucumber_stages_spring.png",
+        "summer": "Vegetables/cucumber/item_cucumber_stages_summer.png",
+        "autumn": "Vegetables/cucumber/item_cucumber_stages_autumn.png",
+        "winter": "Vegetables/cucumber/item_cucumber_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          124,
+          290,
+          388,
+          480
+        ],
+        [
+          56,
+          196,
+          456,
+          480
+        ],
+        [
+          21,
+          94,
+          491,
+          480
+        ]
+      ]
+    },
+    "eggplant": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/eggplant/item_eggplant_stages.png",
+      "outputs": {
+        "spring": "Vegetables/eggplant/item_eggplant_stages_spring.png",
+        "summer": "Vegetables/eggplant/item_eggplant_stages_summer.png",
+        "autumn": "Vegetables/eggplant/item_eggplant_stages_autumn.png",
+        "winter": "Vegetables/eggplant/item_eggplant_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          166,
+          290,
+          347,
+          480
+        ],
+        [
+          127,
+          180,
+          385,
+          480
+        ],
+        [
+          65,
+          60,
+          447,
+          480
+        ]
+      ]
+    },
+    "fennel": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/fennel/item_fennel_stages.png",
+      "outputs": {
+        "spring": "Vegetables/fennel/item_fennel_stages_spring.png",
+        "summer": "Vegetables/fennel/item_fennel_stages_summer.png",
+        "autumn": "Vegetables/fennel/item_fennel_stages_autumn.png",
+        "winter": "Vegetables/fennel/item_fennel_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          168,
+          290,
+          343,
+          480
+        ],
+        [
+          146,
+          180,
+          366,
+          480
+        ],
+        [
+          78,
+          60,
+          435,
+          480
+        ]
+      ]
+    },
+    "garlic": {
+      "configuredSeasons": [
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/garlic/item_garlic_stages.png",
+      "outputs": {
+        "spring": "Vegetables/garlic/item_garlic_stages_spring.png",
+        "summer": "Vegetables/garlic/item_garlic_stages_summer.png",
+        "autumn": "Vegetables/garlic/item_garlic_stages_autumn.png",
+        "winter": "Vegetables/garlic/item_garlic_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          172,
+          290,
+          340,
+          480
+        ],
+        [
+          136,
+          160,
+          376,
+          480
+        ],
+        [
+          110,
+          136,
+          402,
+          480
+        ]
+      ]
+    },
+    "ginger": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/ginger/item_ginger_stages.png",
+      "outputs": {
+        "spring": "Vegetables/ginger/item_ginger_stages_spring.png",
+        "summer": "Vegetables/ginger/item_ginger_stages_summer.png",
+        "autumn": "Vegetables/ginger/item_ginger_stages_autumn.png",
+        "winter": "Vegetables/ginger/item_ginger_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          176,
+          290,
+          335,
+          480
+        ],
+        [
+          138,
+          160,
+          375,
+          480
+        ],
+        [
+          90,
+          60,
+          421,
+          480
+        ]
+      ]
+    },
+    "kale": {
+      "configuredSeasons": [
+        "spring",
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/kale/item_kale_stages.png",
+      "outputs": {
+        "spring": "Vegetables/kale/item_kale_stages_spring.png",
+        "summer": "Vegetables/kale/item_kale_stages_summer.png",
+        "autumn": "Vegetables/kale/item_kale_stages_autumn.png",
+        "winter": "Vegetables/kale/item_kale_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          135,
+          290,
+          377,
+          480
+        ],
+        [
+          96,
+          238,
+          416,
+          480
+        ],
+        [
+          81,
+          104,
+          431,
+          480
+        ]
+      ]
+    },
+    "leek": {
+      "configuredSeasons": [
+        "spring",
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/leek/item_leek_stages.png",
+      "outputs": {
+        "spring": "Vegetables/leek/item_leek_stages_spring.png",
+        "summer": "Vegetables/leek/item_leek_stages_summer.png",
+        "autumn": "Vegetables/leek/item_leek_stages_autumn.png",
+        "winter": "Vegetables/leek/item_leek_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          162,
+          290,
+          351,
+          480
+        ],
+        [
+          129,
+          160,
+          383,
+          480
+        ],
+        [
+          114,
+          60,
+          397,
+          480
+        ]
+      ]
+    },
+    "lettuce": {
+      "configuredSeasons": [
+        "spring",
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/lettuce/item_lettuce_stages.png",
+      "outputs": {
+        "spring": "Vegetables/lettuce/item_lettuce_stages_spring.png",
+        "summer": "Vegetables/lettuce/item_lettuce_stages_summer.png",
+        "autumn": "Vegetables/lettuce/item_lettuce_stages_autumn.png",
+        "winter": "Vegetables/lettuce/item_lettuce_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          166,
+          290,
+          347,
+          480
+        ],
+        [
+          174,
+          180,
+          338,
+          480
+        ],
+        [
+          110,
+          60,
+          402,
+          480
+        ]
+      ]
+    },
+    "okra": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/okra/item_okra_stages.png",
+      "outputs": {
+        "spring": "Vegetables/okra/item_okra_stages_spring.png",
+        "summer": "Vegetables/okra/item_okra_stages_summer.png",
+        "autumn": "Vegetables/okra/item_okra_stages_autumn.png",
+        "winter": "Vegetables/okra/item_okra_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          120,
+          290,
+          393,
+          480
+        ],
+        [
+          116,
+          180,
+          397,
+          480
+        ],
+        [
+          67,
+          60,
+          444,
+          480
+        ]
+      ]
+    },
+    "pea": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/pea/item_pea_stages.png",
+      "outputs": {
+        "spring": "Vegetables/pea/item_pea_stages_spring.png",
+        "summer": "Vegetables/pea/item_pea_stages_summer.png",
+        "autumn": "Vegetables/pea/item_pea_stages_autumn.png",
+        "winter": "Vegetables/pea/item_pea_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          133,
+          290,
+          379,
+          480
+        ],
+        [
+          124,
+          180,
+          388,
+          480
+        ],
+        [
+          102,
+          60,
+          410,
+          480
+        ]
+      ]
+    },
+    "peanut": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/peanut/item_peanut_stages.png",
+      "outputs": {
+        "spring": "Vegetables/peanut/item_peanut_stages_spring.png",
+        "summer": "Vegetables/peanut/item_peanut_stages_summer.png",
+        "autumn": "Vegetables/peanut/item_peanut_stages_autumn.png",
+        "winter": "Vegetables/peanut/item_peanut_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          116,
+          301,
+          397,
+          480
+        ],
+        [
+          118,
+          176,
+          395,
+          480
+        ],
+        [
+          41,
+          144,
+          471,
+          480
+        ]
+      ]
+    },
+    "potato": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/potato/item_potato_stages.png",
+      "outputs": {
+        "spring": "Vegetables/potato/item_potato_stages_spring.png",
+        "summer": "Vegetables/potato/item_potato_stages_summer.png",
+        "autumn": "Vegetables/potato/item_potato_stages_autumn.png",
+        "winter": "Vegetables/potato/item_potato_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          136,
+          290,
+          375,
+          480
+        ],
+        [
+          102,
+          180,
+          409,
+          480
+        ],
+        [
+          68,
+          60,
+          445,
+          480
+        ]
+      ]
+    },
+    "pumpkin": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/pumpkin/item_pumpkin_stages.png",
+      "outputs": {
+        "spring": "Vegetables/pumpkin/item_pumpkin_stages_spring.png",
+        "summer": "Vegetables/pumpkin/item_pumpkin_stages_summer.png",
+        "autumn": "Vegetables/pumpkin/item_pumpkin_stages_autumn.png",
+        "winter": "Vegetables/pumpkin/item_pumpkin_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          46,
+          290,
+          467,
+          480
+        ],
+        [
+          56,
+          232,
+          456,
+          480
+        ],
+        [
+          22,
+          94,
+          489,
+          480
+        ]
+      ]
+    },
+    "rhubarb": {
+      "configuredSeasons": [
+        "spring"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/rhubarb/item_rhubarb_stages.png",
+      "outputs": {
+        "spring": "Vegetables/rhubarb/item_rhubarb_stages_spring.png",
+        "summer": "Vegetables/rhubarb/item_rhubarb_stages_summer.png",
+        "autumn": "Vegetables/rhubarb/item_rhubarb_stages_autumn.png",
+        "winter": "Vegetables/rhubarb/item_rhubarb_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          140,
+          290,
+          372,
+          480
+        ],
+        [
+          96,
+          180,
+          415,
+          480
+        ],
+        [
+          40,
+          60,
+          472,
+          480
+        ]
+      ]
+    },
+    "spinach": {
+      "configuredSeasons": [
+        "spring",
+        "autumn",
+        "winter"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/spinach/item_spinach_stages.png",
+      "outputs": {
+        "spring": "Vegetables/spinach/item_spinach_stages_spring.png",
+        "summer": "Vegetables/spinach/item_spinach_stages_summer.png",
+        "autumn": "Vegetables/spinach/item_spinach_stages_autumn.png",
+        "winter": "Vegetables/spinach/item_spinach_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          133,
+          290,
+          379,
+          480
+        ],
+        [
+          86,
+          180,
+          427,
+          480
+        ],
+        [
+          24,
+          60,
+          488,
+          480
+        ]
+      ]
+    },
+    "sweetPepper": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/sweetPepper/item_sweetPepper_stages.png",
+      "outputs": {
+        "spring": "Vegetables/sweetPepper/item_sweetPepper_stages_spring.png",
+        "summer": "Vegetables/sweetPepper/item_sweetPepper_stages_summer.png",
+        "autumn": "Vegetables/sweetPepper/item_sweetPepper_stages_autumn.png",
+        "winter": "Vegetables/sweetPepper/item_sweetPepper_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          160,
+          290,
+          353,
+          480
+        ],
+        [
+          102,
+          180,
+          411,
+          480
+        ],
+        [
+          61,
+          60,
+          451,
+          480
+        ]
+      ]
+    },
+    "sweetPotato": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/sweetPotato/item_sweetPotato_stages.png",
+      "outputs": {
+        "spring": "Vegetables/sweetPotato/item_sweetPotato_stages_spring.png",
+        "summer": "Vegetables/sweetPotato/item_sweetPotato_stages_summer.png",
+        "autumn": "Vegetables/sweetPotato/item_sweetPotato_stages_autumn.png",
+        "winter": "Vegetables/sweetPotato/item_sweetPotato_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          114,
+          290,
+          399,
+          480
+        ],
+        [
+          57,
+          180,
+          455,
+          480
+        ],
+        [
+          81,
+          124,
+          431,
+          480
+        ]
+      ]
+    },
+    "tomato": {
+      "configuredSeasons": [
+        "spring",
+        "summer"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/tomato/item_tomato_stages.png",
+      "outputs": {
+        "spring": "Vegetables/tomato/item_tomato_stages_spring.png",
+        "summer": "Vegetables/tomato/item_tomato_stages_summer.png",
+        "autumn": "Vegetables/tomato/item_tomato_stages_autumn.png",
+        "winter": "Vegetables/tomato/item_tomato_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          120,
+          290,
+          411,
+          480
+        ],
+        [
+          140,
+          180,
+          358,
+          480
+        ],
+        [
+          51,
+          80,
+          454,
+          480
+        ]
+      ]
+    },
+    "turnip": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/turnip/item_turnip_stages.png",
+      "outputs": {
+        "spring": "Vegetables/turnip/item_turnip_stages_spring.png",
+        "summer": "Vegetables/turnip/item_turnip_stages_summer.png",
+        "autumn": "Vegetables/turnip/item_turnip_stages_autumn.png",
+        "winter": "Vegetables/turnip/item_turnip_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          158,
+          290,
+          354,
+          480
+        ],
+        [
+          91,
+          253,
+          421,
+          480
+        ],
+        [
+          76,
+          115,
+          436,
+          480
+        ]
+      ]
+    },
+    "wheat": {
+      "configuredSeasons": [
+        "spring",
+        "autumn"
+      ],
+      "variants": [
+        "spring",
+        "summer",
+        "autumn",
+        "winter"
+      ],
+      "source": "Vegetables/wheat/item_wheat_stages.png",
+      "outputs": {
+        "spring": "Vegetables/wheat/item_wheat_stages_spring.png",
+        "summer": "Vegetables/wheat/item_wheat_stages_summer.png",
+        "autumn": "Vegetables/wheat/item_wheat_stages_autumn.png",
+        "winter": "Vegetables/wheat/item_wheat_stages_winter.png"
+      },
+      "stageAlphaBounds": [
+        [
+          182,
+          290,
+          329,
+          480
+        ],
+        [
+          126,
+          180,
+          386,
+          480
+        ],
+        [
+          102,
+          60,
+          409,
+          480
+        ]
+      ]
+    }
+  }
+}
